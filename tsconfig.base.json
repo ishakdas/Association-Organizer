@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "lib": ["ES2022"],
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "resolveJsonModule": true,
+    "baseUrl": ".",
+    "paths": {
+      "@ticketbot/shared-types": ["libs/shared-types/src/index.ts"],
+      "@ticketbot/shared-validation": ["libs/shared-validation/src/index.ts"],
+      "@ticketbot/database": ["libs/database/src/index.ts"],
+      "@ticketbot/core": ["libs/core/src/index.ts"],
+      "@ticketbot/ai": ["libs/ai/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "dist"]
+}

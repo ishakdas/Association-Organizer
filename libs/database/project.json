@@ -1,0 +1,36 @@
+{
+  "name": "database",
+  "sourceRoot": "libs/database/src",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run build",
+        "cwd": "libs/database"
+      }
+    },
+    "lint": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm run lint",
+        "cwd": "libs/database"
+      }
+    },
+    "prisma:generate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm prisma generate",
+        "cwd": "libs/database"
+      },
+      "cache": false
+    },
+    "prisma:migrate": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm prisma migrate dev",
+        "cwd": "libs/database"
+      },
+      "cache": false
+    }
+  }
+}

@@ -1,0 +1,295 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// Enums
+// -----------------------------------------------------------------------------
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  MEMBER
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING
+  RESOLVED
+  CLOSED
+  REOPENED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// -----------------------------------------------------------------------------
+// Organisation
+// -----------------------------------------------------------------------------
+
+model Organisation {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships      Membership[]
+  tickets          Ticket[]
+  meetingNotes     MeetingNote[]
+  auditLogs        AuditLog[]
+  notificationLogs NotificationLog[]
+
+  @@map("organisations")
+}
+
+// -----------------------------------------------------------------------------
+// User & Auth
+// -----------------------------------------------------------------------------
+
+model User {
+  id         String  @id @default(cuid())
+  email      String  @unique
+  name       String?
+  avatarUrl  String?
+  supabaseId String  @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships               Membership[]
+  telegramAccount           TelegramAccount?
+  assignedTickets           Ticket[]                   @relation("assignee")
+  createdTickets            Ticket[]                   @relation("creator")
+  ticketComments            TicketComment[]
+  deadlineExtensionRequests DeadlineExtensionRequest[]
+  auditLogs                 AuditLog[]
+
+  @@map("users")
+}
+
+model Membership {
+  id             String   @id @default(cuid())
+  role           Role     @default(MEMBER)
+  organisationId String
+  userId         String
+  createdAt      DateTime @default(now())
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organisationId, userId])
+  @@index([organisationId])
+  @@index([userId])
+  @@map("memberships")
+}
+
+model TelegramAccount {
+  id         String  @id @default(cuid())
+  telegramId BigInt  @unique
+  username   String?
+  firstName  String?
+  userId     String  @unique
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("telegram_accounts")
+}
+
+model TelegramLinkToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+  @@map("telegram_link_tokens")
+}
+
+// -----------------------------------------------------------------------------
+// Tickets
+// -----------------------------------------------------------------------------
+
+model Ticket {
+  id             String         @id @default(cuid())
+  title          String
+  description    String?
+  status         TicketStatus   @default(OPEN)
+  priority       TicketPriority @default(MEDIUM)
+  organisationId String
+  creatorId      String
+  assigneeId     String?
+  dueDate        DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  organisation      Organisation               @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  creator           User                       @relation("creator", fields: [creatorId], references: [id])
+  assignee          User?                      @relation("assignee", fields: [assigneeId], references: [id])
+  comments          TicketComment[]
+  statusHistory     TicketStatusHistory[]
+  extensionRequests DeadlineExtensionRequest[]
+
+  @@index([organisationId])
+  @@index([organisationId, status])
+  @@index([organisationId, status, dueDate])
+  @@index([assigneeId, status])
+  @@index([creatorId])
+  @@index([deletedAt])
+  @@map("tickets")
+}
+
+model TicketComment {
+  id       String @id @default(cuid())
+  content  String
+  ticketId String
+  authorId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author User   @relation(fields: [authorId], references: [id])
+
+  @@index([ticketId])
+  @@index([authorId])
+  @@map("ticket_comments")
+}
+
+model TicketStatusHistory {
+  id         String        @id @default(cuid())
+  ticketId   String
+  fromStatus TicketStatus?
+  toStatus   TicketStatus
+
+  changedAt DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@map("ticket_status_history")
+}
+
+// -----------------------------------------------------------------------------
+// Deadline Extensions
+// -----------------------------------------------------------------------------
+
+model DeadlineExtensionRequest {
+  id                String    @id @default(cuid())
+  ticketId          String
+  requesterId       String
+  currentDeadline   DateTime
+  requestedDeadline DateTime
+  reason            String
+  approved          Boolean?
+  resolvedAt        DateTime?
+
+  createdAt DateTime @default(now())
+
+  ticket    Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  requester User   @relation(fields: [requesterId], references: [id])
+
+  @@index([ticketId])
+  @@index([requesterId])
+  @@map("deadline_extension_requests")
+}
+
+// -----------------------------------------------------------------------------
+// Meeting Notes & AI Extraction
+// -----------------------------------------------------------------------------
+
+model MeetingNote {
+  id             String    @id @default(cuid())
+  title          String
+  content        String
+  organisationId String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  organisation         Organisation        @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  extractedActionItems ExtractedActionItem[]
+
+  @@index([organisationId])
+  @@index([deletedAt])
+  @@map("meeting_notes")
+}
+
+model ExtractedActionItem {
+  id            String  @id @default(cuid())
+  meetingNoteId String
+  content       String
+  assigneeName  String?
+  ticketId      String?
+
+  createdAt DateTime @default(now())
+
+  meetingNote MeetingNote @relation(fields: [meetingNoteId], references: [id], onDelete: Cascade)
+
+  @@index([meetingNoteId])
+  @@map("extracted_action_items")
+}
+
+// -----------------------------------------------------------------------------
+// Audit & Notifications
+// -----------------------------------------------------------------------------
+
+model AuditLog {
+  id             String  @id @default(cuid())
+  action         String
+  entityType     String
+  entityId       String
+  userId         String?
+  organisationId String
+  metadata       Json?
+
+  createdAt DateTime @default(now())
+
+  user         User?        @relation(fields: [userId], references: [id])
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([organisationId, createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@map("audit_logs")
+}
+
+model NotificationLog {
+  id             String    @id @default(cuid())
+  channel        String
+  recipientId    String
+  organisationId String
+  subject        String
+  body           String
+  sentAt         DateTime  @default(now())
+  deliveredAt    DateTime?
+  failedAt       DateTime?
+  errorMessage   String?
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId])
+  @@index([recipientId])
+  @@map("notification_logs")
+}
