@@ -8,8 +8,13 @@
     "test": "jest --passWithNoTests",
     "lint": "eslint src/"
   },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
     "telegraf": "^4.16.0",
+    "reflect-metadata": "^0.2.0",
     "@ticketbot/database": "workspace:*",
     "@ticketbot/shared-types": "workspace:*",
     "@ticketbot/core": "workspace:*"

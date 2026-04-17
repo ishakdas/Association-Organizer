@@ -10,12 +10,16 @@
     "lint": "eslint src/"
   },
   "dependencies": {
+    "@nestjs/common": "^11.0.0",
     "openai": "^4.70.0",
+    "reflect-metadata": "^0.2.0",
     "zod": "^3.24.0",
     "zod-to-json-schema": "^3.24.0",
     "@ticketbot/shared-validation": "workspace:*"
   },
   "devDependencies": {
+    "@nestjs/testing": "^11.0.0",
+    "@types/node": "^20.0.0",
     "typescript": "^5.7.0",
     "jest": "^29.0.0",
     "ts-jest": "^29.0.0",

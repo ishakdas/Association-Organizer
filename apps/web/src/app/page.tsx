@@ -1,4 +1,5 @@
-// TODO: Landing page or redirect to /tickets (Stage 7)
+import { redirect } from 'next/navigation';
+
 export default function Home() {
-  return <h1>TicketBot</h1>;
+  redirect('/tickets');
 }

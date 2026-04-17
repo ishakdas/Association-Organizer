@@ -1,4 +1,10 @@
-// TODO: Root layout with providers, fonts, metadata (Stage 7)
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'TicketBot — Dashboard',
+  description: 'Manage your organisation tickets',
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">

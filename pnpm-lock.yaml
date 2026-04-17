@@ -59,6 +59,9 @@ importers:
       '@ticketbot/shared-validation':
         specifier: workspace:*
         version: link:../../libs/shared-validation
+      bot:
+        specifier: workspace:*
+        version: link:../bot
       bullmq:
         specifier: ^5.0.0
         version: 5.74.1
@@ -74,6 +77,9 @@ importers:
       rxjs:
         specifier: ^7.8.0
         version: 7.8.2
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
     devDependencies:
       '@nestjs/testing':
         specifier: ^11.0.0
@@ -102,6 +108,12 @@ importers:
 
   apps/bot:
     dependencies:
+      '@nestjs/common':
+        specifier: ^11.0.0
+        version: 11.1.19(reflect-metadata@0.2.2)(rxjs@7.8.2)
+      '@nestjs/config':
+        specifier: ^4.0.0
+        version: 4.0.4(@nestjs/common@11.1.19(reflect-metadata@0.2.2)(rxjs@7.8.2))(rxjs@7.8.2)
       '@ticketbot/core':
         specifier: workspace:*
         version: link:../../libs/core
@@ -111,6 +123,9 @@ importers:
       '@ticketbot/shared-types':
         specifier: workspace:*
         version: link:../../libs/shared-types
+      reflect-metadata:
+        specifier: ^0.2.0
+        version: 0.2.2
       telegraf:
         specifier: ^4.16.0
         version: 4.16.3
@@ -179,12 +194,18 @@ importers:
 
   libs/ai:
     dependencies:
+      '@nestjs/common':
+        specifier: ^11.0.0
+        version: 11.1.19(reflect-metadata@0.2.2)(rxjs@7.8.2)
       '@ticketbot/shared-validation':
         specifier: workspace:*
         version: link:../shared-validation
       openai:
         specifier: ^4.70.0
         version: 4.104.0(ws@8.20.0)(zod@3.25.76)
+      reflect-metadata:
+        specifier: ^0.2.0
+        version: 0.2.2
       zod:
         specifier: ^3.24.0
         version: 3.25.76
@@ -192,9 +213,15 @@ importers:
         specifier: ^3.24.0
         version: 3.25.2(zod@3.25.76)
     devDependencies:
+      '@nestjs/testing':
+        specifier: ^11.0.0
+        version: 11.1.19(@nestjs/common@11.1.19(reflect-metadata@0.2.2)(rxjs@7.8.2))(@nestjs/core@11.1.19(@nestjs/common@11.1.19(reflect-metadata@0.2.2)(rxjs@7.8.2))(reflect-metadata@0.2.2)(rxjs@7.8.2))
       '@types/jest':
         specifier: ^29.0.0
         version: 29.5.14
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.39
       jest:
         specifier: ^29.0.0
         version: 29.7.0(@types/node@20.19.39)(ts-node@10.9.2(@types/node@20.19.39)(typescript@5.9.3))

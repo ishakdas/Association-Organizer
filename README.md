@@ -13,6 +13,11 @@ docker compose up -d
 # Install dependencies
 pnpm install
 
+# Copy environment files
+cp libs/database/.env.example libs/database/.env
+cp apps/api/.env.example apps/api/.env
+cp apps/web/.env.example apps/web/.env
+
 # Generate Prisma client and run migrations
 pnpm db:generate
 pnpm db:migrate
@@ -29,15 +34,18 @@ pnpm dev
 ```
 apps/
   api/          NestJS API (Fastify) — port 3000
-  bot/          Telegraf bot (webhook, runs inside API)
+  bot/          Telegraf bot (webhook, runs inside API process)
   web/          Next.js 15 dashboard — port 3001
 
 libs/
-  database/         Prisma schema, client, migrations
-  shared-types/     Domain TypeScript interfaces
+  database/          Prisma schema, client, migrations, seed
+  shared-types/      Domain TypeScript interfaces and enums
   shared-validation/ Zod schemas shared across apps
-  core/             Shared business logic and utilities
-  ai/               AI provider abstraction (OpenAI)
+  core/              Shared business logic and utilities
+  ai/                AI provider abstraction (OpenAI)
+
+docs/
+  ADR-001-foundations.md   Architecture decision record
 ```
 
 ## Common Commands
@@ -48,8 +56,55 @@ libs/
 | `pnpm build` | Build all packages |
 | `pnpm test` | Run all tests |
 | `pnpm lint` | Lint all packages |
+| `pnpm db:generate` | Generate Prisma client |
 | `pnpm db:migrate` | Run Prisma migrations |
 | `pnpm db:seed` | Seed the database |
 | `pnpm db:studio` | Open Prisma Studio |
 
-See `docs/ADR-001-foundations.md` for architecture decisions.
+## What's Implemented vs Stubbed
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| **Prisma schema** | Implemented | 14 models, 3 enums, all indexes, soft delete |
+| **Seed data** | Implemented | 1 org, 4 users, 3 tickets, comments, audit logs |
+| **Shared types** | Implemented | All domain DTOs and enums |
+| **Shared validation** | Implemented | Zod schemas for all CRUD operations |
+| **API bootstrap** | Implemented | NestJS + Fastify, CORS, global prefix, RFC 7807 errors |
+| **Auth (API)** | Implemented | Supabase JWT + HS256 bot tokens via `jose` |
+| **Tenant guard** | Implemented | `x-organisation-id` header, membership verification |
+| **Roles guard** | Implemented | Hierarchical: MEMBER < MANAGER < ADMIN < SUPER_ADMIN |
+| **Tickets CRUD** | Implemented | POST/GET/GET:id/PATCH/DELETE, soft delete, status history |
+| **Telegram link tokens** | Implemented | Generate + redeem via API |
+| **Bot /start** | Implemented | Welcome message with linking instructions |
+| **Bot /link** | Implemented | Token redemption, TelegramAccount creation |
+| **Bot reminder handler** | Implemented | Inline keyboard: Done / Request Extension / Dismiss |
+| **Web login** | Implemented | Supabase Auth, email + password |
+| **Web /tickets** | Implemented | Server component, fetches from API |
+| **Web auth middleware** | Implemented | Redirects unauthenticated users |
+| **AI provider interface** | Implemented | `AiProvider` with `generateStructured<T>()` |
+| **OpenAI provider** | Implemented | Structured outputs, Zod validation, 1-retry fallback |
+| **AI test** | Implemented | FakeAiProvider, 3 passing tests |
+| **Comments module** | Stubbed | TODO: CRUD endpoints |
+| **Organisations module** | Stubbed | TODO: CRUD + member management |
+| **Users module** | Stubbed | TODO: profile endpoints |
+| **Meeting notes module** | Stubbed | TODO: CRUD + AI extraction trigger |
+| **Extensions module** | Stubbed | TODO: request/approve/reject |
+| **Notifications module** | Stubbed | TODO: Telegram/email/web push |
+| **Jobs (BullMQ)** | Stubbed | TODO: reminder + extension SLA queues |
+| **Web ticket detail** | Stubbed | TODO: detail view, comments, status change |
+| **Web create ticket** | Stubbed | TODO: form with Zod validation |
+| **Web meeting notes** | Stubbed | TODO: list + AI extraction UI |
+| **Web telegram settings** | Stubbed | TODO: link/unlink Telegram |
+| **Web organisation** | Stubbed | TODO: members, roles |
+
+## Architecture
+
+See `docs/ADR-001-foundations.md` for full architecture decisions.
+
+Key points:
+- **Monorepo**: pnpm workspaces + Nx (package-based mode)
+- **Bot runs inside the API** process via webhook at `/telegram/webhook`
+- **Auth dual-mode**: Supabase JWKS for web, HS256 for bot sessions
+- **Multi-tenancy**: Row-level via `organisationId`, enforced by `TenantGuard`
+- **AI**: Swappable provider interface, OpenAI structured outputs with Zod validation
+- **Deploy target**: Railway (API + Redis), Vercel (Web), Supabase (Postgres)
