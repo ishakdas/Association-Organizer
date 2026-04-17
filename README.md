@@ -97,14 +97,26 @@ docs/
 | **Web telegram settings** | Stubbed | TODO: link/unlink Telegram |
 | **Web organisation** | Stubbed | TODO: members, roles |
 
-## Architecture
+## Documentation
 
-See `docs/ADR-001-foundations.md` for full architecture decisions.
+| Document | Description |
+|----------|-------------|
+| [Architecture](docs/ARCHITECTURE.md) | System diagrams, data flows, design decisions, security model |
+| [Development Guide](docs/DEVELOPMENT.md) | Setup, workflow, debugging, project layout |
+| [Deployment Guide](docs/DEPLOYMENT.md) | Railway, Vercel, Supabase setup, production checklist |
+| [API Reference](docs/API-REFERENCE.md) | All endpoints, request/response formats, auth details |
+| [Database Schema](docs/DATABASE.md) | ER diagram, all 14 models, enums, indexes, seed data |
+| [Testing Guide](docs/TESTING.md) | Test strategy, running tests, writing new tests |
+| [ADR-001](docs/ADR-001-foundations.md) | Architecture decision record — all locked + unspecified decisions |
+
+## Architecture
 
 Key points:
 - **Monorepo**: pnpm workspaces + Nx (package-based mode)
 - **Bot runs inside the API** process via webhook at `/telegram/webhook`
-- **Auth dual-mode**: Supabase JWKS for web, HS256 for bot sessions
+- **Auth dual-mode**: Supabase JWT for web, HS256 for bot sessions
 - **Multi-tenancy**: Row-level via `organisationId`, enforced by `TenantGuard`
 - **AI**: Swappable provider interface, OpenAI structured outputs with Zod validation
 - **Deploy target**: Railway (API + Redis), Vercel (Web), Supabase (Postgres)
+
+See [Architecture](docs/ARCHITECTURE.md) for full system diagrams and data flow examples.
