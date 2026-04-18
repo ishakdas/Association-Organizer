@@ -65,7 +65,7 @@ Every tenant-scoped table has an `organisationId` column. Tenancy is enforced by
 1. **TenantGuard** — reads `x-organisation-id` header, verifies the user's Membership
 2. **Service layer** — all queries include `WHERE organisationId = ?`
 
-No PostgreSQL Row-Level Security (RLS) in v1. This is a deliberate simplification. RLS can be added later as defense-in-depth without changing the application code.
+No PostgreSQL Row-Level Security (RLS) in v1. This is a deliberate simplification. RLS can be added later as defense-in-depth without changing the application code. See [#22](https://github.com/ishakdas/Association-Organizer/issues/22).
 
 ### Shared Validation with Zod
 
@@ -129,14 +129,14 @@ The provider is injected via NestJS DI using the `AI_PROVIDER` symbol. To swap p
 6. Bot replies "Account linked successfully!"
 ```
 
-### Ticket Reminder (Future — BullMQ)
+### Ticket Reminder (Future — BullMQ) ([#7](https://github.com/ishakdas/Association-Organizer/issues/7))
 
 ```
 1. BullMQ cron job scans tickets with dueDate approaching
 2. For each ticket, finds assignee's TelegramAccount
 3. Sends Telegram message with inline keyboard via BotService
 4. User taps "Done" → callback query handler updates ticket status
-5. User taps "Request Extension" → (TODO) starts extension flow
+5. User taps "Request Extension" → starts extension flow (#14)
 ```
 
 ## Package Dependency Graph
@@ -188,8 +188,13 @@ The web app intentionally does NOT depend on `libs/database` — it accesses dat
 - AuditLog tracks who did what and when
 - No sensitive data (passwords, secrets) stored in the application database — auth is delegated to Supabase
 
-### What's NOT in v1
-- Rate limiting (add via Fastify plugin or API gateway)
+### What's NOT in v1 (Tracked Issues)
+- Rate limiting — [#20](https://github.com/ishakdas/Association-Organizer/issues/20)
+- Telegram webhook secret validation — [#21](https://github.com/ishakdas/Association-Organizer/issues/21)
+- Postgres RLS (defense-in-depth) — [#22](https://github.com/ishakdas/Association-Organizer/issues/22)
+- Token revocation / logout — [#23](https://github.com/ishakdas/Association-Organizer/issues/23)
+- GDPR compliance — [#58](https://github.com/ishakdas/Association-Organizer/issues/58)
 - CSRF protection (not needed — API uses Bearer tokens, not cookies)
 - Input sanitization for XSS (handled by React's default escaping)
-- Postgres RLS (defense-in-depth — add after v1)
+
+See [Roadmap](ROADMAP.md) for the full list of 62 tracked issues across all phases.

@@ -174,22 +174,41 @@ curl -X POST "https://api.telegram.org/bot<BOT_TOKEN>/setWebhook" \
 - [ ] `SUPABASE_JWT_SECRET` matches the Supabase project's JWT secret
 - [ ] No `.env` files committed to git (check `.gitignore`)
 - [ ] API CORS origin is set to the exact Vercel domain
-- [ ] Supabase RLS policies are considered for future hardening (not in v1)
+- [ ] API rate limiting configured ([#20](https://github.com/ishakdas/Association-Organizer/issues/20))
+- [ ] Telegram webhook secret token enabled ([#21](https://github.com/ishakdas/Association-Organizer/issues/21))
+- [ ] Postgres RLS policies applied ([#22](https://github.com/ishakdas/Association-Organizer/issues/22))
+- [ ] Bot token revocation mechanism in place ([#23](https://github.com/ishakdas/Association-Organizer/issues/23))
+- [ ] GDPR compliance: privacy policy, data export, deletion ([#58](https://github.com/ishakdas/Association-Organizer/issues/58))
 
 ### Database
 - [ ] All migrations are applied (`prisma migrate deploy`)
-- [ ] Connection pooling is enabled in Supabase (use Transaction pooler URL)
+- [ ] Connection pooling configured — use Supabase Transaction pooler URL ([#48](https://github.com/ishakdas/Association-Organizer/issues/48))
+- [ ] `DIRECT_DATABASE_URL` set for migrations (direct connection, not pooled)
 - [ ] Seed data is NOT applied in production (only in dev)
+- [ ] Backup strategy verified ([#42](https://github.com/ishakdas/Association-Organizer/issues/42))
+- [ ] Data retention policy for audit/notification logs ([#57](https://github.com/ishakdas/Association-Organizer/issues/57))
 
 ### Monitoring
+- [ ] Error tracking configured (Sentry or similar) ([#41](https://github.com/ishakdas/Association-Organizer/issues/41))
 - [ ] Railway logs are accessible (JSON format via pino)
 - [ ] Vercel deployment logs are monitored
 - [ ] Supabase dashboard shows active connections
+- [ ] Redis memory and queue depth monitored ([#49](https://github.com/ishakdas/Association-Organizer/issues/49))
 
 ### Performance
-- [ ] Redis is provisioned with enough memory for BullMQ jobs
+- [ ] Load testing completed with baselines established ([#46](https://github.com/ishakdas/Association-Organizer/issues/46))
+- [ ] Redis memory limits and BullMQ retention configured ([#49](https://github.com/ishakdas/Association-Organizer/issues/49))
 - [ ] PostgreSQL has adequate compute for expected load
 - [ ] Next.js static pages are cached by Vercel CDN
+
+### CI/CD
+- [ ] GitHub Actions pipeline passing ([#28](https://github.com/ishakdas/Association-Organizer/issues/28))
+- [ ] Dockerfiles built and tested ([#29](https://github.com/ishakdas/Association-Organizer/issues/29))
+- [ ] Dependency update automation configured ([#59](https://github.com/ishakdas/Association-Organizer/issues/59))
+
+### Cross-Browser
+- [ ] Supabase SSR cookies tested in Safari, Chrome, Firefox ([#50](https://github.com/ishakdas/Association-Organizer/issues/50))
+- [ ] Auth flow works in incognito/private mode
 
 ## Environment Variables Reference
 

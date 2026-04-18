@@ -130,11 +130,22 @@ moduleNameMapper: {
 }
 ```
 
+## Missing Tests (Tracked Issues)
+
+The v1 spec requires "one happy-path integration test per app." Currently missing:
+
+- **Bot app** — no tests ([#15](https://github.com/ishakdas/Association-Organizer/issues/15))
+- **Web app** — no tests ([#16](https://github.com/ishakdas/Association-Organizer/issues/16))
+
 ## Future Test Expansion
 
 When implementing stubbed modules, each should have at least one integration test covering the happy path. Prioritise:
 
-1. **Ticket comments** — CRUD through the API
-2. **Meeting notes + AI extraction** — create note, trigger extraction, verify results
-3. **Deadline extensions** — request, approve/reject flow
-4. **Organisation management** — create org, invite member, role changes
+1. **Ticket comments** — CRUD through the API ([#1](https://github.com/ishakdas/Association-Organizer/issues/1))
+2. **Meeting notes + AI extraction** — create note, trigger extraction, verify results ([#4](https://github.com/ishakdas/Association-Organizer/issues/4))
+3. **Deadline extensions** — request, approve/reject flow ([#5](https://github.com/ishakdas/Association-Organizer/issues/5))
+4. **Organisation management** — create org, invite member, role changes ([#2](https://github.com/ishakdas/Association-Organizer/issues/2))
+
+## Load Testing
+
+Performance baselines should be established before production launch. See [#46](https://github.com/ishakdas/Association-Organizer/issues/46) for the full load testing plan including k6 scripts, target metrics, and test scenarios.

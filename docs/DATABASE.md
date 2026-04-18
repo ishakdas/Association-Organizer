@@ -282,3 +282,17 @@ Running `pnpm db:seed` creates:
 | AuditLog | 3 `ticket.created` entries |
 
 Seed data uses placeholder `supabaseId` values (`supabase-super-admin-001`, etc.). In real use, these must match actual Supabase Auth user IDs.
+
+## Known Issues & Planned Changes
+
+| Issue | Description | Link |
+|-------|-------------|------|
+| ExtractedActionItem → Ticket relation | `ticketId` field has no Prisma relation defined | [#25](https://github.com/ishakdas/Association-Organizer/issues/25) |
+| Soft-delete client extension | Auto-filter `deletedAt IS NULL` via Prisma extension | [#31](https://github.com/ishakdas/Association-Organizer/issues/31) |
+| Row-Level Security | Add Postgres RLS as defense-in-depth for tenancy | [#22](https://github.com/ishakdas/Association-Organizer/issues/22) |
+| Connection pooling | Configure Supabase pooler + `DIRECT_DATABASE_URL` | [#48](https://github.com/ishakdas/Association-Organizer/issues/48) |
+| Data retention | Cleanup policy for AuditLog and NotificationLog | [#57](https://github.com/ishakdas/Association-Organizer/issues/57) |
+| Token cleanup | Delete expired/used TelegramLinkTokens | [#45](https://github.com/ishakdas/Association-Organizer/issues/45) |
+| Backup strategy | Verify Supabase backups, document restore procedure | [#42](https://github.com/ishakdas/Association-Organizer/issues/42) |
+| File attachments | New `Attachment` model for tickets/notes/comments | [#54](https://github.com/ishakdas/Association-Organizer/issues/54) |
+| Org deletion | Define cascade/soft-delete/archive strategy | [#51](https://github.com/ishakdas/Association-Organizer/issues/51) |

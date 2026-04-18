@@ -263,3 +263,16 @@ Build targets that should NOT be cached (like `prisma generate`) have `"cache": 
 ### Next.js build fails on workspace imports?
 - Check `transpilePackages` in `apps/web/next.config.ts` includes the workspace package
 - Ensure the lib's `tsconfig.json` doesn't set `rootDir` (it conflicts with path aliases)
+
+## What's Next
+
+This is a v1 foundation. There are **62 tracked GitHub issues** covering everything from stubbed modules to production hardening, security, GDPR, and operational readiness.
+
+See [docs/ROADMAP.md](ROADMAP.md) for the full phased implementation plan:
+- **Phase 1** (17 issues): Core features — system is non-functional without these
+- **Phase 2** (10 issues): Security & infrastructure — required before production
+- **Phase 3** (7 issues): UX & operations — usable and maintainable
+- **Phase 4** (14 issues): Hardening — edge cases, testing, code quality
+- **Phase 5** (14 issues): Nice to have — polish and future-proofing
+
+Browse all issues: [github.com/ishakdas/Association-Organizer/issues](https://github.com/ishakdas/Association-Organizer/issues)

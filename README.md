@@ -84,18 +84,23 @@ docs/
 | **AI provider interface** | Implemented | `AiProvider` with `generateStructured<T>()` |
 | **OpenAI provider** | Implemented | Structured outputs, Zod validation, 1-retry fallback |
 | **AI test** | Implemented | FakeAiProvider, 3 passing tests |
-| **Comments module** | Stubbed | TODO: CRUD endpoints |
-| **Organisations module** | Stubbed | TODO: CRUD + member management |
-| **Users module** | Stubbed | TODO: profile endpoints |
-| **Meeting notes module** | Stubbed | TODO: CRUD + AI extraction trigger |
-| **Extensions module** | Stubbed | TODO: request/approve/reject |
-| **Notifications module** | Stubbed | TODO: Telegram/email/web push |
-| **Jobs (BullMQ)** | Stubbed | TODO: reminder + extension SLA queues |
-| **Web ticket detail** | Stubbed | TODO: detail view, comments, status change |
-| **Web create ticket** | Stubbed | TODO: form with Zod validation |
-| **Web meeting notes** | Stubbed | TODO: list + AI extraction UI |
-| **Web telegram settings** | Stubbed | TODO: link/unlink Telegram |
-| **Web organisation** | Stubbed | TODO: members, roles |
+| **Comments module** | Stubbed | CRUD endpoints ([#1](https://github.com/ishakdas/Association-Organizer/issues/1)) |
+| **Organisations module** | Stubbed | CRUD + member management ([#2](https://github.com/ishakdas/Association-Organizer/issues/2)) |
+| **Users module** | Stubbed | Profile endpoints ([#3](https://github.com/ishakdas/Association-Organizer/issues/3)) |
+| **Meeting notes module** | Stubbed | CRUD + AI extraction ([#4](https://github.com/ishakdas/Association-Organizer/issues/4)) |
+| **Extensions module** | Stubbed | Request/approve/reject ([#5](https://github.com/ishakdas/Association-Organizer/issues/5)) |
+| **Notifications module** | Stubbed | Telegram/email/web push ([#6](https://github.com/ishakdas/Association-Organizer/issues/6)) |
+| **Jobs (BullMQ)** | Stubbed | Reminders + extension SLA ([#7](https://github.com/ishakdas/Association-Organizer/issues/7)) |
+| **Web ticket detail** | Stubbed | Detail view, comments, status ([#8](https://github.com/ishakdas/Association-Organizer/issues/8)) |
+| **Web create ticket** | Stubbed | Form with Zod validation ([#9](https://github.com/ishakdas/Association-Organizer/issues/9)) |
+| **Web meeting notes** | Stubbed | List + AI extraction UI ([#10](https://github.com/ishakdas/Association-Organizer/issues/10)) |
+| **Web telegram settings** | Stubbed | Link/unlink Telegram ([#11](https://github.com/ishakdas/Association-Organizer/issues/11)) |
+| **Web organisation** | Stubbed | Members, roles ([#12](https://github.com/ishakdas/Association-Organizer/issues/12)) |
+| **User registration** | Missing | Sign-up flow ([#36](https://github.com/ishakdas/Association-Organizer/issues/36)) |
+| **Password reset** | Missing | Forgot password ([#37](https://github.com/ishakdas/Association-Organizer/issues/37)) |
+| **Logout** | Missing | Sign-out button ([#38](https://github.com/ishakdas/Association-Organizer/issues/38)) |
+| **Org selector** | Missing | Multi-org switching ([#13](https://github.com/ishakdas/Association-Organizer/issues/13)) |
+| **User auto-provisioning** | Missing | Create User on first login ([#39](https://github.com/ishakdas/Association-Organizer/issues/39)) |
 
 ## Documentation
 
@@ -108,6 +113,7 @@ docs/
 | [Database Schema](docs/DATABASE.md) | ER diagram, all 14 models, enums, indexes, seed data |
 | [Testing Guide](docs/TESTING.md) | Test strategy, running tests, writing new tests |
 | [ADR-001](docs/ADR-001-foundations.md) | Architecture decision record — all locked + unspecified decisions |
+| [Roadmap](docs/ROADMAP.md) | All 62 issues organized by implementation phase |
 
 ## Architecture
 

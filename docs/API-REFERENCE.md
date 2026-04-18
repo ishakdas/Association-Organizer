@@ -204,11 +204,11 @@ Sets `deletedAt` to current timestamp. The ticket no longer appears in list quer
 
 ---
 
-## Stubbed Endpoints (TODO)
+## Stubbed Endpoints (Tracked Issues)
 
-These modules are scaffolded with TODO comments listing planned endpoints:
+These modules are scaffolded with TODO comments. Each links to a GitHub issue with full requirements.
 
-### Comments
+### Comments ([#1](https://github.com/ishakdas/Association-Organizer/issues/1))
 ```
 POST   /api/v1/tickets/:ticketId/comments   — Create comment
 GET    /api/v1/tickets/:ticketId/comments   — List comments
@@ -216,7 +216,7 @@ PATCH  /api/v1/comments/:id                 — Edit own comment
 DELETE /api/v1/comments/:id                 — Delete own comment
 ```
 
-### Organisations
+### Organisations ([#2](https://github.com/ishakdas/Association-Organizer/issues/2))
 ```
 POST  /api/v1/organisations                 — Create org (SUPER_ADMIN)
 GET   /api/v1/organisations                 — List user's orgs
@@ -226,14 +226,14 @@ POST  /api/v1/organisations/:id/members     — Invite member
 GET   /api/v1/organisations/:id/members     — List members
 ```
 
-### Users
+### Users ([#3](https://github.com/ishakdas/Association-Organizer/issues/3))
 ```
 GET   /api/v1/users/me                      — Current user profile
 PATCH /api/v1/users/me                      — Update profile
 GET   /api/v1/users/me/telegram             — Telegram account status
 ```
 
-### Meeting Notes
+### Meeting Notes ([#4](https://github.com/ishakdas/Association-Organizer/issues/4))
 ```
 POST   /api/v1/meeting-notes                — Create note
 GET    /api/v1/meeting-notes                — List notes for org
@@ -243,12 +243,20 @@ DELETE /api/v1/meeting-notes/:id            — Soft delete
 POST   /api/v1/meeting-notes/:id/extract    — Trigger AI extraction
 ```
 
-### Extensions
+### Extensions ([#5](https://github.com/ishakdas/Association-Organizer/issues/5))
 ```
 POST  /api/v1/extensions                    — Request deadline extension
 GET   /api/v1/extensions                    — List pending (MANAGER+)
 PATCH /api/v1/extensions/:id/resolve        — Approve/reject (MANAGER+)
 ```
+
+### Future Endpoints (Not Yet Documented)
+- `POST /api/v1/auth/logout` — Token revocation ([#23](https://github.com/ishakdas/Association-Organizer/issues/23))
+- `GET /health` — Health check with DB/Redis status ([#30](https://github.com/ishakdas/Association-Organizer/issues/30))
+- `DELETE /api/v1/users/me` — GDPR data deletion ([#58](https://github.com/ishakdas/Association-Organizer/issues/58))
+- `GET /api/v1/users/me/export` — GDPR data export ([#58](https://github.com/ishakdas/Association-Organizer/issues/58))
+- `POST /api/v1/attachments/upload` — File uploads ([#54](https://github.com/ishakdas/Association-Organizer/issues/54))
+- `GET /api/v1/users/me/tickets` — Cross-org ticket view ([#53](https://github.com/ishakdas/Association-Organizer/issues/53))
 
 ---
 
