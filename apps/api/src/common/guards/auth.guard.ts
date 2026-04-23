@@ -42,6 +42,7 @@ export class AuthGuard implements CanActivate {
       email: user.email,
       supabaseId: user.supabaseId,
     };
+    (request as any).tokenKind = verified.kind;
 
     return true;
   }
