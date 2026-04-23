@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { Building2, Ticket, FileText, Settings } from 'lucide-react';
+import { Building2, BookUser, Ticket, FileText, Settings } from 'lucide-react';
 import { createServerClient } from '@/lib/supabase/server';
 
 const nav = [
-  { href: '/organisation', label: 'Dernekler', icon: Building2 },
+  { href: '/associations', label: 'Dernek Sicili', icon: BookUser },
+  { href: '/organisation', label: 'Çalışma Alanları', icon: Building2 },
   { href: '/tickets', label: 'Görevler', icon: Ticket },
   { href: '/meeting-notes', label: 'Toplantı Notları', icon: FileText },
   { href: '/settings/telegram', label: 'Ayarlar', icon: Settings },
