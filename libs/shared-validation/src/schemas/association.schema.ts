@@ -1,21 +1,20 @@
 import { z } from 'zod';
-import { parsePhoneNumberFromString } from 'libphonenumber-js';
-
-const taxNumberPattern = /^\d{10}$/;
+import { parsePhoneE164 } from '../helpers/phone';
+import { TAX_NUMBER_PATTERN } from '../helpers/tax-number';
 
 const phoneSchema = z
   .string()
   .min(1, 'Telefon zorunlu')
   .transform((raw, ctx) => {
-    const parsed = parsePhoneNumberFromString(raw, 'TR');
-    if (!parsed || !parsed.isValid()) {
+    const e164 = parsePhoneE164(raw);
+    if (!e164) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Geçerli bir telefon numarası girin',
       });
       return z.NEVER;
     }
-    return parsed.number;
+    return e164;
   });
 
 const foundedAtSchema = z
@@ -35,7 +34,7 @@ export const createAssociationSchema = z.object({
   shortName: z.string().min(2).max(50).optional(),
   taxNumber: z
     .string()
-    .regex(taxNumberPattern, 'Vergi numarası 10 haneli ve sadece rakam olmalı'),
+    .regex(TAX_NUMBER_PATTERN, 'Vergi numarası 10 haneli ve sadece rakam olmalı'),
   foundedAt: foundedAtSchema,
   address: z.string().min(5).max(500),
   city: z.string().min(2).max(100),
