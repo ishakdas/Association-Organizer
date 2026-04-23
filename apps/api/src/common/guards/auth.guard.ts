@@ -1,12 +1,25 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FastifyRequest } from 'fastify';
 import * as jose from 'jose';
 import { PrismaService } from '@ticketbot/database';
+import { BOT_JWT_ISSUER } from '../../modules/auth/auth.constants';
+
+type TokenKind = 'bot' | 'supabase';
+
+interface VerifiedToken {
+  kind: TokenKind;
+  payload: jose.JWTPayload & { email?: string };
+}
 
 @Injectable()
 export class AuthGuard implements CanActivate {
-  private jwksCache: jose.JWTVerifyGetKey | null = null;
+  private supabaseJwks: ReturnType<typeof jose.createRemoteJWKSet> | null = null;
 
   constructor(
     private readonly config: ConfigService,
@@ -21,30 +34,16 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Missing authorization token');
     }
 
-    try {
-      // Try HS256 (bot tokens) first — they have the 'bot' issuer
-      const payload = await this.verifyToken(token);
+    const verified = await this.verify(token);
+    const user = await this.resolveUser(verified);
 
-      // Look up user by supabaseId
-      const user = await this.prisma.user.findUnique({
-        where: { supabaseId: payload.sub as string },
-      });
+    (request as any).user = {
+      id: user.id,
+      email: user.email,
+      supabaseId: user.supabaseId,
+    };
 
-      if (!user) {
-        throw new UnauthorizedException('User not found');
-      }
-
-      (request as any).user = {
-        id: user.id,
-        email: user.email,
-        supabaseId: user.supabaseId,
-      };
-
-      return true;
-    } catch (error) {
-      if (error instanceof UnauthorizedException) throw error;
-      throw new UnauthorizedException('Invalid token');
-    }
+    return true;
   }
 
   private extractToken(request: FastifyRequest): string | null {
@@ -54,27 +53,78 @@ export class AuthGuard implements CanActivate {
     return scheme === 'Bearer' ? token : null;
   }
 
-  private async verifyToken(token: string): Promise<jose.JWTPayload> {
-    const jwtSecret = this.config.get<string>('jwt.secret')!;
-
-    // Decode header to check algorithm
-    const header = jose.decodeProtectedHeader(token);
-
-    if (header.alg === 'HS256') {
-      // Bot-issued token
-      const secret = new TextEncoder().encode(jwtSecret);
-      const { payload } = await jose.jwtVerify(token, secret, {
+  private async verify(token: string): Promise<VerifiedToken> {
+    // 1) Bot tokens: HS256 with our issuer claim. Try first — cheapest + deterministic.
+    try {
+      const botSecret = new TextEncoder().encode(this.config.get<string>('jwt.secret')!);
+      const { payload } = await jose.jwtVerify(token, botSecret, {
         algorithms: ['HS256'],
+        issuer: BOT_JWT_ISSUER,
       });
-      return payload;
+      return { kind: 'bot', payload };
+    } catch {
+      // Fall through — probably a Supabase token.
     }
 
-    // Supabase JWT — verify with the JWT secret (symmetric for Supabase)
-    const supabaseSecret = this.config.get<string>('supabase.jwtSecret')!;
-    const secret = new TextEncoder().encode(supabaseSecret);
-    const { payload } = await jose.jwtVerify(token, secret, {
-      algorithms: ['HS256'],
+    // 2) Supabase ES256/RS256 via JWKS (new Supabase default).
+    try {
+      const { payload } = await jose.jwtVerify(token, this.getSupabaseJwks(), {
+        algorithms: ['ES256', 'RS256'],
+      });
+      return { kind: 'supabase', payload };
+    } catch {
+      // Fall through to legacy HS256.
+    }
+
+    // 3) Supabase HS256 legacy (older projects) — verify with SUPABASE_JWT_SECRET.
+    try {
+      const supabaseSecret = new TextEncoder().encode(
+        this.config.get<string>('supabase.jwtSecret')!,
+      );
+      const { payload } = await jose.jwtVerify(token, supabaseSecret, {
+        algorithms: ['HS256'],
+      });
+      return { kind: 'supabase', payload };
+    } catch {
+      throw new UnauthorizedException('Invalid token');
+    }
+  }
+
+  private getSupabaseJwks() {
+    if (!this.supabaseJwks) {
+      const baseUrl = this.config.get<string>('supabase.url')!;
+      this.supabaseJwks = jose.createRemoteJWKSet(
+        new URL(`${baseUrl}/auth/v1/.well-known/jwks.json`),
+      );
+    }
+    return this.supabaseJwks;
+  }
+
+  private async resolveUser({ kind, payload }: VerifiedToken) {
+    const sub = payload.sub;
+    if (!sub) throw new UnauthorizedException('Token missing subject');
+
+    if (kind === 'bot') {
+      // sub = internal User.id (CUID) — issued by AuthService.issueBotToken
+      const user = await this.prisma.user.findUnique({ where: { id: sub } });
+      if (!user) throw new UnauthorizedException('User not found');
+      return user;
+    }
+
+    // Supabase: sub = auth.users.id (UUID) — mapped to User.supabaseId
+    const existing = await this.prisma.user.findUnique({ where: { supabaseId: sub } });
+    if (existing) return existing;
+
+    // Auto-provision on first login
+    const email = payload.email;
+    if (!email) {
+      throw new UnauthorizedException('Cannot auto-provision user without email claim');
+    }
+
+    return this.prisma.user.upsert({
+      where: { email },
+      update: { supabaseId: sub },
+      create: { email, supabaseId: sub },
     });
-    return payload;
   }
 }

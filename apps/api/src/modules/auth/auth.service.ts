@@ -1,9 +1,10 @@
-import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@ticketbot/database';
 import { TelegramLinkRedeemInput } from '@ticketbot/shared-validation';
 import * as jose from 'jose';
 import { randomBytes } from 'crypto';
+import { BOT_JWT_ISSUER } from './auth.constants';
 
 @Injectable()
 export class AuthService {
@@ -82,11 +83,12 @@ export class AuthService {
     const secret = new TextEncoder().encode(this.config.get<string>('jwt.secret')!);
 
     const token = await new jose.SignJWT({
-      sub: userId,
       telegramId,
       ...(organisationId && { organisationId }),
     })
       .setProtectedHeader({ alg: 'HS256' })
+      .setIssuer(BOT_JWT_ISSUER)
+      .setSubject(userId)
       .setIssuedAt()
       .setExpirationTime('30d')
       .sign(secret);
