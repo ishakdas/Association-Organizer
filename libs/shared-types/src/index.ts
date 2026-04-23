@@ -4,6 +4,7 @@ export { Role, TicketStatus, TicketPriority } from './enums';
 // Domain DTOs
 export type { OrganisationDto } from './domain/organisation';
 export type { UserDto, MembershipDto, TelegramAccountDto } from './domain/user';
+export type { AssociationDto, AssociationListResponse } from './domain/association';
 export type {
   TicketDto,
   TicketCommentDto,

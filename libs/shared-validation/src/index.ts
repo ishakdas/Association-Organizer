@@ -59,3 +59,15 @@ export {
   type AddMemberInput,
   type UpdateMemberRoleInput,
 } from './schemas/organisation.schema';
+
+// Associations (Dernek Sicili)
+export {
+  createAssociationSchema,
+  updateAssociationSchema,
+  listAssociationsQuerySchema,
+  associationResponseSchema,
+  type CreateAssociationInput,
+  type UpdateAssociationInput,
+  type ListAssociationsQuery,
+  type AssociationResponse,
+} from './schemas/association.schema';
