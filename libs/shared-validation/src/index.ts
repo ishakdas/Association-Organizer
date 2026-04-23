@@ -47,3 +47,15 @@ export {
   type TelegramLinkRedeemInput,
   type BotAuthPayload,
 } from './schemas/auth.schema';
+
+// Organisations (Dernek)
+export {
+  createOrganisationSchema,
+  updateOrganisationSchema,
+  addMemberSchema,
+  updateMemberRoleSchema,
+  type CreateOrganisationInput,
+  type UpdateOrganisationInput,
+  type AddMemberInput,
+  type UpdateMemberRoleInput,
+} from './schemas/organisation.schema';

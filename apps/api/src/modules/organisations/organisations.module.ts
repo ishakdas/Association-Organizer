@@ -1,13 +1,10 @@
 import { Module } from '@nestjs/common';
+import { OrganisationsController } from './organisations.controller';
+import { OrganisationsService } from './organisations.service';
 
-// TODO: Implement OrganisationsController and OrganisationsService
-// Endpoints to implement:
-//   POST  /organisations           — create org (SUPER_ADMIN only)
-//   GET   /organisations           — list user's orgs
-//   GET   /organisations/:id       — get org details
-//   PATCH /organisations/:id       — update org (ADMIN+)
-//   POST  /organisations/:id/members — invite member
-//   GET   /organisations/:id/members — list members
-
-@Module({})
+@Module({
+  controllers: [OrganisationsController],
+  providers: [OrganisationsService],
+  exports: [OrganisationsService],
+})
 export class OrganisationsModule {}
