@@ -17,6 +17,31 @@ const phoneSchema = z
     return e164;
   });
 
+const optionalPhoneSchema = z
+  .string()
+  .min(1)
+  .optional()
+  .transform((raw, ctx) => {
+    if (raw === undefined || raw === '') return undefined;
+    const e164 = parsePhoneE164(raw);
+    if (!e164) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Geçerli bir telefon numarası girin',
+      });
+      return z.NEVER;
+    }
+    return e164;
+  });
+
+const managerSchema = z.object({
+  fullName: z.string().min(2, 'En az 2 karakter').max(200),
+  email: z.string().email('Geçerli bir e-posta girin').max(200),
+  password: z.string().min(8, 'En az 8 karakter').max(72),
+  phone: optionalPhoneSchema,
+});
+export type CreateAssociationManagerInput = z.infer<typeof managerSchema>;
+
 const foundedAtSchema = z
   .string()
   .datetime({ offset: true, message: 'Geçerli bir tarih girin (ISO 8601)' })
@@ -47,10 +72,15 @@ export const createAssociationSchema = z.object({
   memberCount: z.coerce.number().int().nonnegative().default(0),
   isActive: z.boolean().default(true),
   notes: z.string().max(2000).optional(),
+  manager: managerSchema,
 });
 export type CreateAssociationInput = z.infer<typeof createAssociationSchema>;
 
-export const updateAssociationSchema = createAssociationSchema.partial();
+// Update flow does NOT mutate the manager identity — manager rotation goes
+// through the membership endpoints, not POST/PATCH /associations.
+export const updateAssociationSchema = createAssociationSchema
+  .omit({ manager: true })
+  .partial();
 export type UpdateAssociationInput = z.infer<typeof updateAssociationSchema>;
 
 export const listAssociationsQuerySchema = z.object({

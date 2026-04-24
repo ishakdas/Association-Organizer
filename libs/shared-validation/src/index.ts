@@ -27,6 +27,7 @@ export {
   listAssociationsQuerySchema,
   associationResponseSchema,
   type CreateAssociationInput,
+  type CreateAssociationManagerInput,
   type UpdateAssociationInput,
   type ListAssociationsQuery,
   type AssociationResponse,

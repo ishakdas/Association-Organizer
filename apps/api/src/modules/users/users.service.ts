@@ -117,4 +117,27 @@ export class UsersService {
   findById(id: string) {
     return this.prisma.user.findUnique({ where: { id } });
   }
+
+  /**
+   * Saga rollback helper: tear down a user we just created (both sides).
+   * Best-effort on the Supabase side — if it fails the local row is still
+   * deleted so we don't leak orphaned DB rows. Failures are logged.
+   */
+  async deleteUser(user: {
+    id: string;
+    supabaseUserId: string | null;
+  }): Promise<void> {
+    if (user.supabaseUserId) {
+      try {
+        await this.supabase.getAuthClient().deleteUser(user.supabaseUserId);
+      } catch (err) {
+        this.logger.error(
+          `Supabase deleteUser failed for ${user.supabaseUserId}: ${
+            (err as Error).message
+          }`,
+        );
+      }
+    }
+    await this.prisma.user.delete({ where: { id: user.id } });
+  }
 }

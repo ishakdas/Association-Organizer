@@ -3,6 +3,13 @@ import {
   listAssociationsQuerySchema,
 } from './association.schema';
 
+const validManager = {
+  fullName: 'Mehmet Başkan',
+  email: 'baskan@ornek.test',
+  password: 'super-strong-pass',
+  phone: '0555 444 55 66',
+};
+
 // Minimal valid input — individual tests override one field at a time.
 const validInput = {
   name: 'Örnek Derneği',
@@ -14,6 +21,7 @@ const validInput = {
   phone: '0555 111 22 33',
   email: 'info@ornek.test',
   activityArea: 'Eğitim',
+  manager: validManager,
 };
 
 describe('createAssociationSchema', () => {
@@ -262,6 +270,65 @@ describe('createAssociationSchema', () => {
       });
       expect(r.success).toBe(true);
       if (r.success) expect(r.data.isActive).toBe(false);
+    });
+  });
+
+  describe('manager', () => {
+    it('is required (rejects when omitted)', () => {
+      const { manager: _omit, ...rest } = validInput;
+      const r = createAssociationSchema.safeParse(rest);
+      expect(r.success).toBe(false);
+    });
+
+    it('rejects when manager.email is missing', () => {
+      const r = createAssociationSchema.safeParse({
+        ...validInput,
+        manager: { ...validManager, email: undefined },
+      });
+      expect(r.success).toBe(false);
+    });
+
+    it('rejects when manager.email is malformed', () => {
+      const r = createAssociationSchema.safeParse({
+        ...validInput,
+        manager: { ...validManager, email: 'not-an-email' },
+      });
+      expect(r.success).toBe(false);
+    });
+
+    it('rejects when manager.password is shorter than 8 chars', () => {
+      const r = createAssociationSchema.safeParse({
+        ...validInput,
+        manager: { ...validManager, password: 'short' },
+      });
+      expect(r.success).toBe(false);
+    });
+
+    it('rejects when manager.fullName is shorter than 2 chars', () => {
+      const r = createAssociationSchema.safeParse({
+        ...validInput,
+        manager: { ...validManager, fullName: 'A' },
+      });
+      expect(r.success).toBe(false);
+    });
+
+    it('normalizes manager.phone to E.164 (Turkish local input)', () => {
+      const r = createAssociationSchema.safeParse({
+        ...validInput,
+        manager: { ...validManager, phone: '0555 444 55 66' },
+      });
+      expect(r.success).toBe(true);
+      if (r.success) expect(r.data.manager.phone).toBe('+905554445566');
+    });
+
+    it('treats manager.phone as optional (omittable)', () => {
+      const { phone: _omit, ...managerNoPhone } = validManager;
+      const r = createAssociationSchema.safeParse({
+        ...validInput,
+        manager: managerNoPhone,
+      });
+      expect(r.success).toBe(true);
+      if (r.success) expect(r.data.manager.phone).toBeUndefined();
     });
   });
 });

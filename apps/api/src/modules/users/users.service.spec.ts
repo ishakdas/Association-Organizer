@@ -165,6 +165,35 @@ describe('UsersService', () => {
     });
   });
 
+  describe('deleteUser (saga rollback helper)', () => {
+    it('deletes the local row when supabaseUserId is null', async () => {
+      prisma.user.delete.mockResolvedValue({} as never);
+
+      await service.deleteUser({ id: 'u-local', supabaseUserId: null });
+
+      expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: 'u-local' } });
+      expect(authAdmin.deleteUser).not.toHaveBeenCalled();
+    });
+
+    it('deletes Supabase auth user AND local row when supabaseUserId is set', async () => {
+      prisma.user.delete.mockResolvedValue({} as never);
+
+      await service.deleteUser({ id: 'u-1', supabaseUserId: SUP_USER_ID });
+
+      expect(authAdmin.deleteUser).toHaveBeenCalledWith(SUP_USER_ID);
+      expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: 'u-1' } });
+    });
+
+    it('still deletes the local row even if Supabase deletion throws', async () => {
+      authAdmin.deleteUser.mockRejectedValue(new Error('Supabase down'));
+      prisma.user.delete.mockResolvedValue({} as never);
+
+      await service.deleteUser({ id: 'u-1', supabaseUserId: SUP_USER_ID });
+
+      expect(prisma.user.delete).toHaveBeenCalledWith({ where: { id: 'u-1' } });
+    });
+  });
+
   describe('finders', () => {
     it('findBySupabaseId returns the user row or null', async () => {
       prisma.user.findUnique.mockResolvedValue({ id: 'u-1' } as never);
