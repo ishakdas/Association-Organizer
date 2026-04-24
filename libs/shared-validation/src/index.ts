@@ -32,6 +32,17 @@ export {
   type AssociationResponse,
 } from './schemas/association.schema';
 
+// Association Memberships (Üyeler)
+export {
+  addMemberSchema,
+  listMembersQuerySchema,
+  memberResponseSchema,
+  type AddMemberInput,
+  type ListMembersQuery,
+  type MemberResponse,
+  type MembershipRole,
+} from './schemas/membership.schema';
+
 // Helpers (pure utilities — usable from apps/api and apps/web)
 export { parsePhoneE164 } from './helpers/phone';
 export { isValidTaxNumber, TAX_NUMBER_PATTERN } from './helpers/tax-number';
