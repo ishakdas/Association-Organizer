@@ -11,22 +11,47 @@ export type TaskStatusValue = z.infer<typeof taskStatusEnum>;
 export const taskPriorityEnum = z.enum(['LOW', 'MEDIUM', 'HIGH']);
 export type TaskPriorityValue = z.infer<typeof taskPriorityEnum>;
 
-export const reminderFrequencyEnum = z.enum(['NONE', 'DAILY', 'WEEKLY']);
+export const reminderFrequencyEnum = z.enum([
+  'NONE',
+  'ONCE',
+  'DAILY',
+  'WEEKLY',
+  'MONTHLY',
+]);
 export type ReminderFrequencyValue = z.infer<typeof reminderFrequencyEnum>;
 
 const isoDateTime = z
   .string()
   .datetime({ offset: true, message: 'Geçerli bir tarih girin (ISO 8601)' });
 
-export const createTaskSchema = z.object({
-  title: z.string().min(2, 'En az 2 karakter').max(200),
-  description: z.string().max(2000).optional(),
-  assignedToUserId: z.string().cuid('Geçersiz kullanıcı'),
-  priority: taskPriorityEnum.default('MEDIUM'),
-  dueDate: isoDateTime.optional(),
-  reminderAt: isoDateTime.optional(),
-  reminderFrequency: reminderFrequencyEnum.default('NONE'),
-});
+export const createTaskSchema = z
+  .object({
+    title: z.string().min(2, 'En az 2 karakter').max(200),
+    description: z.string().max(2000).optional(),
+    assignedToUserId: z.string().cuid('Geçersiz kullanıcı'),
+    priority: taskPriorityEnum.default('MEDIUM'),
+    dueDate: isoDateTime.optional(),
+    reminderAt: isoDateTime.optional(),
+    reminderFrequency: reminderFrequencyEnum.default('NONE'),
+  })
+  .superRefine((v, ctx) => {
+    // Reminder must precede the due date — otherwise it's pointless.
+    if (v.reminderAt && v.dueDate && v.reminderAt > v.dueDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reminderAt'],
+        message: 'Hatırlatma tarihi bitiş tarihinden önce olmalı',
+      });
+    }
+    // Recurring or one-shot reminders need at least an anchor date.
+    if (v.reminderFrequency !== 'NONE' && !v.reminderAt) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reminderAt'],
+        message: 'Hatırlatma için tarih girin',
+      });
+    }
+  });
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 
 export const updateTaskStatusSchema = z.object({
