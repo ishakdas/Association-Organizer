@@ -26,7 +26,7 @@ export function AssociationTable({ rows }: { rows: AssociationDto[] }) {
         </TableHeader>
         <TableBody>
           {rows.map((a) => (
-            <TableRow key={a.id}>
+            <TableRow key={a.id} className="transition-colors hover:bg-accent/50">
               <TableCell className="font-medium">
                 <Link href={`/associations/${a.id}`} className="hover:underline">
                   {a.name}

@@ -41,7 +41,9 @@ export default async function ProtectedLayout({ children }: { children: React.Re
           ))}
         </nav>
       </aside>
-      <main className="flex-1 p-8">{children}</main>
+      <main className="flex-1 px-6 py-8">
+        <div className="mx-auto w-full max-w-6xl">{children}</div>
+      </main>
     </div>
   );
 }

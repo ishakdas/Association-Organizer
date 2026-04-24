@@ -73,7 +73,7 @@ export function AssociationsList({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dernek Sicili</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Dernek Sicili</h1>
           <p className="text-sm text-muted-foreground">
             Kayıtlı dernekler. Yeni kayıt ekleyebilir, detayları görüntüleyebilirsiniz.
           </p>

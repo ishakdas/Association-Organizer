@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 export function AssociationCard({ association }: { association: AssociationDto }) {
   return (
     <Link href={`/associations/${association.id}`} className="block">
-      <Card className="transition-colors hover:border-foreground/20">
+      <Card className="transition-colors hover:border-ring/40 hover:shadow-sm">
         <CardHeader>
           <CardTitle className="flex items-start justify-between gap-2">
             <span className="truncate">{association.name}</span>

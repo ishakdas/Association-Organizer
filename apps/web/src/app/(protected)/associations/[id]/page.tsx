@@ -46,7 +46,7 @@ export default async function AssociationDetailPage({ params }: Props) {
             </Button>
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-semibold tracking-tight">
+                <h1 className="text-3xl font-semibold tracking-tight">
                   {association.name}
                 </h1>
                 <Badge variant={association.isActive ? 'default' : 'secondary'}>

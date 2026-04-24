@@ -107,7 +107,7 @@ export function AssociationForm() {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Yeni Dernek</h1>
+            <h1 className="text-3xl font-semibold tracking-tight">Yeni Dernek</h1>
             <p className="text-sm text-muted-foreground">
               Sicile eklemek istediğiniz derneğin bilgilerini girin.
             </p>
