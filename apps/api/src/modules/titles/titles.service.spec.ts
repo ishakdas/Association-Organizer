@@ -50,6 +50,28 @@ describe('TitlesService', () => {
       });
       expect(result).toEqual([sample]);
     });
+
+    it('drops the isActive filter when includeInactive=true (admin view)', async () => {
+      prisma.memberTitleDefinition.findMany.mockResolvedValue([
+        sample,
+        { ...sample, id: 'title-2', isActive: false },
+      ] as never);
+
+      const result = await service.list({ includeInactive: true });
+
+      expect(prisma.memberTitleDefinition.findMany).toHaveBeenCalledWith({
+        where: {},
+        orderBy: { sortOrder: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          sortOrder: true,
+          isActive: true,
+        },
+      });
+      expect(result).toHaveLength(2);
+    });
   });
 
   describe('create', () => {

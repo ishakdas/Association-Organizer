@@ -10,9 +10,9 @@ import {
 export class TitlesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  list() {
+  list(options: { includeInactive?: boolean } = {}) {
     return this.prisma.memberTitleDefinition.findMany({
-      where: { isActive: true },
+      where: options.includeInactive ? {} : { isActive: true },
       orderBy: { sortOrder: 'asc' },
       select: {
         id: true,

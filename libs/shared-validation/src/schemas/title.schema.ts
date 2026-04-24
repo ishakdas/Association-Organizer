@@ -26,3 +26,14 @@ export const updateMemberTitleSchema = z
     message: 'En az bir alan güncellenmeli',
   });
 export type UpdateMemberTitleInput = z.infer<typeof updateMemberTitleSchema>;
+
+// `includeInactive` is admin-only at the controller level — when the
+// caller is a SYSTEM_ADMIN we surface soft-deleted titles so they can
+// be reactivated from the management screen.
+export const listMemberTitlesQuerySchema = z.object({
+  includeInactive: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => v === 'true'),
+});
+export type ListMemberTitlesQuery = z.infer<typeof listMemberTitlesQuerySchema>;

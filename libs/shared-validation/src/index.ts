@@ -72,9 +72,11 @@ export {
   titleResponseSchema,
   createMemberTitleSchema,
   updateMemberTitleSchema,
+  listMemberTitlesQuerySchema,
   type TitleResponse,
   type CreateMemberTitleInput,
   type UpdateMemberTitleInput,
+  type ListMemberTitlesQuery,
 } from './schemas/title.schema';
 
 // Helpers (pure utilities — usable from apps/api and apps/web)
