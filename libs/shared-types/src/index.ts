@@ -20,6 +20,8 @@ export type {
   AuthTokenPayload,
   BotTokenPayload,
   TelegramLinkTokenDto,
+  AuthMembership,
+  AuthenticatedUser,
 } from './domain/auth';
 
 // Common
