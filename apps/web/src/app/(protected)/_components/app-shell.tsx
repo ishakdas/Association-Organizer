@@ -8,53 +8,85 @@ import {
   LogOut,
   Menu,
   Settings,
+  Tags,
   X,
   type LucideIcon,
 } from 'lucide-react';
+import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import {
+  filterNav,
+  userRoleLabel,
+  type NavItemDef,
+} from '@/lib/permissions';
 
-type NavItem = { href: string; label: string; icon: LucideIcon };
+interface NavMeta {
+  label: string;
+  icon: LucideIcon;
+  /** When true, also surfaced in the mobile bottom nav (max 4). */
+  primary?: boolean;
+}
+type NavItem = NavItemDef<NavMeta>;
 
-const NAV: NavItem[] = [
-  { href: '/associations', label: 'Dernek Sicili', icon: BookUser },
-  { href: '/settings/telegram', label: 'Ayarlar', icon: Settings },
+const NAV: readonly NavItem[] = [
+  {
+    href: '/associations',
+    access: 'auth',
+    meta: { label: 'Dernek Sicili', icon: BookUser, primary: true },
+  },
+  {
+    href: '/admin/member-titles',
+    access: 'system_admin',
+    meta: { label: 'Unvanlar', icon: Tags },
+  },
+  {
+    href: '/settings/telegram',
+    access: 'auth',
+    meta: { label: 'Ayarlar', icon: Settings, primary: true },
+  },
 ];
 
 export function AppShell({
-  email,
+  user,
   children,
 }: {
-  email: string;
+  user: AuthenticatedUser;
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const items = filterNav(NAV, user);
+  const primary = items.filter((i) => i.meta?.primary).slice(0, 4);
 
   return (
     <div className="flex min-h-screen bg-background">
       <Sidebar
-        email={email}
+        user={user}
+        items={items}
         mobileOpen={mobileOpen}
         onClose={() => setMobileOpen(false)}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
         <MobileTopbar onMenu={() => setMobileOpen(true)} />
-        <main className="flex-1 px-5 py-6 sm:px-8 sm:py-10">
+        <main className="flex-1 px-5 pb-24 pt-6 sm:px-8 sm:py-10 lg:pb-10">
           <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>
+        <BottomNav items={primary} />
       </div>
     </div>
   );
 }
 
 function Sidebar({
-  email,
+  user,
+  items,
   mobileOpen,
   onClose,
 }: {
-  email: string;
+  user: AuthenticatedUser;
+  items: NavItem[];
   mobileOpen: boolean;
   onClose: () => void;
 }) {
@@ -73,7 +105,7 @@ function Sidebar({
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-border bg-card transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col border-r border-border bg-card transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         )}
       >
@@ -92,18 +124,23 @@ function Sidebar({
           <span className="eyebrow px-2">Çalışma alanı</span>
         </div>
 
-        <nav className="flex-1 space-y-0.5 px-3">
-          {NAV.map((item) => (
+        <nav
+          aria-label="Birincil"
+          className="flex-1 space-y-0.5 overflow-y-auto px-3"
+        >
+          {items.map((item) => (
             <NavLink
               key={item.href}
-              {...item}
+              href={item.href}
+              label={item.meta!.label}
+              icon={item.meta!.icon}
               active={isActive(pathname, item.href)}
               onClick={onClose}
             />
           ))}
         </nav>
 
-        <UserFooter email={email} />
+        <UserFooter user={user} />
       </aside>
     </>
   );
@@ -133,11 +170,18 @@ function NavLink({
   icon: Icon,
   active,
   onClick,
-}: NavItem & { active: boolean; onClick: () => void }) {
+}: {
+  href: string;
+  label: string;
+  icon: LucideIcon;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
     <Link
       href={href}
       onClick={onClick}
+      aria-current={active ? 'page' : undefined}
       className={cn(
         'relative flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors',
         active
@@ -162,7 +206,7 @@ function NavLink({
   );
 }
 
-function UserFooter({ email }: { email: string }) {
+function UserFooter({ user }: { user: AuthenticatedUser }) {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
 
@@ -178,7 +222,14 @@ function UserFooter({ email }: { email: string }) {
     }
   }
 
-  const initials = email.slice(0, 2).toUpperCase();
+  const display = user.fullName || user.email || '';
+  const initials = (user.fullName || user.email || '??')
+    .split(/\s+/)
+    .map((p) => p[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+  const role = userRoleLabel(user) ?? 'Üye';
 
   return (
     <div className="border-t border-border px-3 py-3">
@@ -188,10 +239,10 @@ function UserFooter({ email }: { email: string }) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate text-[12px] font-medium text-foreground">
-            {email}
+            {display}
           </div>
           <div className="text-[10px] uppercase tracking-widest text-muted-foreground">
-            Üye
+            {role}
           </div>
         </div>
       </div>
@@ -224,6 +275,40 @@ function MobileTopbar({ onMenu }: { onMenu: () => void }) {
   );
 }
 
+function BottomNav({ items }: { items: NavItem[] }) {
+  const pathname = usePathname();
+  if (items.length === 0) return null;
+
+  return (
+    <nav
+      aria-label="Mobil birincil gezinme"
+      className="fixed inset-x-0 bottom-0 z-30 grid border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
+      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
+    >
+      {items.map((item) => {
+        const Icon = item.meta!.icon;
+        const active = isActive(pathname, item.href);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            aria-current={active ? 'page' : undefined}
+            className={cn(
+              'flex h-14 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors',
+              active
+                ? 'text-primary'
+                : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            <Icon className="h-5 w-5" />
+            <span className="leading-none">{item.meta!.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
 function isActive(pathname: string | null, href: string): boolean {
   if (!pathname) return false;
   if (href === '/associations') {
@@ -231,6 +316,9 @@ function isActive(pathname: string | null, href: string): boolean {
   }
   if (href === '/settings/telegram') {
     return pathname.startsWith('/settings');
+  }
+  if (href === '/admin/member-titles') {
+    return pathname.startsWith('/admin/member-titles');
   }
   return pathname === href;
 }
