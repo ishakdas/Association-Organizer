@@ -3,44 +3,66 @@ import {
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
-import { PrismaService, Prisma } from '@ticketbot/database';
+import { PrismaService, Prisma, type User } from '@ticketbot/database';
 import {
   AddMemberInput,
   ListMembersQuery,
   UpdateMemberInput,
 } from '@ticketbot/shared-validation';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class AssociationMembersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly users: UsersService,
+  ) {}
 
   async create(associationId: string, input: AddMemberInput) {
     await this.ensureAssociation(associationId);
 
-    try {
-      return await this.prisma.$transaction(async (tx) => {
-        const user = await tx.user.create({
-          data: {
-            fullName: input.fullName,
-            email: input.email ?? null,
-            phone: input.phone ?? null,
-            isActive: true,
-          },
-        });
+    // Saga path: secretaries get a Supabase auth user (web login).
+    // Schema enforces password+email presence for SECRETARY role.
+    const provisionsSupabase =
+      input.role === 'ASSOCIATION_SECRETARY' && !!input.password;
 
-        return tx.associationMembership.create({
-          data: {
-            associationId,
-            userId: user.id,
-            role: input.role,
-            titleId: input.titleId ?? null,
-            customTitle: input.customTitle ?? null,
-            isActive: true,
-          },
-          include: { user: true, title: true },
-        });
+    let createdUser: User | null = null;
+    try {
+      createdUser = provisionsSupabase
+        ? await this.users.createSupabaseUser({
+            email: input.email!,
+            password: input.password!,
+            fullName: input.fullName,
+            phone: input.phone,
+          })
+        : await this.users.createDbOnlyUser({
+            fullName: input.fullName,
+            email: input.email,
+            phone: input.phone,
+          });
+
+      return await this.prisma.associationMembership.create({
+        data: {
+          associationId,
+          userId: createdUser.id,
+          role: input.role,
+          titleId: input.titleId ?? null,
+          customTitle: input.customTitle ?? null,
+          isActive: true,
+        },
+        include: { user: true, title: true },
       });
     } catch (e) {
+      // Membership insert failed after the user was created — roll the
+      // user back so we don't leave orphans (especially in Supabase).
+      if (createdUser) {
+        await this.users
+          .deleteUser({
+            id: createdUser.id,
+            supabaseUserId: createdUser.supabaseUserId,
+          })
+          .catch(() => undefined);
+      }
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
         e.code === 'P2002'

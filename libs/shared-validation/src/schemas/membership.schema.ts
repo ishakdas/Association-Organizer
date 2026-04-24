@@ -31,14 +31,39 @@ const optionalEmail = z
   .optional()
   .transform((v) => (v ? v : undefined));
 
-export const addMemberSchema = z.object({
-  fullName: z.string().min(2, 'En az 2 karakter').max(200),
-  email: optionalEmail,
-  phone: optionalPhoneSchema,
-  role: userRoleEnum,
-  titleId: z.string().cuid('Geçersiz unvan').optional(),
-  customTitle: z.string().min(2).max(100).optional(),
-});
+export const addMemberSchema = z
+  .object({
+    fullName: z.string().min(2, 'En az 2 karakter').max(200),
+    email: optionalEmail,
+    phone: optionalPhoneSchema,
+    role: userRoleEnum,
+    titleId: z.string().cuid('Geçersiz unvan').optional(),
+    customTitle: z.string().min(2).max(100).optional(),
+    /**
+     * When provided, the API provisions a Supabase auth user instead of
+     * creating a DB-only row. Required for ASSOCIATION_SECRETARY (which
+     * gets web access); ignored for ASSOCIATION_MEMBER.
+     */
+    password: z.string().min(8, 'En az 8 karakter').max(72).optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.role === 'ASSOCIATION_SECRETARY') {
+      if (!v.password) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['password'],
+          message: 'Sekreter için şifre zorunludur',
+        });
+      }
+      if (!v.email) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['email'],
+          message: 'Sekreter için e-posta zorunludur',
+        });
+      }
+    }
+  });
 export type AddMemberInput = z.infer<typeof addMemberSchema>;
 
 export const updateMemberSchema = z
