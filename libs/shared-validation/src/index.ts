@@ -49,9 +49,14 @@ export {
 // Member Titles (Unvanlar)
 export {
   titleResponseSchema,
+  createMemberTitleSchema,
+  updateMemberTitleSchema,
   type TitleResponse,
+  type CreateMemberTitleInput,
+  type UpdateMemberTitleInput,
 } from './schemas/title.schema';
 
 // Helpers (pure utilities — usable from apps/api and apps/web)
 export { parsePhoneE164 } from './helpers/phone';
 export { isValidTaxNumber, TAX_NUMBER_PATTERN } from './helpers/tax-number';
+export { slugifyTr } from './helpers/slugify';

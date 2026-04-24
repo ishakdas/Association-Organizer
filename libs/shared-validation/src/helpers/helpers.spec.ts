@@ -1,5 +1,6 @@
 import { parsePhoneE164 } from './phone';
 import { isValidTaxNumber, TAX_NUMBER_PATTERN } from './tax-number';
+import { slugifyTr } from './slugify';
 
 describe('parsePhoneE164', () => {
   it('normalizes Turkish local format', () => {
@@ -55,5 +56,28 @@ describe('isValidTaxNumber', () => {
   it('TAX_NUMBER_PATTERN matches the same set', () => {
     expect(TAX_NUMBER_PATTERN.test('1234567890')).toBe(true);
     expect(TAX_NUMBER_PATTERN.test('123')).toBe(false);
+  });
+});
+
+describe('slugifyTr', () => {
+  it('lowercases, replaces Turkish chars and joins with hyphens', () => {
+    expect(slugifyTr('Teşkilat Başkanı')).toBe('teskilat-baskani');
+  });
+
+  it('handles dotted I and dotless ı correctly', () => {
+    expect(slugifyTr('İstanbul')).toBe('istanbul');
+    expect(slugifyTr('Mali İşler Sorumlusu')).toBe('mali-isler-sorumlusu');
+  });
+
+  it('strips punctuation and collapses runs of separators', () => {
+    expect(slugifyTr("Kültür-Sanat Sorumlusu")).toBe('kultur-sanat-sorumlusu');
+  });
+
+  it('trims leading/trailing separators', () => {
+    expect(slugifyTr('  Gençlik Kolu  ')).toBe('genclik-kolu');
+  });
+
+  it('returns empty string for input that contains no slug-able characters', () => {
+    expect(slugifyTr('   ')).toBe('');
   });
 });
