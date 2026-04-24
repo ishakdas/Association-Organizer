@@ -5,7 +5,11 @@ import { PrismaService } from '@ticketbot/database';
 import { registerStartCommand } from './commands/start.command';
 import { registerLinkCommand } from './commands/link.command';
 import { registerHelpCommand } from './commands/help.command';
-import { registerCallbackQueryHandler } from './handlers/callback-query.handler';
+
+export interface SendToUserOptions {
+  replyMarkup?: unknown;
+  parseMode?: 'MarkdownV2' | 'HTML';
+}
 
 @Injectable()
 export class BotService implements OnModuleInit {
@@ -24,7 +28,6 @@ export class BotService implements OnModuleInit {
     registerStartCommand(this.bot, this.config);
     registerLinkCommand(this.bot, this.prisma, this.config);
     registerHelpCommand(this.bot);
-    registerCallbackQueryHandler(this.bot, this.prisma);
 
     this.bot.catch((err: unknown, ctx: Context) => {
       this.logger.error(`Bot error for ${ctx.updateType}`, err);
@@ -46,5 +49,34 @@ export class BotService implements OnModuleInit {
 
   getTelegram() {
     return this.bot.telegram;
+  }
+
+  getBot(): Telegraf {
+    return this.bot;
+  }
+
+  async sendToUser(
+    userId: string,
+    text: string,
+    opts?: SendToUserOptions,
+  ): Promise<boolean> {
+    const account = await this.prisma.telegramAccount.findUnique({
+      where: { userId },
+      select: { telegramId: true },
+    });
+    if (!account) return false;
+
+    try {
+      await this.bot.telegram.sendMessage(Number(account.telegramId), text, {
+        parse_mode: opts?.parseMode ?? 'MarkdownV2',
+        reply_markup: opts?.replyMarkup as any,
+      });
+      return true;
+    } catch (err) {
+      this.logger.warn(
+        `Telegram send failed for user ${userId}: ${(err as Error).message}`,
+      );
+      return false;
+    }
   }
 }

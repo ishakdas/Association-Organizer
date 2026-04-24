@@ -1,11 +1,19 @@
 import { Markup } from 'telegraf';
 
-export function reminderActionsKeyboard(ticketId: string): ReturnType<typeof Markup.inlineKeyboard> {
+export const TASK_CALLBACK_PREFIX = {
+  done: 'task_done',
+  extend: 'task_extend',
+  dismiss: 'task_dismiss',
+} as const;
+
+export function reminderActionsKeyboard(
+  taskId: string,
+): ReturnType<typeof Markup.inlineKeyboard> {
   return Markup.inlineKeyboard([
     [
-      Markup.button.callback('✅ Done', `ticket_done:${ticketId}`),
-      Markup.button.callback('⏰ Request Extension', `ticket_extend:${ticketId}`),
+      Markup.button.callback('✅ Tamamla', `${TASK_CALLBACK_PREFIX.done}:${taskId}`),
+      Markup.button.callback('⏭ 1 gün ertele', `${TASK_CALLBACK_PREFIX.extend}:${taskId}`),
     ],
-    [Markup.button.callback('Dismiss', `ticket_dismiss:${ticketId}`)],
+    [Markup.button.callback('Kapat', `${TASK_CALLBACK_PREFIX.dismiss}:${taskId}`)],
   ]);
 }

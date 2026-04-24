@@ -14,6 +14,8 @@ async function bootstrap() {
 
   const config = app.get(ConfigService);
 
+  app.enableShutdownHooks();
+
   app.enableCors({
     origin: config.get<string>('webUrl'),
     credentials: true,

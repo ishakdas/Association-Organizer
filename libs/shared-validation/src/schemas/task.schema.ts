@@ -79,6 +79,8 @@ export const taskResponseSchema = z.object({
   dueDate: z.string().nullable(),
   reminderAt: z.string().nullable(),
   reminderFrequency: reminderFrequencyEnum,
+  notifiedViaTelegram: z.boolean(),
+  lastNotifiedAt: z.string().nullable(),
   completedAt: z.string().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),

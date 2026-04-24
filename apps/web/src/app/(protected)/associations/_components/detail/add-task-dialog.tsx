@@ -54,7 +54,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { cn } from '@/lib/utils';
 import { useMembers } from '../../_hooks/use-members';
 import { useCreateTask } from '../../_hooks/use-tasks';
@@ -491,36 +491,12 @@ function DatePopover({
   value: Date | undefined;
   onChange: (next: Date | undefined) => void;
 }) {
-  const [open, setOpen] = useState(false);
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          className={cn(
-            'w-full justify-between font-normal',
-            !value && 'text-muted-foreground',
-          )}
-        >
-          <span className="inline-flex items-center gap-2">
-            <CalendarIcon className="h-3.5 w-3.5 opacity-60" />
-            {value ? format(value, 'd MMMM yyyy', { locale: tr }) : 'Tarih seç'}
-          </span>
-          <ChevronDown className="h-3.5 w-3.5 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
-        <Calendar
-          mode="single"
-          selected={value}
-          onSelect={(d) => {
-            onChange(d);
-            if (d) setOpen(false);
-          }}
-          disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
-        />
-      </PopoverContent>
-    </Popover>
+    <DateTimePicker
+      value={value}
+      onChange={onChange}
+      disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
+      placeholder="Tarih ve saat seç"
+    />
   );
 }

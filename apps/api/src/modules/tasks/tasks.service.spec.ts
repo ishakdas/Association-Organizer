@@ -3,6 +3,7 @@ import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaClient, PrismaService } from '@ticketbot/database';
 import { TasksService } from './tasks.service';
+import { TaskReminderScheduler } from '../jobs/task-reminder.scheduler';
 
 type PrismaMock = DeepMockProxy<PrismaClient>;
 
@@ -77,10 +78,18 @@ describe('TasksService', () => {
     // Default count to 0 unless overridden in a test.
     prisma.task.count.mockResolvedValue(0 as never);
 
+    const schedulerMock = {
+      scheduleTask: jest.fn().mockResolvedValue(undefined),
+      cancelTask: jest.fn().mockResolvedValue(undefined),
+      rescheduleTask: jest.fn().mockResolvedValue(undefined),
+      scheduleNextReminder: jest.fn().mockResolvedValue(undefined),
+    };
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         TasksService,
         { provide: PrismaService, useValue: prisma },
+        { provide: TaskReminderScheduler, useValue: schedulerMock },
       ],
     }).compile();
     service = moduleRef.get(TasksService);

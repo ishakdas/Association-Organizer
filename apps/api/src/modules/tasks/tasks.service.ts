@@ -4,23 +4,23 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService, UserRole, Prisma } from '@ticketbot/database';
+import { PrismaService, UserRole, Prisma, TaskStatus } from '@ticketbot/database';
+import { addDays } from 'date-fns';
 import {
   CreateTaskInput,
   ListTasksQuery,
   UpdateTaskStatusInput,
 } from '@ticketbot/shared-validation';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
+import { TaskReminderScheduler } from '../jobs/task-reminder.scheduler';
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly scheduler: TaskReminderScheduler,
+  ) {}
 
-  /**
-   * Caller is already authorized by AssociationRolesGuard
-   * (SYSTEM_ADMIN | MANAGER | SECRETARY); we only need to validate that
-   * the *assignee* is also a member of this association.
-   */
   async create(
     associationId: string,
     input: CreateTaskInput,
@@ -28,7 +28,7 @@ export class TasksService {
   ) {
     await this.ensureAssigneeIsMember(associationId, input.assignedToUserId);
 
-    return this.prisma.task.create({
+    const task = await this.prisma.task.create({
       data: {
         associationId,
         title: input.title,
@@ -41,13 +41,16 @@ export class TasksService {
         reminderAt: input.reminderAt ? new Date(input.reminderAt) : null,
       },
     });
+
+    await this.scheduler.scheduleTask({
+      id: task.id,
+      dueDate: task.dueDate,
+      reminderAt: task.reminderAt,
+    });
+
+    return task;
   }
 
-  /**
-   * MEMBER role sees only tasks assigned to themselves; everyone else
-   * (SYSTEM_ADMIN / MANAGER / SECRETARY in this association) sees the full
-   * dernek queue.
-   */
   async list(
     associationId: string,
     query: ListTasksQuery,
@@ -112,10 +115,84 @@ export class TasksService {
       data.completedAt = new Date();
     }
 
-    return this.prisma.task.update({
+    const updated = await this.prisma.task.update({
       where: { id: taskId },
       data,
     });
+
+    if (input.status === 'COMPLETED' || input.status === 'CANCELLED') {
+      await this.scheduler.cancelTask(taskId);
+    }
+
+    return updated;
+  }
+
+  async markCompletedViaBot(taskId: string, actingUserId: string) {
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, deletedAt: null },
+      select: { id: true, status: true, assignedToUserId: true },
+    });
+    if (!task) throw new NotFoundException('Görev bulunamadı');
+    if (task.assignedToUserId !== actingUserId) {
+      throw new ForbiddenException('Bu görevi tamamlayamazsınız');
+    }
+
+    if (
+      task.status === TaskStatus.COMPLETED ||
+      task.status === TaskStatus.CANCELLED
+    ) {
+      return this.prisma.task.findUniqueOrThrow({ where: { id: taskId } });
+    }
+
+    const updated = await this.prisma.task.update({
+      where: { id: taskId },
+      data: { status: TaskStatus.COMPLETED, completedAt: new Date() },
+    });
+
+    await this.scheduler.cancelTask(taskId);
+
+    return updated;
+  }
+
+  async extendDueDate(taskId: string, actingUserId: string, days: number) {
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, deletedAt: null },
+      select: {
+        id: true,
+        status: true,
+        dueDate: true,
+        reminderAt: true,
+        assignedToUserId: true,
+      },
+    });
+    if (!task) throw new NotFoundException('Görev bulunamadı');
+    if (task.assignedToUserId !== actingUserId) {
+      throw new ForbiddenException('Bu görevi erteleyemezsiniz');
+    }
+    if (
+      task.status === TaskStatus.COMPLETED ||
+      task.status === TaskStatus.CANCELLED
+    ) {
+      throw new BadRequestException('Bu görev zaten kapalı');
+    }
+    if (!task.dueDate) {
+      throw new BadRequestException('Bitiş tarihi yok');
+    }
+
+    const newDue = addDays(task.dueDate, days);
+
+    const updated = await this.prisma.task.update({
+      where: { id: taskId },
+      data: { dueDate: newDue },
+    });
+
+    await this.scheduler.rescheduleTask({
+      id: updated.id,
+      dueDate: updated.dueDate,
+      reminderAt: updated.reminderAt,
+    });
+
+    return updated;
   }
 
   private async ensureAssigneeIsMember(
@@ -136,11 +213,6 @@ export class TasksService {
     }
   }
 
-  /**
-   * True if the user's strongest role in *this* association is MEMBER.
-   * SYSTEM_ADMIN and any active MANAGER/SECRETARY membership in the
-   * dernek bypass the per-user scope.
-   */
   private isMemberOnly(user: AuthenticatedUser, associationId: string): boolean {
     if (user.systemRole === UserRole.SYSTEM_ADMIN) return false;
     const inAssoc = user.memberships.filter(
