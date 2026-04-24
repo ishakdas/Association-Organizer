@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { addMemberSchema } from '@ticketbot/shared-validation';
+import { addMemberSchema, type MembershipRole } from '@ticketbot/shared-validation';
 import { UserPlus, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -58,7 +58,15 @@ const formSchema = z.object({
 });
 type FormValues = z.infer<typeof formSchema>;
 
-export function AddMemberDialog({ associationId }: { associationId: string }) {
+export function AddMemberDialog({
+  associationId,
+  defaultRole = 'ASSOCIATION_MEMBER',
+  triggerLabel = 'Üye Ekle',
+}: {
+  associationId: string;
+  defaultRole?: MembershipRole;
+  triggerLabel?: string;
+}) {
   const [open, setOpen] = useState(false);
   const { data: titles } = useTitles();
 
@@ -68,7 +76,13 @@ export function AddMemberDialog({ associationId }: { associationId: string }) {
       fullName: '',
       email: '',
       phone: '',
-      role: 'ASSOCIATION_MEMBER',
+      role:
+        defaultRole === 'SYSTEM_ADMIN'
+          ? 'ASSOCIATION_MEMBER'
+          : (defaultRole as
+              | 'ASSOCIATION_MANAGER'
+              | 'ASSOCIATION_SECRETARY'
+              | 'ASSOCIATION_MEMBER'),
       titleId: NO_TITLE,
     },
   });
@@ -109,7 +123,7 @@ export function AddMemberDialog({ associationId }: { associationId: string }) {
       <DialogTrigger asChild>
         <Button size="sm">
           <UserPlus className="mr-1.5 h-3.5 w-3.5" />
-          Üye Ekle
+          {triggerLabel}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[480px]">
