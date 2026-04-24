@@ -184,4 +184,82 @@ describe('AssociationMembersService', () => {
       );
     });
   });
+
+  describe('update', () => {
+    it('throws NotFoundException when the membership does not exist', async () => {
+      prisma.associationMembership.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.update('missing-mem', { role: 'ASSOCIATION_SECRETARY' }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.associationMembership.update).not.toHaveBeenCalled();
+    });
+
+    it('updates only provided fields and includes user + title', async () => {
+      prisma.associationMembership.findFirst.mockResolvedValue(
+        sampleMembership as never,
+      );
+      prisma.associationMembership.update.mockResolvedValue({
+        ...sampleMembership,
+        role: 'ASSOCIATION_SECRETARY',
+      } as never);
+
+      const result = await service.update(sampleMembership.id, {
+        role: 'ASSOCIATION_SECRETARY',
+      });
+
+      expect(prisma.associationMembership.update).toHaveBeenCalledWith({
+        where: { id: sampleMembership.id },
+        data: { role: 'ASSOCIATION_SECRETARY' },
+        include: { user: true, title: true },
+      });
+      expect(result.role).toBe('ASSOCIATION_SECRETARY');
+    });
+
+    it('translates Prisma P2002 into ConflictException on role change', async () => {
+      prisma.associationMembership.findFirst.mockResolvedValue(
+        sampleMembership as never,
+      );
+      const violation = new Prisma.PrismaClientKnownRequestError(
+        'one_active_manager_per_association',
+        { code: 'P2002', clientVersion: 'test', meta: { target: ['associationId'] } },
+      );
+      prisma.associationMembership.update.mockRejectedValue(violation);
+
+      await expect(
+        service.update(sampleMembership.id, { role: 'ASSOCIATION_MANAGER' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+  });
+
+  describe('remove', () => {
+    it('throws NotFoundException when the membership does not exist', async () => {
+      prisma.associationMembership.findFirst.mockResolvedValue(null);
+
+      await expect(service.remove('missing-mem')).rejects.toBeInstanceOf(
+        NotFoundException,
+      );
+      expect(prisma.associationMembership.update).not.toHaveBeenCalled();
+    });
+
+    it('soft-leaves the membership: sets leftAt + isActive=false', async () => {
+      prisma.associationMembership.findFirst.mockResolvedValue(
+        sampleMembership as never,
+      );
+      prisma.associationMembership.update.mockResolvedValue({
+        ...sampleMembership,
+        isActive: false,
+        leftAt: new Date('2026-04-24T12:00:00.000Z'),
+      } as never);
+
+      const result = await service.remove(sampleMembership.id);
+
+      const args = prisma.associationMembership.update.mock.calls[0][0];
+      expect(args?.where).toEqual({ id: sampleMembership.id });
+      expect(args?.data).toMatchObject({ isActive: false });
+      expect((args?.data as any)?.leftAt).toBeInstanceOf(Date);
+      expect(result.isActive).toBe(false);
+      expect(result.leftAt).not.toBeNull();
+    });
+  });
 });

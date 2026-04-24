@@ -1,6 +1,6 @@
 'use client';
 
-import { Users } from 'lucide-react';
+import { Users, UserMinus, Loader2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -10,10 +10,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useMembers } from '../_hooks/use-members';
+import { useMembers, useRemoveMember } from '../_hooks/use-members';
 import { AddMemberDialog } from './add-member-dialog';
-import type { MembershipRole } from '@ticketbot/shared-validation';
+import type { MemberResponse, MembershipRole } from '@ticketbot/shared-validation';
 
 const ROLE_LABEL: Record<MembershipRole, string> = {
   SYSTEM_ADMIN: 'Sistem Yöneticisi',
@@ -34,6 +35,14 @@ const ROLE_VARIANT: Record<
 
 export function MembersCard({ associationId }: { associationId: string }) {
   const { data: members, isLoading, isError, error } = useMembers(associationId);
+  const removeMutation = useRemoveMember(associationId);
+
+  function handleRemove(member: MemberResponse) {
+    const ok = window.confirm(
+      `${member.user.fullName} dernekten çıkarılsın mı? (Üyelik pasifleştirilir, kayıt silinmez.)`,
+    );
+    if (ok) removeMutation.mutate(member.id);
+  }
 
   return (
     <section className="rounded-lg border border-border bg-card">
@@ -81,36 +90,57 @@ export function MembersCard({ associationId }: { associationId: string }) {
               <TableHead>Unvan</TableHead>
               <TableHead>İletişim</TableHead>
               <TableHead className="text-right">Katılım</TableHead>
+              <TableHead className="w-[1%]" aria-label="Eylemler" />
             </TableRow>
           </TableHeader>
           <TableBody>
-            {members.map((m) => (
-              <TableRow key={m.id}>
-                <TableCell className="font-medium">{m.user.fullName}</TableCell>
-                <TableCell>
-                  <Badge variant={ROLE_VARIANT[m.role]}>
-                    {ROLE_LABEL[m.role]}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-[13px] text-muted-foreground">
-                  {m.title?.name ?? m.customTitle ?? '—'}
-                </TableCell>
-                <TableCell className="text-[13px] text-muted-foreground">
-                  {m.user.email && (
-                    <span className="block">{m.user.email}</span>
-                  )}
-                  {m.user.phone && (
-                    <span className="block font-mono text-[12px]">
-                      {m.user.phone}
-                    </span>
-                  )}
-                  {!m.user.email && !m.user.phone && '—'}
-                </TableCell>
-                <TableCell className="text-right text-[12.5px] text-muted-foreground">
-                  {new Date(m.joinedAt).toLocaleDateString('tr-TR')}
-                </TableCell>
-              </TableRow>
-            ))}
+            {members.map((m) => {
+              const isRemoving =
+                removeMutation.isPending && removeMutation.variables === m.id;
+              return (
+                <TableRow key={m.id}>
+                  <TableCell className="font-medium">{m.user.fullName}</TableCell>
+                  <TableCell>
+                    <Badge variant={ROLE_VARIANT[m.role]}>
+                      {ROLE_LABEL[m.role]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-[13px] text-muted-foreground">
+                    {m.title?.name ?? m.customTitle ?? '—'}
+                  </TableCell>
+                  <TableCell className="text-[13px] text-muted-foreground">
+                    {m.user.email && (
+                      <span className="block">{m.user.email}</span>
+                    )}
+                    {m.user.phone && (
+                      <span className="block font-mono text-[12px]">
+                        {m.user.phone}
+                      </span>
+                    )}
+                    {!m.user.email && !m.user.phone && '—'}
+                  </TableCell>
+                  <TableCell className="text-right text-[12.5px] text-muted-foreground">
+                    {new Date(m.joinedAt).toLocaleDateString('tr-TR')}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleRemove(m)}
+                      disabled={isRemoving}
+                      aria-label={`${m.user.fullName} adlı üyeyi çıkar`}
+                    >
+                      {isRemoving ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <UserMinus className="h-3.5 w-3.5" />
+                      )}
+                      <span className="ml-1.5">Çıkar</span>
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       )}

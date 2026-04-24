@@ -41,6 +41,19 @@ export const addMemberSchema = z.object({
 });
 export type AddMemberInput = z.infer<typeof addMemberSchema>;
 
+export const updateMemberSchema = z
+  .object({
+    role: userRoleEnum.optional(),
+    titleId: z.string().cuid('Geçersiz unvan').nullable().optional(),
+    customTitle: z.string().min(2).max(100).nullable().optional(),
+    isActive: z.boolean().optional(),
+    leftAt: z.string().datetime({ offset: true }).nullable().optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: 'En az bir alan güncellenmeli',
+  });
+export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
+
 export const listMembersQuerySchema = z.object({
   role: userRoleEnum.optional(),
   isActive: z

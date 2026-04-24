@@ -34,6 +34,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useAddMember } from '../_hooks/use-members';
+import { useTitles } from '../_hooks/use-titles';
+
+const NO_TITLE = '__none__';
 
 const roleOptions = [
   { value: 'ASSOCIATION_MANAGER' as const, label: 'Başkan (yönetici)' },
@@ -51,11 +54,13 @@ const formSchema = z.object({
     'ASSOCIATION_SECRETARY',
     'ASSOCIATION_MEMBER',
   ]),
+  titleId: z.string().optional(),
 });
 type FormValues = z.infer<typeof formSchema>;
 
 export function AddMemberDialog({ associationId }: { associationId: string }) {
   const [open, setOpen] = useState(false);
+  const { data: titles } = useTitles();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -64,6 +69,7 @@ export function AddMemberDialog({ associationId }: { associationId: string }) {
       email: '',
       phone: '',
       role: 'ASSOCIATION_MEMBER',
+      titleId: NO_TITLE,
     },
   });
 
@@ -79,6 +85,10 @@ export function AddMemberDialog({ associationId }: { associationId: string }) {
       ...values,
       email: values.email || undefined,
       phone: values.phone || undefined,
+      titleId:
+        values.titleId && values.titleId !== NO_TITLE
+          ? values.titleId
+          : undefined,
     });
 
     if (!parsed.success) {
@@ -148,6 +158,38 @@ export function AddMemberDialog({ associationId }: { associationId: string }) {
                   </Select>
                   <FormDescription>
                     Bir dernekte aynı anda yalnızca <b>tek başkan</b> olabilir.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="titleId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Unvan</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    value={field.value ?? NO_TITLE}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Unvan seç (opsiyonel)" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={NO_TITLE}>— Yok —</SelectItem>
+                      {titles?.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Örn. Teşkilat Başkanı, Kadın Kolları Başkanı.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

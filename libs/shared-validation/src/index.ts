@@ -35,13 +35,21 @@ export {
 // Association Memberships (Üyeler)
 export {
   addMemberSchema,
+  updateMemberSchema,
   listMembersQuerySchema,
   memberResponseSchema,
   type AddMemberInput,
+  type UpdateMemberInput,
   type ListMembersQuery,
   type MemberResponse,
   type MembershipRole,
 } from './schemas/membership.schema';
+
+// Member Titles (Unvanlar)
+export {
+  titleResponseSchema,
+  type TitleResponse,
+} from './schemas/title.schema';
 
 // Helpers (pure utilities — usable from apps/api and apps/web)
 export { parsePhoneE164 } from './helpers/phone';

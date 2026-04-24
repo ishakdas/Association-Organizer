@@ -40,3 +40,17 @@ export function addMember(
     body: JSON.stringify(input),
   });
 }
+
+export function removeMember(
+  token: string,
+  associationId: string,
+  membershipId: string,
+) {
+  return apiClient<MemberResponse>(
+    `/associations/${associationId}/members/${membershipId}`,
+    {
+      token,
+      method: 'DELETE',
+    },
+  );
+}

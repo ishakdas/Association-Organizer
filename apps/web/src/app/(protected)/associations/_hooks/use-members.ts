@@ -2,7 +2,12 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { listMembers, addMember, type ListMembersParams } from '@/lib/api/members';
+import {
+  listMembers,
+  addMember,
+  removeMember,
+  type ListMembersParams,
+} from '@/lib/api/members';
 import type { AddMemberInput, MemberResponse } from '@ticketbot/shared-validation';
 import { getAccessToken } from './use-associations';
 
@@ -34,6 +39,22 @@ export function useAddMember(
       toast.success(`${member.user.fullName} eklendi`);
       queryClient.invalidateQueries({ queryKey: ['members', associationId] });
       options?.onSuccess?.(member);
+    },
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
+  });
+}
+
+export function useRemoveMember(associationId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (membershipId: string) =>
+      removeMember(await getAccessToken(), associationId, membershipId),
+    onSuccess: (member) => {
+      toast.success(`${member.user.fullName} dernekten çıkarıldı`);
+      queryClient.invalidateQueries({ queryKey: ['members', associationId] });
     },
     onError: (err: Error) => {
       toast.error(err.message);

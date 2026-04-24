@@ -7,6 +7,7 @@ import { PrismaService, Prisma } from '@ticketbot/database';
 import {
   AddMemberInput,
   ListMembersQuery,
+  UpdateMemberInput,
 } from '@ticketbot/shared-validation';
 
 @Injectable()
@@ -77,11 +78,67 @@ export class AssociationMembersService {
     });
   }
 
+  async update(membershipId: string, input: UpdateMemberInput) {
+    await this.ensureMembership(membershipId);
+
+    const data: Prisma.AssociationMembershipUpdateInput = {};
+    if (input.role !== undefined) data.role = input.role;
+    if (input.titleId !== undefined) {
+      data.title = input.titleId
+        ? { connect: { id: input.titleId } }
+        : { disconnect: true };
+    }
+    if (input.customTitle !== undefined) data.customTitle = input.customTitle;
+    if (input.isActive !== undefined) data.isActive = input.isActive;
+    if (input.leftAt !== undefined) {
+      data.leftAt = input.leftAt ? new Date(input.leftAt) : null;
+    }
+
+    try {
+      return await this.prisma.associationMembership.update({
+        where: { id: membershipId },
+        data,
+        include: { user: true, title: true },
+      });
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Bu dernek için belirtilen rol zaten aktif bir kişiye atanmış',
+        );
+      }
+      throw e;
+    }
+  }
+
+  async remove(membershipId: string) {
+    await this.ensureMembership(membershipId);
+
+    return this.prisma.associationMembership.update({
+      where: { id: membershipId },
+      data: {
+        isActive: false,
+        leftAt: new Date(),
+      },
+      include: { user: true, title: true },
+    });
+  }
+
   private async ensureAssociation(id: string) {
     const exists = await this.prisma.association.findFirst({
       where: { id, deletedAt: null },
       select: { id: true },
     });
     if (!exists) throw new NotFoundException('Dernek bulunamadı');
+  }
+
+  private async ensureMembership(id: string) {
+    const exists = await this.prisma.associationMembership.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!exists) throw new NotFoundException('Üyelik bulunamadı');
   }
 }

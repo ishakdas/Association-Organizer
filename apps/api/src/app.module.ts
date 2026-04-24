@@ -4,6 +4,7 @@ import { PrismaModule } from '@ticketbot/database';
 import configuration from './config/configuration';
 import { AuthModule } from './modules/auth/auth.module';
 import { AssociationsModule } from './modules/associations/associations.module';
+import { TitlesModule } from './modules/titles/titles.module';
 import { UsersModule } from './modules/users/users.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { BotModule } from 'bot';
@@ -17,6 +18,7 @@ import { BotModule } from 'bot';
     PrismaModule,
     AuthModule,
     AssociationsModule,
+    TitlesModule,
     UsersModule,
     JobsModule,
     BotModule,
