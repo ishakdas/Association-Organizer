@@ -16,6 +16,7 @@
     "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-fastify": "^11.0.0",
+    "@supabase/supabase-js": "^2.103.3",
     "@ticketbot/ai": "workspace:*",
     "@ticketbot/core": "workspace:*",
     "@ticketbot/database": "workspace:*",

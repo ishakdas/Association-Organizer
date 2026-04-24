@@ -7,6 +7,7 @@ import { AssociationsModule } from './modules/associations/associations.module';
 import { TitlesModule } from './modules/titles/titles.module';
 import { UsersModule } from './modules/users/users.module';
 import { JobsModule } from './modules/jobs/jobs.module';
+import { SupabaseModule } from './modules/supabase/supabase.module';
 import { BotModule } from 'bot';
 
 @Module({
@@ -16,6 +17,7 @@ import { BotModule } from 'bot';
       load: [configuration],
     }),
     PrismaModule,
+    SupabaseModule,
     AuthModule,
     AssociationsModule,
     TitlesModule,
