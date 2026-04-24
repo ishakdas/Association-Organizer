@@ -10,6 +10,7 @@ import * as jose from 'jose';
 import { PrismaService, UserRole } from '@ticketbot/database';
 import type {
   AuthMembership,
+  AuthTelegramAccount,
   AuthenticatedUser,
 } from '@ticketbot/shared-types';
 import { BOT_JWT_ISSUER } from '../../modules/auth/auth.constants';
@@ -41,6 +42,7 @@ export class AuthGuard implements CanActivate {
     const verified = await this.verify(token);
     const user = await this.resolveUser(verified);
     const memberships = await this.loadMemberships(user.id);
+    const telegramAccount = await this.loadTelegramAccount(user.id);
 
     const authUser: AuthenticatedUser = {
       id: user.id,
@@ -51,6 +53,7 @@ export class AuthGuard implements CanActivate {
       systemRole: memberships.some((m) => m.role === UserRole.SYSTEM_ADMIN)
         ? UserRole.SYSTEM_ADMIN
         : null,
+      telegramAccount,
     };
 
     (request as any).user = authUser;
@@ -70,6 +73,27 @@ export class AuthGuard implements CanActivate {
       },
     });
     return rows;
+  }
+
+  private async loadTelegramAccount(
+    userId: string,
+  ): Promise<AuthTelegramAccount | null> {
+    const row = await this.prisma.telegramAccount.findUnique({
+      where: { userId },
+      select: {
+        telegramId: true,
+        username: true,
+        firstName: true,
+        createdAt: true,
+      },
+    });
+    if (!row) return null;
+    return {
+      telegramId: row.telegramId.toString(),
+      username: row.username,
+      firstName: row.firstName,
+      linkedAt: row.createdAt.toISOString(),
+    };
   }
 
   private extractToken(request: FastifyRequest): string | null {

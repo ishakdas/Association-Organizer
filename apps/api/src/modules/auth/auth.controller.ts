@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Post, Body, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { CurrentUser, RequestUser } from '../../common/decorators/current-user.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -19,6 +19,12 @@ export class AuthController {
   @UseGuards(AuthGuard)
   generateLinkToken(@CurrentUser() user: RequestUser) {
     return this.authService.generateLinkToken(user.id);
+  }
+
+  @Delete('telegram-link')
+  @UseGuards(AuthGuard)
+  unlinkTelegram(@CurrentUser() user: RequestUser) {
+    return this.authService.unlinkTelegram(user.id);
   }
 
   @Post('redeem-telegram-link')

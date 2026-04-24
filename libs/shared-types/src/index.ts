@@ -21,6 +21,7 @@ export type {
   BotTokenPayload,
   TelegramLinkTokenDto,
   AuthMembership,
+  AuthTelegramAccount,
   AuthenticatedUser,
 } from './domain/auth';
 

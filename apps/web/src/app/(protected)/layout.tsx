@@ -31,6 +31,7 @@ export default async function ProtectedLayout({
       supabaseUserId: session.user.id,
       memberships: [],
       systemRole: null,
+      telegramAccount: null,
     };
   }
 

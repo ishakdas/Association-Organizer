@@ -192,6 +192,7 @@ describe('AuthGuard — request.user enrichment', () => {
         },
       ],
       systemRole: null,
+      telegramAccount: null,
     });
   });
 

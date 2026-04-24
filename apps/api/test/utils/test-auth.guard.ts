@@ -35,6 +35,7 @@ const ADMIN_USER: AuthenticatedUser = {
     },
   ],
   systemRole: UserRole.SYSTEM_ADMIN,
+  telegramAccount: null,
 };
 
 const NON_ADMIN_USER: AuthenticatedUser = {
@@ -44,6 +45,7 @@ const NON_ADMIN_USER: AuthenticatedUser = {
   supabaseUserId: TEST_NON_ADMIN_SUPABASE_ID,
   memberships: [],
   systemRole: null,
+  telegramAccount: null,
 };
 
 @Injectable()

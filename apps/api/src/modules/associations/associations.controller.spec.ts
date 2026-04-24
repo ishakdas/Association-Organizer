@@ -27,6 +27,7 @@ const fakeUser = {
   supabaseUserId: 'sup-1',
   memberships: [],
   systemRole: null,
+  telegramAccount: null,
 };
 
 const sampleAssociation = {

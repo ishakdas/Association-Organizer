@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   Check,
@@ -16,21 +16,68 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { createClient } from '@/lib/supabase/client';
+import { getMe } from '@/lib/api/me';
+import {
+  generateTelegramLink,
+  unlinkTelegramAccount,
+} from '@/lib/api/telegram';
+import type { AuthenticatedUser } from '@ticketbot/shared-types';
 
-// UI-only placeholder. Backend endpoint (POST /api/v1/auth/telegram-link)
-// will replace the mock state once wired.
 const CODE_TTL_SECONDS = 10 * 60;
+const BOT_USERNAME =
+  process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'dernek_organizer_bot';
 
 type LinkState =
+  | { status: 'loading' }
   | { status: 'unlinked' }
   | { status: 'pending'; code: string; expiresAt: number }
   | { status: 'linked'; handle: string; linkedAt: Date };
 
+async function getToken(): Promise<string> {
+  const supabase = createClient();
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) throw new Error('Oturum süresi dolmuş');
+  return token;
+}
+
+function deriveStateFromUser(user: AuthenticatedUser): LinkState {
+  if (user.telegramAccount) {
+    return {
+      status: 'linked',
+      handle:
+        user.telegramAccount.username ??
+        user.telegramAccount.firstName ??
+        'telegram',
+      linkedAt: new Date(user.telegramAccount.linkedAt),
+    };
+  }
+  return { status: 'unlinked' };
+}
+
 export default function TelegramSettingsPage() {
-  const [state, setState] = useState<LinkState>({ status: 'unlinked' });
+  const [state, setState] = useState<LinkState>({ status: 'loading' });
   const [generating, setGenerating] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
+
+  const refreshMe = useCallback(async () => {
+    try {
+      const token = await getToken();
+      const user = await getMe(token);
+      setState(deriveStateFromUser(user));
+    } catch (err) {
+      setError((err as Error).message);
+      setState({ status: 'unlinked' });
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshMe();
+  }, [refreshMe]);
 
   useEffect(() => {
     if (state.status !== 'pending') return;
@@ -40,25 +87,31 @@ export default function TelegramSettingsPage() {
 
   useEffect(() => {
     if (state.status === 'pending' && now >= state.expiresAt) {
-      setState({ status: 'unlinked' });
+      refreshMe();
     }
-  }, [now, state]);
+  }, [now, state, refreshMe]);
 
   async function generateCode() {
     setGenerating(true);
-    await new Promise((r) => setTimeout(r, 450));
-    const code = crypto.randomUUID().slice(0, 8).toUpperCase();
-    setState({
-      status: 'pending',
-      code,
-      expiresAt: Date.now() + CODE_TTL_SECONDS * 1000,
-    });
-    setGenerating(false);
+    setError(null);
+    try {
+      const token = await getToken();
+      const { token: linkToken, expiresAt } = await generateTelegramLink(token);
+      setState({
+        status: 'pending',
+        code: linkToken,
+        expiresAt: new Date(expiresAt).getTime(),
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setGenerating(false);
+    }
   }
 
   async function copyCode(code: string) {
     try {
-      await navigator.clipboard.writeText(code);
+      await navigator.clipboard.writeText(`/link ${code}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 1600);
     } catch {
@@ -66,7 +119,21 @@ export default function TelegramSettingsPage() {
     }
   }
 
-  function unlink() {
+  async function unlink() {
+    setUnlinking(true);
+    setError(null);
+    try {
+      const token = await getToken();
+      await unlinkTelegramAccount(token);
+      await refreshMe();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setUnlinking(false);
+    }
+  }
+
+  function cancelPending() {
     setState({ status: 'unlinked' });
   }
 
@@ -74,16 +141,24 @@ export default function TelegramSettingsPage() {
     <div className="space-y-8 pb-10">
       <PageHeader />
 
+      {error && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-[13px] text-destructive">
+          {error}
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
           <StatusCard
             state={state}
             now={now}
             generating={generating}
+            unlinking={unlinking}
             copied={copied}
             onGenerate={generateCode}
             onCopy={copyCode}
             onUnlink={unlink}
+            onCancel={cancelPending}
           />
           <HowItWorksCard />
         </div>
@@ -132,18 +207,22 @@ function StatusCard({
   state,
   now,
   generating,
+  unlinking,
   copied,
   onGenerate,
   onCopy,
   onUnlink,
+  onCancel,
 }: {
   state: LinkState;
   now: number;
   generating: boolean;
+  unlinking: boolean;
   copied: boolean;
   onGenerate: () => void;
   onCopy: (code: string) => void;
   onUnlink: () => void;
+  onCancel: () => void;
 }) {
   return (
     <section className="overflow-hidden rounded-lg border border-border bg-card">
@@ -163,6 +242,12 @@ function StatusCard({
       </header>
 
       <div className="px-5 py-6">
+        {state.status === 'loading' && (
+          <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Yükleniyor…
+          </div>
+        )}
         {state.status === 'unlinked' && (
           <UnlinkedPanel generating={generating} onGenerate={onGenerate} />
         )}
@@ -173,13 +258,14 @@ function StatusCard({
             now={now}
             copied={copied}
             onCopy={() => onCopy(state.code)}
-            onCancel={onUnlink}
+            onCancel={onCancel}
           />
         )}
         {state.status === 'linked' && (
           <LinkedPanel
             handle={state.handle}
             linkedAt={state.linkedAt}
+            unlinking={unlinking}
             onUnlink={onUnlink}
           />
         )}
@@ -249,15 +335,15 @@ function PendingPanel({
         <span className="eyebrow">Bağlantı Kodunuz</span>
         <p className="text-[13px] text-muted-foreground">
           Bu kodu Telegram üzerinde{' '}
-          <span className="font-mono text-foreground">@dernek_organizer_bot</span>{' '}
+          <span className="font-mono text-foreground">@{BOT_USERNAME}</span>{' '}
           botuna şu şekilde gönderin:{' '}
-          <span className="font-mono text-foreground">/link {code}</span>
+          <span className="font-mono text-foreground">/link {code.slice(0, 12)}…</span>
         </p>
       </div>
 
       <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-center sm:text-left">
-          <div className="font-mono text-[28px] font-bold tracking-[0.2em] text-foreground">
+        <div className="min-w-0 text-center sm:text-left">
+          <div className="truncate font-mono text-[16px] font-bold tracking-[0.08em] text-foreground">
             {code}
           </div>
           <div className="mt-0.5 text-[11.5px] uppercase tracking-widest text-muted-foreground">
@@ -273,7 +359,7 @@ function PendingPanel({
           ) : (
             <>
               <Copy className="h-4 w-4" />
-              Kodu kopyala
+              /link komutunu kopyala
             </>
           )}
         </Button>
@@ -297,11 +383,8 @@ function PendingPanel({
 
       <div className="flex items-center justify-end gap-2 pt-2">
         <Button variant="ghost" size="sm" onClick={onCancel}>
-          Vazgeç
-        </Button>
-        <Button variant="outline" size="sm" onClick={onCancel}>
           <RefreshCcw className="h-3.5 w-3.5" />
-          Yeniden oluştur
+          Vazgeç
         </Button>
       </div>
     </div>
@@ -311,10 +394,12 @@ function PendingPanel({
 function LinkedPanel({
   handle,
   linkedAt,
+  unlinking,
   onUnlink,
 }: {
   handle: string;
   linkedAt: Date;
+  unlinking: boolean;
   onUnlink: () => void;
 }) {
   return (
@@ -337,9 +422,23 @@ function LinkedPanel({
           </p>
         </div>
       </div>
-      <Button variant="outline" onClick={onUnlink} className="text-destructive">
-        <Unlink className="h-4 w-4" />
-        Bağlantıyı kaldır
+      <Button
+        variant="outline"
+        onClick={onUnlink}
+        disabled={unlinking}
+        className="text-destructive"
+      >
+        {unlinking ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Kaldırılıyor…
+          </>
+        ) : (
+          <>
+            <Unlink className="h-4 w-4" />
+            Bağlantıyı kaldır
+          </>
+        )}
       </Button>
     </div>
   );
@@ -349,11 +448,11 @@ function HowItWorksCard() {
   const steps = [
     {
       title: 'Kod oluşturun',
-      body: 'Bu sayfadan 8 karakterli tek kullanımlık bir kod üretin.',
+      body: 'Bu sayfadan tek kullanımlık bir kod üretin.',
     },
     {
       title: "Bot'a gönderin",
-      body: "Telegram'da @dernek_organizer_bot'a /link KODUNUZ yazın.",
+      body: `Telegram'da @${BOT_USERNAME} botuna /link KODUNUZ yazın.`,
     },
     {
       title: 'Doğrulayın',

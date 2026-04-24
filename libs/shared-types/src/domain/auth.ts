@@ -22,6 +22,13 @@ export interface AuthMembership {
   isActive: boolean;
 }
 
+export interface AuthTelegramAccount {
+  telegramId: string;
+  username: string | null;
+  firstName: string | null;
+  linkedAt: string;
+}
+
 export interface AuthenticatedUser {
   id: string;
   email: string | null;
@@ -29,4 +36,5 @@ export interface AuthenticatedUser {
   supabaseUserId: string | null;
   memberships: AuthMembership[];
   systemRole: UserRole | null;
+  telegramAccount: AuthTelegramAccount | null;
 }

@@ -74,6 +74,13 @@ export class AuthService {
     return this.issueBotToken(user.id, input.telegramId);
   }
 
+  async unlinkTelegram(userId: string): Promise<{ unlinked: boolean }> {
+    const result = await this.prisma.telegramAccount.deleteMany({
+      where: { userId },
+    });
+    return { unlinked: result.count > 0 };
+  }
+
   async issueBotToken(userId: string, telegramId: string) {
     const secret = new TextEncoder().encode(this.config.get<string>('jwt.secret')!);
 
