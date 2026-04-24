@@ -8,6 +8,7 @@ import { TitlesModule } from './modules/titles/titles.module';
 import { UsersModule } from './modules/users/users.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { TasksModule } from './modules/tasks/tasks.module';
+import { MeetingsModule } from './modules/meetings/meetings.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
 import { BotModule } from 'bot';
 
@@ -25,6 +26,7 @@ import { BotModule } from 'bot';
     UsersModule,
     JobsModule,
     TasksModule,
+    MeetingsModule,
     BotModule,
   ],
 })
