@@ -6,7 +6,10 @@ import { createServerClient } from '@/lib/supabase/server';
 import { getAssociation } from '@/lib/api/associations';
 import { getMe } from '@/lib/api/me';
 import { Button } from '@/components/ui/button';
-import { hasRoleInAssociation } from '@/lib/permissions';
+import {
+  canCreateTasksAndMeetings,
+  canManageMembers,
+} from '@/lib/permissions';
 import { DetailTabs } from '../_components/detail/detail-tabs';
 import { GeneralSection } from '../_components/detail/general-section';
 import { RosterSection } from '../_components/detail/roster-section';
@@ -36,10 +39,10 @@ export default async function AssociationDetailPage({ params }: Props) {
   try {
     const a = await getAssociation(session.access_token, id);
 
-    const canManage = hasRoleInAssociation(me, id, [
-      'ASSOCIATION_MANAGER',
-      'ASSOCIATION_SECRETARY',
-    ]);
+    // Roster ekle/çıkar yalnızca başkan (+ SYSTEM_ADMIN) içindir.
+    // Görev ve toplantı notu oluşturma başkan + sekreter içindir.
+    const canManageRoster = canManageMembers(me, id);
+    const canCreateWork = canCreateTasksAndMeetings(me, id);
 
     return (
       <div className="pb-10">
@@ -52,7 +55,7 @@ export default async function AssociationDetailPage({ params }: Props) {
               <RosterSection
                 associationId={a.id}
                 role="ASSOCIATION_MANAGER"
-                canManage={canManage}
+                canManage={canManageRoster}
                 variant="single"
               />
             }
@@ -60,7 +63,7 @@ export default async function AssociationDetailPage({ params }: Props) {
               <RosterSection
                 associationId={a.id}
                 role="ASSOCIATION_SECRETARY"
-                canManage={canManage}
+                canManage={canManageRoster}
                 variant="list"
               />
             }
@@ -68,15 +71,15 @@ export default async function AssociationDetailPage({ params }: Props) {
               <RosterSection
                 associationId={a.id}
                 role="ASSOCIATION_MEMBER"
-                canManage={canManage}
+                canManage={canManageRoster}
                 variant="list"
               />
             }
             gorevler={
-              <TasksSection associationId={a.id} canManage={canManage} />
+              <TasksSection associationId={a.id} canManage={canCreateWork} />
             }
             toplantilar={
-              <MeetingsSection associationId={a.id} canManage={canManage} />
+              <MeetingsSection associationId={a.id} canManage={canCreateWork} />
             }
           />
         </div>

@@ -40,6 +40,28 @@ export function hasRoleInAssociation(
   );
 }
 
+// Roster mutation (add / remove / update a member, change başkan) is
+// restricted to the association's başkan plus SYSTEM_ADMIN. Mirrors the
+// API's `@AssociationRoles(ASSOCIATION_MANAGER)` on the members routes.
+export function canManageMembers(
+  user: AuthenticatedUser | null,
+  associationId: string,
+): boolean {
+  return hasRoleInAssociation(user, associationId, ['ASSOCIATION_MANAGER']);
+}
+
+// Başkan + sekreter (ve SYSTEM_ADMIN) görev atayabilir ve toplantı notu
+// ekleyebilir. Mirrors the API's create routes under tasks/meetings.
+export function canCreateTasksAndMeetings(
+  user: AuthenticatedUser | null,
+  associationId: string,
+): boolean {
+  return hasRoleInAssociation(user, associationId, [
+    'ASSOCIATION_MANAGER',
+    'ASSOCIATION_SECRETARY',
+  ]);
+}
+
 export function canAccessRoute(
   user: AuthenticatedUser | null,
   access: RouteAccess,
