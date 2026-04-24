@@ -14,8 +14,8 @@ export class AssociationsService {
   constructor(private readonly repository: AssociationsRepository) {}
 
   async create(input: CreateAssociationInput, createdById: string) {
-    const duplicate = await this.repository.findByTaxNumber(input.taxNumber);
-    if (duplicate) {
+    const exists = await this.repository.existsByTaxNumber(input.taxNumber);
+    if (exists) {
       throw new ConflictException(
         'Bu vergi numarasıyla kayıtlı bir dernek zaten mevcut',
       );
@@ -35,7 +35,7 @@ export class AssociationsService {
   }
 
   async list(query: ListAssociationsQuery) {
-    const { data, total } = await this.repository.list(query);
+    const { data, total } = await this.repository.findMany(query);
     const { page, pageSize } = query;
     return {
       data,

@@ -6,36 +6,32 @@ import {
   Body,
   Query,
   UseGuards,
+  UsePipes,
 } from '@nestjs/common';
+import { ZodValidationPipe } from 'nestjs-zod';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { SupabaseUserGuard } from '../../common/guards/supabase-user.guard';
 import { CurrentUser, RequestUser } from '../../common/decorators/current-user.decorator';
-import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { AssociationsService } from './associations.service';
-import {
-  createAssociationSchema,
-  CreateAssociationInput,
-  listAssociationsQuerySchema,
-  ListAssociationsQuery,
-} from '@ticketbot/shared-validation';
+import { CreateAssociationDto } from './dto/create-association.dto';
+import { ListAssociationsQueryDto } from './dto/list-associations-query.dto';
 
 @Controller('associations')
 @UseGuards(AuthGuard, SupabaseUserGuard)
+@UsePipes(ZodValidationPipe)
 export class AssociationsController {
   constructor(private readonly associationsService: AssociationsService) {}
 
   @Post()
   create(
-    @Body(new ZodValidationPipe(createAssociationSchema)) body: CreateAssociationInput,
+    @Body() body: CreateAssociationDto,
     @CurrentUser() user: RequestUser,
   ) {
     return this.associationsService.create(body, user.id);
   }
 
   @Get()
-  list(
-    @Query(new ZodValidationPipe(listAssociationsQuerySchema)) query: ListAssociationsQuery,
-  ) {
+  list(@Query() query: ListAssociationsQueryDto) {
     return this.associationsService.list(query);
   }
 
