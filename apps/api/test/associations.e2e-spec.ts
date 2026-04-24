@@ -21,7 +21,6 @@ const buildValidAssociation = (overrides: Record<string, unknown> = {}) => ({
   phone: '+905551112233',
   email: 'e2e@dernek.org',
   activityArea: 'Eğitim',
-  presidentName: 'Ahmet Yılmaz',
   memberCount: 10,
   isActive: true,
   ...overrides,

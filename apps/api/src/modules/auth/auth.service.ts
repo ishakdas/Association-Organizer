@@ -69,23 +69,15 @@ export class AuthService {
     // Issue a bot JWT
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: linkToken.userId },
-      include: { memberships: { take: 1 } },
     });
 
-    return this.issueBotToken(
-      user.id,
-      input.telegramId,
-      user.memberships[0]?.organisationId,
-    );
+    return this.issueBotToken(user.id, input.telegramId);
   }
 
-  async issueBotToken(userId: string, telegramId: string, organisationId?: string) {
+  async issueBotToken(userId: string, telegramId: string) {
     const secret = new TextEncoder().encode(this.config.get<string>('jwt.secret')!);
 
-    const token = await new jose.SignJWT({
-      telegramId,
-      ...(organisationId && { organisationId }),
-    })
+    const token = await new jose.SignJWT({ telegramId })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuer(BOT_JWT_ISSUER)
       .setSubject(userId)

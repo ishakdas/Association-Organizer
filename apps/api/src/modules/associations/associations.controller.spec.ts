@@ -40,7 +40,6 @@ const validBody = {
   phone: '+905551112233',
   email: 'test@dernek.org',
   activityArea: 'Eğitim',
-  presidentName: 'Ahmet Yılmaz',
   memberCount: 10,
   isActive: true,
 } as unknown as CreateAssociationDto;

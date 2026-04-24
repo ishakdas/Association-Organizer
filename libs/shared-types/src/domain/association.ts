@@ -12,7 +12,6 @@ export interface AssociationDto {
   website: string | null;
   logoUrl: string | null;
   activityArea: string;
-  presidentName: string;
   memberCount: number;
   isActive: boolean;
   notes: string | null;

@@ -40,7 +40,7 @@ export class AuthGuard implements CanActivate {
     (request as any).user = {
       id: user.id,
       email: user.email,
-      supabaseId: user.supabaseId,
+      supabaseId: user.supabaseUserId,
     };
     (request as any).tokenKind = verified.kind;
 
@@ -112,8 +112,10 @@ export class AuthGuard implements CanActivate {
       return user;
     }
 
-    // Supabase: sub = auth.users.id (UUID) — mapped to User.supabaseId
-    const existing = await this.prisma.user.findUnique({ where: { supabaseId: sub } });
+    // Supabase: sub = auth.users.id (UUID) — mapped to User.supabaseUserId
+    const existing = await this.prisma.user.findUnique({
+      where: { supabaseUserId: sub },
+    });
     if (existing) return existing;
 
     // Auto-provision on first login
@@ -122,10 +124,17 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Cannot auto-provision user without email claim');
     }
 
+    // fullName is required by schema; derive from JWT claims or email local-part
+    const meta = (payload as any).user_metadata as
+      | { full_name?: string; name?: string }
+      | undefined;
+    const fullName =
+      meta?.full_name?.trim() || meta?.name?.trim() || email.split('@')[0];
+
     return this.prisma.user.upsert({
       where: { email },
-      update: { supabaseId: sub },
-      create: { email, supabaseId: sub },
+      update: { supabaseUserId: sub },
+      create: { email, supabaseUserId: sub, fullName },
     });
   }
 }

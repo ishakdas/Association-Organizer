@@ -83,9 +83,6 @@ export default async function AssociationDetailPage({ params }: Props) {
                 {new Date(association.foundedAt).toLocaleDateString('tr-TR')}
               </Field>
               <Field label="Faaliyet Alanı">{association.activityArea}</Field>
-              <Field icon={<UserIcon className="h-3.5 w-3.5" />} label="Başkan">
-                {association.presidentName}
-              </Field>
               <Field icon={<Users className="h-3.5 w-3.5" />} label="Üye Sayısı">
                 {association.memberCount}
               </Field>

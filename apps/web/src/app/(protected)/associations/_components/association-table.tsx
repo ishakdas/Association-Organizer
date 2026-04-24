@@ -19,7 +19,6 @@ export function AssociationTable({ rows }: { rows: AssociationDto[] }) {
             <TableHead>Dernek</TableHead>
             <TableHead>VKN</TableHead>
             <TableHead>İl / İlçe</TableHead>
-            <TableHead>Başkan</TableHead>
             <TableHead className="text-right">Üye</TableHead>
             <TableHead>Durum</TableHead>
           </TableRow>
@@ -39,7 +38,6 @@ export function AssociationTable({ rows }: { rows: AssociationDto[] }) {
               <TableCell>
                 {a.city} / {a.district}
               </TableCell>
-              <TableCell>{a.presidentName}</TableCell>
               <TableCell className="text-right tabular-nums">{a.memberCount}</TableCell>
               <TableCell>
                 <Badge variant={a.isActive ? 'default' : 'secondary'}>

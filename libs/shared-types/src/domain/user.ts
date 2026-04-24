@@ -1,20 +1,26 @@
-import type { Role } from '../enums';
+import type { UserRole } from '../enums';
 
 export interface UserDto {
   id: string;
-  email: string;
-  name: string | null;
-  avatarUrl: string | null;
+  supabaseUserId: string | null;
+  email: string | null;
+  fullName: string;
+  phone: string | null;
+  isActive: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface MembershipDto {
+export interface AssociationMembershipDto {
   id: string;
-  role: Role;
-  organisationId: string;
   userId: string;
-  createdAt: string;
+  associationId: string;
+  role: UserRole;
+  titleId: string | null;
+  customTitle: string | null;
+  joinedAt: string;
+  leftAt: string | null;
+  isActive: boolean;
 }
 
 export interface TelegramAccountDto {

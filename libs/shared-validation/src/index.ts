@@ -1,42 +1,14 @@
 // Common
 export { paginationSchema, type PaginationInput } from './schemas/common.schema';
 
-// Tickets
-export {
-  createTicketSchema,
-  updateTicketSchema,
-  ticketQuerySchema,
-  type CreateTicketInput,
-  type UpdateTicketInput,
-  type TicketQueryInput,
-} from './schemas/ticket.schema';
-
-// Comments
-export { createCommentSchema, type CreateCommentInput } from './schemas/comment.schema';
-
-// Meeting Notes
+// Meeting Notes (placeholder — title/content shape; will be expanded with
+// associationId/meetingDate/attendees once meeting-notes module is rebuilt)
 export {
   createMeetingNoteSchema,
   updateMeetingNoteSchema,
   type CreateMeetingNoteInput,
   type UpdateMeetingNoteInput,
 } from './schemas/meeting-note.schema';
-
-// AI Extraction
-export {
-  extractedActionItemSchema,
-  extractionResultSchema,
-  type ExtractedActionItemOutput,
-  type ExtractionResultOutput,
-} from './schemas/extracted-action-item.schema';
-
-// Extensions
-export {
-  createExtensionRequestSchema,
-  resolveExtensionRequestSchema,
-  type CreateExtensionRequestInput,
-  type ResolveExtensionRequestInput,
-} from './schemas/extension.schema';
 
 // Auth
 export {
@@ -47,18 +19,6 @@ export {
   type TelegramLinkRedeemInput,
   type BotAuthPayload,
 } from './schemas/auth.schema';
-
-// Organisations (Dernek)
-export {
-  createOrganisationSchema,
-  updateOrganisationSchema,
-  addMemberSchema,
-  updateMemberRoleSchema,
-  type CreateOrganisationInput,
-  type UpdateOrganisationInput,
-  type AddMemberInput,
-  type UpdateMemberRoleInput,
-} from './schemas/organisation.schema';
 
 // Associations (Dernek Sicili)
 export {

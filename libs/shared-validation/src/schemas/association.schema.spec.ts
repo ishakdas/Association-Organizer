@@ -14,7 +14,6 @@ const validInput = {
   phone: '0555 111 22 33',
   email: 'info@ornek.test',
   activityArea: 'Eğitim',
-  presidentName: 'Ali Veli',
 };
 
 describe('createAssociationSchema', () => {

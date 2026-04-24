@@ -40,7 +40,6 @@ const formSchema = z.object({
   website: z.string().url('Geçerli bir URL girin').or(z.literal('')).optional(),
   logoUrl: z.string().url('Geçerli bir URL girin').or(z.literal('')).optional(),
   activityArea: z.string().min(2).max(200),
-  presidentName: z.string().min(2).max(100),
   memberCount: z.coerce.number().int().nonnegative(),
   isActive: z.boolean(),
   notes: z.string().max(2000).optional(),
@@ -66,7 +65,6 @@ export function AssociationForm() {
       website: '',
       logoUrl: '',
       activityArea: '',
-      presidentName: '',
       memberCount: 0,
       isActive: true,
       notes: '',
@@ -297,19 +295,6 @@ export function AssociationForm() {
             <CardTitle>Yönetim</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-4 sm:grid-cols-2">
-            <FormField
-              control={form.control}
-              name="presidentName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Başkan *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ali Veli" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
             <FormField
               control={form.control}
               name="memberCount"
