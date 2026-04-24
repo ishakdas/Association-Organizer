@@ -47,7 +47,7 @@ async function main() {
 
   // Dev-only system admin (no Supabase link). Real admins log in via Supabase
   // and get auto-provisioned by AuthGuard.
-  await prisma.user.upsert({
+  const admin = await prisma.user.upsert({
     where: { email: 'admin@dev.local' },
     update: { fullName: 'Sistem Yöneticisi', isActive: true },
     create: {
@@ -57,9 +57,55 @@ async function main() {
     },
   });
 
+  // Sentinel "system root" association — its only purpose is to carry the
+  // SYSTEM_ADMIN membership grant. RolesGuard / AssociationRolesGuard derive
+  // systemRole from any active SYSTEM_ADMIN membership row.
+  const SYSTEM_ROOT_ID = 'ckv_seed_systemroot______';
+  await prisma.association.upsert({
+    where: { id: SYSTEM_ROOT_ID },
+    update: { isActive: true },
+    create: {
+      id: SYSTEM_ROOT_ID,
+      name: 'Sistem (seed)',
+      taxNumber: '0000000000',
+      foundedAt: new Date('2020-01-01T00:00:00.000Z'),
+      address: 'Seed',
+      city: 'Seed',
+      district: 'Seed',
+      phone: '+905550000000',
+      email: 'system-root@dev.local',
+      activityArea: 'System',
+      memberCount: 0,
+      isActive: true,
+      createdById: admin.id,
+    },
+  });
+
+  await prisma.associationMembership.upsert({
+    where: {
+      userId_associationId_role: {
+        userId: admin.id,
+        associationId: SYSTEM_ROOT_ID,
+        role: 'SYSTEM_ADMIN',
+      },
+    },
+    update: { isActive: true },
+    create: {
+      userId: admin.id,
+      associationId: SYSTEM_ROOT_ID,
+      role: 'SYSTEM_ADMIN',
+      isActive: true,
+    },
+  });
+
   const titleCount = await prisma.memberTitleDefinition.count();
   const userCount = await prisma.user.count();
-  console.log(`Seed complete: ${titleCount} titles, ${userCount} users`);
+  const adminCount = await prisma.associationMembership.count({
+    where: { role: 'SYSTEM_ADMIN', isActive: true },
+  });
+  console.log(
+    `Seed complete: ${titleCount} titles, ${userCount} users, ${adminCount} active SYSTEM_ADMIN memberships`,
+  );
 }
 
 main()

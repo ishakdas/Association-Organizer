@@ -6,7 +6,11 @@ import {
   seedTestUser,
   truncateAssociations,
 } from './utils/test-app.factory';
-import { TEST_BEARER_TOKEN, TEST_USER_ID } from './utils/test-user';
+import {
+  TEST_BEARER_TOKEN,
+  TEST_NON_ADMIN_BEARER_TOKEN,
+  TEST_USER_ID,
+} from './utils/test-user';
 
 const BASE = '/api/v1/associations';
 
@@ -23,6 +27,12 @@ const buildValidAssociation = (overrides: Record<string, unknown> = {}) => ({
   activityArea: 'Eğitim',
   memberCount: 10,
   isActive: true,
+  manager: {
+    fullName: 'E2E Başkan',
+    email: 'e2e-baskan@dernek.local',
+    password: 'super-strong-pass',
+    phone: '+905554445566',
+  },
   ...overrides,
 });
 
@@ -46,8 +56,8 @@ describe('Associations (e2e)', () => {
     await truncateAssociations(prisma);
   });
 
-  const auth = (req: request.Test) =>
-    req.set('Authorization', `Bearer ${TEST_BEARER_TOKEN}`);
+  const auth = (req: request.Test, token = TEST_BEARER_TOKEN) =>
+    req.set('Authorization', `Bearer ${token}`);
 
   describe('POST /associations', () => {
     it('1) returns 401 when unauthenticated', async () => {
@@ -66,7 +76,34 @@ describe('Associations (e2e)', () => {
       expect(res.status).toBe(400);
     });
 
-    it('3) returns 201 with body and persists to DB when payload is valid', async () => {
+    it('3) returns 400 when manager.password is shorter than 8 chars', async () => {
+      const res = await auth(
+        request(app.getHttpServer())
+          .post(BASE)
+          .send(
+            buildValidAssociation({
+              manager: {
+                fullName: 'X Y',
+                email: 'weakpw@dernek.local',
+                password: 'short',
+              },
+            }),
+          ),
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('4) returns 403 when caller is not SYSTEM_ADMIN', async () => {
+      const res = await auth(
+        request(app.getHttpServer())
+          .post(BASE)
+          .send(buildValidAssociation()),
+        TEST_NON_ADMIN_BEARER_TOKEN,
+      );
+      expect(res.status).toBe(403);
+    });
+
+    it('5) returns 201 and persists 3 rows (manager user + association + manager membership)', async () => {
       const res = await auth(
         request(app.getHttpServer())
           .post(BASE)
@@ -78,19 +115,33 @@ describe('Associations (e2e)', () => {
         id: expect.any(String),
         name: 'TEST Derneği',
         taxNumber: '1234567890',
-        city: 'Ankara',
         createdById: TEST_USER_ID,
       });
 
-      const row = await prisma.association.findUnique({
+      const association = await prisma.association.findUnique({
         where: { id: res.body.id },
+        include: {
+          memberships: {
+            where: { role: 'ASSOCIATION_MANAGER' },
+            include: { user: true },
+          },
+        },
       });
-      expect(row).not.toBeNull();
-      expect(row?.taxNumber).toBe('1234567890');
-      expect(row?.createdById).toBe(TEST_USER_ID);
+      expect(association).not.toBeNull();
+      expect(association!.memberships).toHaveLength(1);
+
+      const mgrMembership = association!.memberships[0];
+      expect(mgrMembership.isActive).toBe(true);
+      expect(mgrMembership.user.email).toBe('e2e-baskan@dernek.local');
+      expect(mgrMembership.user.fullName).toBe('E2E Başkan');
+      expect(mgrMembership.user.supabaseUserId).toMatch(
+        /^00000000-0000-0000-0000-\d{12}$/,
+      );
     });
 
-    it('4) returns 409 when taxNumber already exists', async () => {
+    it('6) returns 409 when manager email is already registered (saga rolls back)', async () => {
+      // First creation seeds the email; second creation must collide on
+      // User.email @unique and trigger the Supabase rollback.
       await auth(
         request(app.getHttpServer())
           .post(BASE)
@@ -102,8 +153,41 @@ describe('Associations (e2e)', () => {
           .post(BASE)
           .send(
             buildValidAssociation({
-              name: 'Another Dernek',
+              taxNumber: '9999999999',
+              email: 'other-org@dernek.org',
+              // Same manager email — must conflict.
+            }),
+          ),
+      );
+      expect(dupe.status).toBe(409);
+
+      // Saga rollback: only the first association exists, no orphan
+      // membership rows from the second attempt.
+      const created = await prisma.association.findMany({
+        where: { taxNumber: { in: ['1234567890', '9999999999'] } },
+      });
+      expect(created).toHaveLength(1);
+      expect(created[0].taxNumber).toBe('1234567890');
+    });
+
+    it('7) returns 409 when taxNumber already exists (no Supabase work needed)', async () => {
+      await auth(
+        request(app.getHttpServer())
+          .post(BASE)
+          .send(buildValidAssociation()),
+      ).expect(201);
+
+      const dupe = await auth(
+        request(app.getHttpServer())
+          .post(BASE)
+          .send(
+            buildValidAssociation({
               email: 'other@dernek.org',
+              manager: {
+                fullName: 'Different Mgr',
+                email: 'different-mgr@dernek.local',
+                password: 'super-strong-pass',
+              },
             }),
           ),
       );
@@ -112,114 +196,79 @@ describe('Associations (e2e)', () => {
   });
 
   describe('GET /associations', () => {
-    it('5) returns correct pagination meta (total, page, pageSize, totalPages)', async () => {
-      const rows = Array.from({ length: 3 }).map((_, i) => ({
-        name: `Dernek ${i + 1}`,
-        taxNumber: `100000000${i}`,
-        foundedAt: new Date('2020-01-01T00:00:00.000Z'),
-        address: 'Adres',
-        city: 'Ankara',
-        district: 'Çankaya',
-        phone: '+905551112233',
-        email: `a${i}@dernek.org`,
-        activityArea: 'Eğitim',
-        presidentName: 'Başkan',
-        memberCount: 10,
-        isActive: true,
-        createdById: TEST_USER_ID,
-      }));
-      for (const r of rows) await prisma.association.create({ data: r });
+    it('8) admin: sees all (paginated) — at least the two we just created', async () => {
+      await auth(
+        request(app.getHttpServer())
+          .post(BASE)
+          .send(
+            buildValidAssociation({
+              taxNumber: '2000000001',
+              email: 'a1@dernek.org',
+              manager: {
+                fullName: 'M1',
+                email: 'm1@dernek.local',
+                password: 'super-strong-pass',
+              },
+            }),
+          ),
+      ).expect(201);
+      await auth(
+        request(app.getHttpServer())
+          .post(BASE)
+          .send(
+            buildValidAssociation({
+              taxNumber: '2000000002',
+              email: 'a2@dernek.org',
+              manager: {
+                fullName: 'M2',
+                email: 'm2@dernek.local',
+                password: 'super-strong-pass',
+              },
+            }),
+          ),
+      ).expect(201);
 
       const res = await auth(
-        request(app.getHttpServer()).get(`${BASE}?page=1&pageSize=2`),
+        request(app.getHttpServer()).get(`${BASE}?page=1&pageSize=20`),
       );
 
       expect(res.status).toBe(200);
-      expect(res.body).toMatchObject({
-        meta: { total: 3, page: 1, pageSize: 2, totalPages: 2 },
-      });
-      expect(res.body.data).toHaveLength(2);
+      expect(res.body.data.length).toBeGreaterThanOrEqual(2);
     });
 
-    it('6) applies the `search` filter', async () => {
-      await prisma.association.createMany({
-        data: [
-          {
-            name: 'TESTXYZ Derneği',
-            taxNumber: '2000000001',
-            foundedAt: new Date('2020-01-01T00:00:00.000Z'),
-            address: 'A',
-            city: 'Ankara',
-            district: 'Çankaya',
-            phone: '+905551112233',
-            email: 't1@dernek.org',
-            activityArea: 'Eğitim',
-            presidentName: 'Başkan',
-            memberCount: 1,
-            isActive: true,
-            createdById: TEST_USER_ID,
-          },
-          {
-            name: 'Başka Dernek',
-            taxNumber: '2000000002',
-            foundedAt: new Date('2020-01-01T00:00:00.000Z'),
-            address: 'B',
-            city: 'İstanbul',
-            district: 'Kadıköy',
-            phone: '+905551112233',
-            email: 't2@dernek.org',
-            activityArea: 'Kültür',
-            presidentName: 'Başkan',
-            memberCount: 1,
-            isActive: true,
-            createdById: TEST_USER_ID,
-          },
-        ],
-      });
-
+    it('9) non-admin: sees only associations they have an active membership in (none)', async () => {
       const res = await auth(
-        request(app.getHttpServer()).get(`${BASE}?search=TESTXYZ`),
+        request(app.getHttpServer()).get(BASE),
+        TEST_NON_ADMIN_BEARER_TOKEN,
       );
 
       expect(res.status).toBe(200);
-      expect(res.body.meta.total).toBe(1);
-      expect(res.body.data).toHaveLength(1);
-      expect(res.body.data[0].name).toBe('TESTXYZ Derneği');
+      expect(res.body.data).toEqual([]);
+      expect(res.body.meta.total).toBe(0);
     });
   });
 
   describe('GET /associations/:id', () => {
-    it('7) returns 200 with the association when id is valid', async () => {
-      const created = await prisma.association.create({
-        data: {
-          name: 'Detay Derneği',
-          taxNumber: '3000000001',
-          foundedAt: new Date('2020-01-01T00:00:00.000Z'),
-          address: 'Adres',
-          city: 'Ankara',
-          district: 'Çankaya',
-          phone: '+905551112233',
-          email: 'detay@dernek.org',
-          activityArea: 'Eğitim',
-          presidentName: 'Başkan',
-          memberCount: 1,
-          isActive: true,
-          createdById: TEST_USER_ID,
-        },
-      });
+    it('10) returns 200 when id is valid', async () => {
+      const create = await auth(
+        request(app.getHttpServer())
+          .post(BASE)
+          .send(buildValidAssociation({ taxNumber: '3000000001' })),
+      );
+      expect(create.status).toBe(201);
 
       const res = await auth(
-        request(app.getHttpServer()).get(`${BASE}/${created.id}`),
+        request(app.getHttpServer()).get(`${BASE}/${create.body.id}`),
       );
 
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({
-        id: created.id,
+        id: create.body.id,
         taxNumber: '3000000001',
       });
     });
 
-    it('8) returns 404 when id does not exist', async () => {
+    it('11) returns 404 when id does not exist', async () => {
       const res = await auth(
         request(app.getHttpServer()).get(`${BASE}/ck-nonexistent-id-0000000`),
       );

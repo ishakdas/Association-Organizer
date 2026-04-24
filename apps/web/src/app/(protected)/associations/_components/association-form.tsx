@@ -42,6 +42,12 @@ const formSchema = z.object({
   memberCount: z.coerce.number().int().nonnegative(),
   isActive: z.boolean(),
   notes: z.string().max(2000).optional(),
+  // Flat manager fields keep react-hook-form's per-field error mapping
+  // straightforward; nested into `manager` at submit time.
+  managerFullName: z.string().min(2, 'En az 2 karakter').max(200),
+  managerEmail: z.string().email('Geçerli bir e-posta girin'),
+  managerPassword: z.string().min(8, 'En az 8 karakter').max(72),
+  managerPhone: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -67,6 +73,10 @@ export function AssociationForm() {
       memberCount: 0,
       isActive: true,
       notes: '',
+      managerFullName: '',
+      managerEmail: '',
+      managerPassword: '',
+      managerPhone: '',
     },
   });
 
@@ -76,21 +86,45 @@ export function AssociationForm() {
 
   function onSubmit(values: FormValues) {
     const foundedAtIso = new Date(`${values.foundedAt}T00:00:00Z`).toISOString();
+    const {
+      managerFullName,
+      managerEmail,
+      managerPassword,
+      managerPhone,
+      ...associationFields
+    } = values;
 
     const parsed = createAssociationSchema.safeParse({
-      ...values,
+      ...associationFields,
       foundedAt: foundedAtIso,
       website: values.website || undefined,
       logoUrl: values.logoUrl || undefined,
       notes: values.notes || undefined,
       shortName: values.shortName || undefined,
+      manager: {
+        fullName: managerFullName,
+        email: managerEmail,
+        password: managerPassword,
+        phone: managerPhone || undefined,
+      },
     });
 
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
-        const path = issue.path[0];
-        if (typeof path === 'string') {
-          form.setError(path as keyof FormValues, { message: issue.message });
+        const head = issue.path[0];
+        if (head === 'manager') {
+          const sub = issue.path[1];
+          const map: Record<string, keyof FormValues> = {
+            fullName: 'managerFullName',
+            email: 'managerEmail',
+            password: 'managerPassword',
+            phone: 'managerPhone',
+          };
+          if (typeof sub === 'string' && map[sub]) {
+            form.setError(map[sub], { message: issue.message });
+          }
+        } else if (typeof head === 'string') {
+          form.setError(head as keyof FormValues, { message: issue.message });
         }
       }
       return;
@@ -332,6 +366,85 @@ export function AssociationForm() {
 
             <Section
               number="04"
+              title="Başkan"
+              description="Dernek başkanına web hesabı açılır. Şifre yalnızca ilk girişte kullanılır; başkan ardından kendi şifresini değiştirebilir."
+            >
+              <div className="grid gap-5 sm:grid-cols-2">
+                <FormField
+                  control={form.control}
+                  name="managerFullName"
+                  render={({ field }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>Başkan Adı *</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Mehmet Yılmaz" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="managerEmail"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Başkan E-postası *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="email"
+                          placeholder="baskan@dernek.org"
+                          autoComplete="off"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Bu adresle Supabase hesabı açılır.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="managerPassword"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Geçici Şifre *</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="password"
+                          placeholder="En az 8 karakter"
+                          autoComplete="new-password"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        İlk girişte değiştirilmek üzere atayın.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="managerPhone"
+                  render={({ field }) => (
+                    <FormItem className="sm:col-span-2">
+                      <FormLabel>Telefon</FormLabel>
+                      <FormControl>
+                        <Input placeholder="0555 444 55 66" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </Section>
+
+            <Separator />
+
+            <Section
+              number="05"
               title="Görsel &amp; Notlar"
               description="Opsiyonel bilgi. Logo URL'si bir CDN bağlantısı olmalıdır."
             >

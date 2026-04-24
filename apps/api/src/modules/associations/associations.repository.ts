@@ -7,6 +7,8 @@ export interface FindManyFilters {
   isActive?: boolean;
   page: number;
   pageSize: number;
+  /** When set, restrict to associations the user has an active membership in. */
+  scopedToUserId?: string;
 }
 
 @Injectable()
@@ -24,7 +26,7 @@ export class AssociationsRepository {
   }
 
   async findMany(filters: FindManyFilters) {
-    const { search, city, isActive, page, pageSize } = filters;
+    const { search, city, isActive, page, pageSize, scopedToUserId } = filters;
 
     const where: Prisma.AssociationWhereInput = {
       deletedAt: null,
@@ -36,6 +38,15 @@ export class AssociationsRepository {
           { taxNumber: { contains: search } },
           { shortName: { contains: search, mode: 'insensitive' } },
         ],
+      }),
+      ...(scopedToUserId && {
+        memberships: {
+          some: {
+            userId: scopedToUserId,
+            isActive: true,
+            deletedAt: null,
+          },
+        },
       }),
     };
 

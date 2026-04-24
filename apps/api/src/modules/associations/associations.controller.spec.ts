@@ -13,6 +13,7 @@ import { AssociationsController } from './associations.controller';
 import { AssociationsService } from './associations.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { SupabaseUserGuard } from '../../common/guards/supabase-user.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
 import { CreateAssociationDto } from './dto/create-association.dto';
 import { ListAssociationsQueryDto } from './dto/list-associations-query.dto';
 
@@ -90,9 +91,9 @@ describe('AssociationsController', () => {
       service.list.mockResolvedValue(listResult as never);
 
       const query = { page: 1, pageSize: 20 } as unknown as ListAssociationsQueryDto;
-      const result = await controller.list(query);
+      const result = await controller.list(query, fakeUser);
 
-      expect(service.list).toHaveBeenCalledWith(query);
+      expect(service.list).toHaveBeenCalledWith(query, fakeUser);
       expect(result).toEqual(listResult);
       expect(result).toHaveProperty('data');
       expect(result).toHaveProperty('meta.total');
@@ -132,10 +133,18 @@ describe('AssociationsController', () => {
       expect(path).toBe('associations');
     });
 
-    it('applies AuthGuard and SupabaseUserGuard at the class level (in that order)', () => {
+    it('applies AuthGuard, SupabaseUserGuard, and RolesGuard at the class level (in that order)', () => {
       const guards = Reflect.getMetadata('__guards__', AssociationsController);
       expect(Array.isArray(guards)).toBe(true);
-      expect(guards).toEqual([AuthGuard, SupabaseUserGuard]);
+      expect(guards).toEqual([AuthGuard, SupabaseUserGuard, RolesGuard]);
+    });
+
+    it('restricts POST / to SYSTEM_ADMIN via @Roles metadata', () => {
+      const roles = Reflect.getMetadata(
+        'roles',
+        AssociationsController.prototype.create,
+      );
+      expect(roles).toEqual(['SYSTEM_ADMIN']);
     });
 
     it('exposes POST / (create)', () => {
