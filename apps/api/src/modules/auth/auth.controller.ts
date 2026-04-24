@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards, UsePipes } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { CurrentUser, RequestUser } from '../../common/decorators/current-user.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
@@ -8,6 +8,12 @@ import { telegramLinkRedeemSchema, TelegramLinkRedeemInput } from '@ticketbot/sh
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Get('me')
+  @UseGuards(AuthGuard)
+  me(@CurrentUser() user: RequestUser) {
+    return user;
+  }
 
   @Post('telegram-link')
   @UseGuards(AuthGuard)
