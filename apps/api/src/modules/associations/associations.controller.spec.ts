@@ -14,6 +14,7 @@ import { AssociationsService } from './associations.service';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { SupabaseUserGuard } from '../../common/guards/supabase-user.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { AssociationRolesGuard } from '../../common/guards/association-roles.guard';
 import { CreateAssociationDto } from './dto/create-association.dto';
 import { ListAssociationsQueryDto } from './dto/list-associations-query.dto';
 
@@ -133,10 +134,15 @@ describe('AssociationsController', () => {
       expect(path).toBe('associations');
     });
 
-    it('applies AuthGuard, SupabaseUserGuard, and RolesGuard at the class level (in that order)', () => {
+    it('applies AuthGuard, SupabaseUserGuard, RolesGuard, and AssociationRolesGuard at the class level (in that order)', () => {
       const guards = Reflect.getMetadata('__guards__', AssociationsController);
       expect(Array.isArray(guards)).toBe(true);
-      expect(guards).toEqual([AuthGuard, SupabaseUserGuard, RolesGuard]);
+      expect(guards).toEqual([
+        AuthGuard,
+        SupabaseUserGuard,
+        RolesGuard,
+        AssociationRolesGuard,
+      ]);
     });
 
     it('restricts POST / to SYSTEM_ADMIN via @Roles metadata', () => {
@@ -145,6 +151,18 @@ describe('AssociationsController', () => {
         AssociationsController.prototype.create,
       );
       expect(roles).toEqual(['SYSTEM_ADMIN']);
+    });
+
+    it('restricts GET /:id to association members via @AssociationRoles metadata', () => {
+      const roles = Reflect.getMetadata(
+        'associationRoles',
+        AssociationsController.prototype.findOne,
+      );
+      expect(roles).toEqual([
+        'ASSOCIATION_MANAGER',
+        'ASSOCIATION_SECRETARY',
+        'ASSOCIATION_MEMBER',
+      ]);
     });
 
     it('exposes POST / (create)', () => {

@@ -245,8 +245,31 @@ describe('AssociationMembersService', () => {
       prisma.associationMembership.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.update('missing-mem', { role: 'ASSOCIATION_SECRETARY' }),
+        service.update(sampleAssociation.id, 'missing-mem', {
+          role: 'ASSOCIATION_SECRETARY',
+        }),
       ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.associationMembership.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a membershipId belonging to a different dernek (cross-tenant)', async () => {
+      // Simulates Prisma returning null because the narrowed filter
+      // `{ id, associationId, deletedAt: null }` does not match when
+      // the supplied associationId is foreign to the membership.
+      prisma.associationMembership.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.update('other-assoc', sampleMembership.id, {
+          role: 'ASSOCIATION_SECRETARY',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      const args = prisma.associationMembership.findFirst.mock.calls[0][0];
+      expect(args?.where).toMatchObject({
+        id: sampleMembership.id,
+        associationId: 'other-assoc',
+        deletedAt: null,
+      });
       expect(prisma.associationMembership.update).not.toHaveBeenCalled();
     });
 
@@ -259,9 +282,11 @@ describe('AssociationMembersService', () => {
         role: 'ASSOCIATION_SECRETARY',
       } as never);
 
-      const result = await service.update(sampleMembership.id, {
-        role: 'ASSOCIATION_SECRETARY',
-      });
+      const result = await service.update(
+        sampleAssociation.id,
+        sampleMembership.id,
+        { role: 'ASSOCIATION_SECRETARY' },
+      );
 
       expect(prisma.associationMembership.update).toHaveBeenCalledWith({
         where: { id: sampleMembership.id },
@@ -282,7 +307,9 @@ describe('AssociationMembersService', () => {
       prisma.associationMembership.update.mockRejectedValue(violation);
 
       await expect(
-        service.update(sampleMembership.id, { role: 'ASSOCIATION_MANAGER' }),
+        service.update(sampleAssociation.id, sampleMembership.id, {
+          role: 'ASSOCIATION_MANAGER',
+        }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
   });
@@ -291,9 +318,24 @@ describe('AssociationMembersService', () => {
     it('throws NotFoundException when the membership does not exist', async () => {
       prisma.associationMembership.findFirst.mockResolvedValue(null);
 
-      await expect(service.remove('missing-mem')).rejects.toBeInstanceOf(
-        NotFoundException,
-      );
+      await expect(
+        service.remove(sampleAssociation.id, 'missing-mem'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.associationMembership.update).not.toHaveBeenCalled();
+    });
+
+    it('rejects a membershipId belonging to a different dernek (cross-tenant)', async () => {
+      prisma.associationMembership.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.remove('other-assoc', sampleMembership.id),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      const args = prisma.associationMembership.findFirst.mock.calls[0][0];
+      expect(args?.where).toMatchObject({
+        id: sampleMembership.id,
+        associationId: 'other-assoc',
+      });
       expect(prisma.associationMembership.update).not.toHaveBeenCalled();
     });
 
@@ -307,7 +349,10 @@ describe('AssociationMembersService', () => {
         leftAt: new Date('2026-04-24T12:00:00.000Z'),
       } as never);
 
-      const result = await service.remove(sampleMembership.id);
+      const result = await service.remove(
+        sampleAssociation.id,
+        sampleMembership.id,
+      );
 
       const args = prisma.associationMembership.update.mock.calls[0][0];
       expect(args?.where).toEqual({ id: sampleMembership.id });
@@ -315,6 +360,46 @@ describe('AssociationMembersService', () => {
       expect((args?.data as any)?.leftAt).toBeInstanceOf(Date);
       expect(result.isActive).toBe(false);
       expect(result.leftAt).not.toBeNull();
+    });
+  });
+
+  describe('create (rollback)', () => {
+    it('logs and continues when the Supabase rollback itself fails', async () => {
+      prisma.association.findFirst.mockResolvedValue(sampleAssociation as never);
+      const supaUser = { ...sampleUser, supabaseUserId: 'sup-rollback' };
+      users.createSupabaseUser.mockResolvedValue(supaUser as never);
+      users.deleteUser.mockRejectedValueOnce(new Error('Supabase 500'));
+
+      const loggerSpy = jest
+        .spyOn(
+          (service as unknown as { logger: { error: jest.Mock } }).logger,
+          'error',
+        )
+        .mockImplementation(() => undefined);
+
+      prisma.associationMembership.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError(
+          'one_active_manager_per_association',
+          {
+            code: 'P2002',
+            clientVersion: 'test',
+            meta: { target: ['associationId'] },
+          },
+        ),
+      );
+
+      await expect(
+        service.create(sampleAssociation.id, {
+          ...validInput,
+          role: 'ASSOCIATION_SECRETARY',
+          password: 'super-strong-pass',
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(users.deleteUser).toHaveBeenCalled();
+      expect(loggerSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Saga rollback failed'),
+      );
     });
   });
 });

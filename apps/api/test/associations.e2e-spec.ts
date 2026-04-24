@@ -274,5 +274,24 @@ describe('Associations (e2e)', () => {
       );
       expect(res.status).toBe(404);
     });
+
+    it('12) returns 403 when a non-member hits GET /:id (regression: was 200)', async () => {
+      // Prior to the @AssociationRoles fix on findOne, RolesGuard returned
+      // true when no @Roles metadata was present, so any authenticated
+      // user could read any association by id. Now the guard requires
+      // the caller to be a member of that specific dernek (or SYSTEM_ADMIN).
+      const create = await auth(
+        request(app.getHttpServer())
+          .post(BASE)
+          .send(buildValidAssociation({ taxNumber: '4000000001' })),
+      );
+      expect(create.status).toBe(201);
+
+      const res = await auth(
+        request(app.getHttpServer()).get(`${BASE}/${create.body.id}`),
+        TEST_NON_ADMIN_BEARER_TOKEN,
+      );
+      expect(res.status).toBe(403);
+    });
   });
 });

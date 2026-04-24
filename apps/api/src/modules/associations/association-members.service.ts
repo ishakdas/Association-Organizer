@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ConflictException,
 } from '@nestjs/common';
@@ -13,6 +14,8 @@ import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class AssociationMembersService {
+  private readonly logger = new Logger(AssociationMembersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly users: UsersService,
@@ -55,13 +58,21 @@ export class AssociationMembersService {
     } catch (e) {
       // Membership insert failed after the user was created — roll the
       // user back so we don't leave orphans (especially in Supabase).
+      // Mirror `AssociationsService.create`: log rollback failures so
+      // orphaned auth users are observable rather than silently hidden.
       if (createdUser) {
-        await this.users
-          .deleteUser({
+        try {
+          await this.users.deleteUser({
             id: createdUser.id,
             supabaseUserId: createdUser.supabaseUserId,
-          })
-          .catch(() => undefined);
+          });
+        } catch (rollbackErr) {
+          this.logger.error(
+            `Saga rollback failed for user ${createdUser.id}: ${
+              (rollbackErr as Error).message
+            }`,
+          );
+        }
       }
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -100,8 +111,12 @@ export class AssociationMembersService {
     });
   }
 
-  async update(membershipId: string, input: UpdateMemberInput) {
-    await this.ensureMembership(membershipId);
+  async update(
+    associationId: string,
+    membershipId: string,
+    input: UpdateMemberInput,
+  ) {
+    await this.ensureMembership(associationId, membershipId);
 
     const data: Prisma.AssociationMembershipUpdateInput = {};
     if (input.role !== undefined) data.role = input.role;
@@ -135,8 +150,8 @@ export class AssociationMembersService {
     }
   }
 
-  async remove(membershipId: string) {
-    await this.ensureMembership(membershipId);
+  async remove(associationId: string, membershipId: string) {
+    await this.ensureMembership(associationId, membershipId);
 
     return this.prisma.associationMembership.update({
       where: { id: membershipId },
@@ -156,9 +171,12 @@ export class AssociationMembersService {
     if (!exists) throw new NotFoundException('Dernek bulunamadı');
   }
 
-  private async ensureMembership(id: string) {
+  // Scoped by `associationId` + `membershipId`: a membership that exists
+  // but belongs to a different dernek is treated as not-found so the
+  // route guard cannot be bypassed by passing a foreign membershipId.
+  private async ensureMembership(associationId: string, membershipId: string) {
     const exists = await this.prisma.associationMembership.findFirst({
-      where: { id, deletedAt: null },
+      where: { id: membershipId, associationId, deletedAt: null },
       select: { id: true },
     });
     if (!exists) throw new NotFoundException('Üyelik bulunamadı');

@@ -181,4 +181,66 @@ describe('AssociationMembers (e2e)', () => {
     });
     expect(m).not.toBeNull();
   });
+
+  describe('cross-tenant regression', () => {
+    it('returns 404 when PATCH targets a membership from a different dernek', async () => {
+      // Create association A and grab its manager membership.
+      const aRes = await request(app.getHttpServer())
+        .post(ASSOC_BASE)
+        .set('Authorization', `Bearer ${TEST_BEARER_TOKEN}`)
+        .send(
+          buildAssociation({
+            taxNumber: '8888888881',
+            email: 'a-tenant@dernek.org',
+            manager: {
+              fullName: 'A Manager',
+              email: 'a-manager@dernek.local',
+              password: 'super-strong-pass',
+            },
+          }),
+        )
+        .expect(201);
+      const associationAId = aRes.body.id as string;
+
+      const aMembership = await prisma.associationMembership.findFirst({
+        where: { associationId: associationAId, role: 'ASSOCIATION_MANAGER' },
+      });
+      expect(aMembership).not.toBeNull();
+
+      // Create a separate association B.
+      const bRes = await request(app.getHttpServer())
+        .post(ASSOC_BASE)
+        .set('Authorization', `Bearer ${TEST_BEARER_TOKEN}`)
+        .send(
+          buildAssociation({
+            taxNumber: '8888888882',
+            email: 'b-tenant@dernek.org',
+            manager: {
+              fullName: 'B Manager',
+              email: 'b-manager@dernek.local',
+              password: 'super-strong-pass',
+            },
+          }),
+        )
+        .expect(201);
+      const associationBId = bRes.body.id as string;
+
+      // Attempt to mutate A's membership via B's route. SYSTEM_ADMIN
+      // bypasses the route guard, but the narrowed `ensureMembership`
+      // scopes by associationId — the membership is treated as
+      // not-found in B's context.
+      const res = await request(app.getHttpServer())
+        .patch(`${ASSOC_BASE}/${associationBId}/members/${aMembership!.id}`)
+        .set('Authorization', `Bearer ${TEST_BEARER_TOKEN}`)
+        .send({ role: 'ASSOCIATION_SECRETARY' });
+
+      expect(res.status).toBe(404);
+
+      // A's membership is untouched.
+      const aAfter = await prisma.associationMembership.findUnique({
+        where: { id: aMembership!.id },
+      });
+      expect(aAfter?.role).toBe('ASSOCIATION_MANAGER');
+    });
+  });
 });
