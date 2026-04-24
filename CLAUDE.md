@@ -101,10 +101,14 @@ Server Components fetch from the NestJS API directly using the Supabase access t
 ## Database
 
 Prisma schema is in `libs/database/prisma/`. Key design decisions:
-- `User.supabaseId` (unique string) links to Supabase `auth.users.id` — not a Prisma foreign key, just a stored UUID.
-- Multi-tenancy is row-level via `organisationId` on every tenant-scoped model. The `Membership` join table enforces who belongs to which org.
-- Tickets use soft-delete (`deletedAt`). All queries must include `deletedAt: null`.
-- Status transitions are recorded in `TicketStatusHistory` whenever `status` changes.
+- `User.supabaseUserId` (unique string) links to Supabase `auth.users.id` — not a Prisma foreign key, just a stored UUID. Users without a Supabase identity (DB-only members) have `supabaseUserId: null`.
+- Multi-tenancy is row-level via `associationId` on every tenant-scoped model. `AssociationMembership` is the join table that grants role-scoped access (`SYSTEM_ADMIN`, `ASSOCIATION_MANAGER`, `ASSOCIATION_SECRETARY`, `ASSOCIATION_MEMBER`). Active memberships are eager-loaded onto `request.user` by `AuthGuard` so `RolesGuard` / `AssociationRolesGuard` can authorize without an extra DB hit.
+- The "one active başkan per association" invariant is enforced by a partial unique index (`one_active_manager_per_association`).
+- Soft-delete via `deletedAt` on `Association`, `AssociationMembership`, `Task`, `MeetingNote`. All queries must include `deletedAt: null`.
+
+**Stubbed-but-present fields (do NOT test or wire yet):**
+- `Task.notifiedViaTelegram / notifiedViaWhatsapp / notifiedViaEmail / lastNotifiedAt / reminderAt / reminderFrequency` — reserved for the upcoming notification system. The columns exist and `taskResponseSchema` reads them, but no writer/scheduler exists yet. Don't add tests around notification side-effects.
+- `MeetingNote.derivedTasks` (Task[] back-relation via `Task.sourceMeetingNoteId`) — reserved for "extract action items from meeting note → spawn tasks" flow. Not implemented.
 
 ## Environment Variables
 

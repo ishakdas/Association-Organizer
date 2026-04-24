@@ -1,14 +1,35 @@
 // Common
 export { paginationSchema, type PaginationInput } from './schemas/common.schema';
 
-// Meeting Notes (placeholder — title/content shape; will be expanded with
-// associationId/meetingDate/attendees once meeting-notes module is rebuilt)
+// Meeting Notes (Toplantı Notları)
 export {
   createMeetingNoteSchema,
   updateMeetingNoteSchema,
+  listMeetingNotesQuerySchema,
+  meetingNoteResponseSchema,
   type CreateMeetingNoteInput,
   type UpdateMeetingNoteInput,
+  type ListMeetingNotesQuery,
+  type MeetingNoteResponse,
 } from './schemas/meeting-note.schema';
+
+// Tasks (Görevler)
+export {
+  createTaskSchema,
+  updateTaskStatusSchema,
+  listTasksQuerySchema,
+  taskResponseSchema,
+  taskStatusEnum,
+  taskPriorityEnum,
+  reminderFrequencyEnum,
+  type CreateTaskInput,
+  type UpdateTaskStatusInput,
+  type ListTasksQuery,
+  type TaskResponse,
+  type TaskStatusValue,
+  type TaskPriorityValue,
+  type ReminderFrequencyValue,
+} from './schemas/task.schema';
 
 // Auth
 export {
