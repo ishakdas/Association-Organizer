@@ -7,7 +7,11 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { FastifyRequest } from 'fastify';
 import * as jose from 'jose';
-import { PrismaService } from '@ticketbot/database';
+import { PrismaService, UserRole } from '@ticketbot/database';
+import type {
+  AuthMembership,
+  AuthenticatedUser,
+} from '@ticketbot/shared-types';
 import { BOT_JWT_ISSUER } from '../../modules/auth/auth.constants';
 
 type TokenKind = 'bot' | 'supabase';
@@ -36,15 +40,36 @@ export class AuthGuard implements CanActivate {
 
     const verified = await this.verify(token);
     const user = await this.resolveUser(verified);
+    const memberships = await this.loadMemberships(user.id);
 
-    (request as any).user = {
+    const authUser: AuthenticatedUser = {
       id: user.id,
       email: user.email,
-      supabaseId: user.supabaseUserId,
+      fullName: user.fullName,
+      supabaseUserId: user.supabaseUserId,
+      memberships,
+      systemRole: memberships.some((m) => m.role === UserRole.SYSTEM_ADMIN)
+        ? UserRole.SYSTEM_ADMIN
+        : null,
     };
+
+    (request as any).user = authUser;
     (request as any).tokenKind = verified.kind;
 
     return true;
+  }
+
+  private async loadMemberships(userId: string): Promise<AuthMembership[]> {
+    const rows = await this.prisma.associationMembership.findMany({
+      where: { userId, isActive: true, deletedAt: null },
+      select: {
+        id: true,
+        associationId: true,
+        role: true,
+        isActive: true,
+      },
+    });
+    return rows;
   }
 
   private extractToken(request: FastifyRequest): string | null {

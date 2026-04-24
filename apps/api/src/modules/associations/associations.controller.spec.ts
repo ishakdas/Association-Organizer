@@ -21,7 +21,10 @@ type ServiceMock = DeepMockProxy<AssociationsService>;
 const fakeUser = {
   id: 'user-1',
   email: 'user@example.com',
-  supabaseId: 'sup-1',
+  fullName: 'Test User',
+  supabaseUserId: 'sup-1',
+  memberships: [],
+  systemRole: null,
 };
 
 const sampleAssociation = {
