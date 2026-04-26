@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
@@ -12,6 +12,8 @@ import {
   Clock,
   Eye,
   Flag,
+  LayoutGrid,
+  List,
   Loader2,
   UserPlus,
 } from 'lucide-react';
@@ -47,9 +49,13 @@ import {
   useMyTasks,
   useUpdateMyTaskStatus,
 } from '../_hooks/use-my-tasks';
+import { TaskActivityDialog } from '@/app/(protected)/associations/_components/detail/task-activity-dialog';
+import { TasksKanban } from './tasks-kanban';
 
 const ALL_ASSOC = 'ALL';
 type StatusTab = 'ALL' | TaskStatusValue;
+type ViewMode = 'list' | 'kanban';
+const VIEW_STORAGE_KEY = 'tasks-overview-view';
 
 const STATUS_TABS: { value: StatusTab; label: string }[] = [
   { value: 'ALL', label: 'Tümü' },
@@ -62,6 +68,16 @@ const STATUS_TABS: { value: StatusTab; label: string }[] = [
 export function TasksOverview() {
   const [associationId, setAssociationId] = useState<string>(ALL_ASSOC);
   const [tab, setTab] = useState<StatusTab>('ALL');
+  const [view, setView] = useState<ViewMode>('list');
+
+  // Hydrate view preference from localStorage after mount to avoid SSR mismatch.
+  useEffect(() => {
+    const saved = window.localStorage.getItem(VIEW_STORAGE_KEY);
+    if (saved === 'kanban' || saved === 'list') setView(saved);
+  }, []);
+  useEffect(() => {
+    window.localStorage.setItem(VIEW_STORAGE_KEY, view);
+  }, [view]);
 
   // Catalog query: pulls everything visible so the association select
   // shows every dernek the user has access to (filters narrow client-side).
@@ -77,13 +93,18 @@ export function TasksOverview() {
     );
   }, [catalog.data]);
 
+  // In kanban mode the columns themselves are the status grouping, so we
+  // ignore the status tab and pull every task that matches the association.
   const list = useMyTasks({
     associationId: associationId === ALL_ASSOC ? undefined : associationId,
-    status: tab === 'ALL' ? undefined : tab,
+    status: view === 'kanban' || tab === 'ALL' ? undefined : tab,
     pageSize: 100,
   });
 
   const updateStatus = useUpdateMyTaskStatus();
+  const pendingTaskId = updateStatus.isPending
+    ? updateStatus.variables?.taskId
+    : undefined;
 
   return (
     <section className="space-y-6">
@@ -97,57 +118,115 @@ export function TasksOverview() {
               edin.
             </p>
           </div>
-          <Select value={associationId} onValueChange={setAssociationId}>
-            <SelectTrigger className="h-9 w-[240px] text-sm">
-              <Building2 className="h-4 w-4 opacity-60" />
-              <SelectValue placeholder="Dernek seçin" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_ASSOC}>Tüm dernekler</SelectItem>
-              {associations.map((a) => (
-                <SelectItem key={a.id} value={a.id}>
-                  {a.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-wrap items-center gap-2">
+            <ViewToggle value={view} onChange={setView} />
+            <Select value={associationId} onValueChange={setAssociationId}>
+              <SelectTrigger className="h-9 w-[240px] text-sm">
+                <Building2 className="h-4 w-4 opacity-60" />
+                <SelectValue placeholder="Dernek seçin" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_ASSOC}>Tüm dernekler</SelectItem>
+                {associations.map((a) => (
+                  <SelectItem key={a.id} value={a.id}>
+                    {a.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </header>
 
-      <Tabs
-        value={tab}
-        onValueChange={(v) => setTab(v as StatusTab)}
-        className="gap-4"
-      >
-        <TabsList className="w-fit flex-wrap">
-          {STATUS_TABS.map((t) => (
-            <TabsTrigger key={t.value} value={t.value}>
-              {t.label}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      {view === 'kanban' ? (
+        <TasksKanban
+          isLoading={list.isLoading}
+          isError={list.isError}
+          errorMessage={list.error?.message}
+          tasks={list.data?.data ?? []}
+          showAssociation={associationId === ALL_ASSOC}
+          onStatusChange={(taskId, status) =>
+            updateStatus.mutate({ taskId, status })
+          }
+          pendingTaskId={pendingTaskId}
+        />
+      ) : (
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as StatusTab)}
+          className="gap-4"
+        >
+          <TabsList className="w-fit flex-wrap">
+            {STATUS_TABS.map((t) => (
+              <TabsTrigger key={t.value} value={t.value}>
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-        {STATUS_TABS.map((t) => (
-          <TabsContent key={t.value} value={t.value} className="mt-0">
-            <TasksBody
-              isLoading={list.isLoading}
-              isError={list.isError}
-              errorMessage={list.error?.message}
-              tasks={list.data?.data ?? []}
-              groupByAssociation={associationId === ALL_ASSOC}
-              onStatusChange={(taskId, status) =>
-                updateStatus.mutate({ taskId, status })
-              }
-              pendingTaskId={
-                updateStatus.isPending
-                  ? updateStatus.variables?.taskId
-                  : undefined
-              }
-            />
-          </TabsContent>
-        ))}
-      </Tabs>
+          {STATUS_TABS.map((t) => (
+            <TabsContent key={t.value} value={t.value} className="mt-0">
+              <TasksBody
+                isLoading={list.isLoading}
+                isError={list.isError}
+                errorMessage={list.error?.message}
+                tasks={list.data?.data ?? []}
+                groupByAssociation={associationId === ALL_ASSOC}
+                onStatusChange={(taskId, status) =>
+                  updateStatus.mutate({ taskId, status })
+                }
+                pendingTaskId={pendingTaskId}
+              />
+            </TabsContent>
+          ))}
+        </Tabs>
+      )}
     </section>
+  );
+}
+
+function ViewToggle({
+  value,
+  onChange,
+}: {
+  value: ViewMode;
+  onChange: (v: ViewMode) => void;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Görünüm"
+      className="inline-flex h-9 items-center rounded-md border border-border bg-card p-0.5 text-sm"
+    >
+      <button
+        role="tab"
+        aria-selected={value === 'list'}
+        onClick={() => onChange('list')}
+        className={cn(
+          'inline-flex h-8 items-center gap-1.5 rounded-[5px] px-3 text-[12.5px] font-medium transition-colors',
+          value === 'list'
+            ? 'bg-primary text-primary-foreground'
+            : 'text-muted-foreground hover:text-foreground',
+        )}
+      >
+        <List className="h-3.5 w-3.5" />
+        Liste
+      </button>
+      <button
+        role="tab"
+        aria-selected={value === 'kanban'}
+        onClick={() => onChange('kanban')}
+        className={cn(
+          'inline-flex h-8 items-center gap-1.5 rounded-[5px] px-3 text-[12.5px] font-medium transition-colors',
+          value === 'kanban'
+            ? 'bg-primary text-primary-foreground'
+            : 'text-muted-foreground hover:text-foreground',
+        )}
+      >
+        <LayoutGrid className="h-3.5 w-3.5" />
+        Pano
+      </button>
+    </div>
   );
 }
 
@@ -354,11 +433,19 @@ function TaskCard({
               </span>
             </span>
             {task.watcher && (
-              <span className="inline-flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-primary">
                 <Eye className="h-3 w-3" />
-                <span>Takipçi: {task.watcher.fullName}</span>
+                <span>
+                  Takipçi:{' '}
+                  <span className="font-medium">{task.watcher.fullName}</span>
+                </span>
               </span>
             )}
+            <TaskActivityDialog
+              associationId={task.association.id}
+              taskId={task.id}
+              taskTitle={task.title}
+            />
           </div>
         </div>
 
