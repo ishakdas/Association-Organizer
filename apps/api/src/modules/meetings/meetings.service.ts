@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService, UserRole } from '@ticketbot/database';
@@ -10,6 +12,7 @@ import {
   ListMeetingNotesQuery,
 } from '@ticketbot/shared-validation';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
+import { AiService } from '@ticketbot/ai';
 
 const ATTENDEE_INCLUDE = {
   attendees: {
@@ -21,7 +24,50 @@ const ATTENDEE_INCLUDE = {
 
 @Injectable()
 export class MeetingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(MeetingsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly aiService: AiService,
+  ) {}
+
+  async analyzeContent(associationId: string, content: string) {
+    const members = await this.prisma.associationMembership.findMany({
+      where: { associationId, isActive: true, deletedAt: null },
+      include: {
+        user: { select: { id: true, fullName: true } },
+        title: { select: { name: true } },
+      },
+    });
+
+    const membersContext = members
+      .map(
+        (m) =>
+          `- User ID: ${m.user.id}, Name: ${m.user.fullName}, Title: ${m.title?.name ?? 'Unassigned'}`,
+      )
+      .join('\n');
+
+    try {
+      const result = await this.aiService.extractActionItems(content, membersContext);
+
+      const memberMap = new Map(
+        members.map((m) => [m.user.id, { fullName: m.user.fullName, title: m.title?.name ?? null }]),
+      );
+
+      return {
+        actionItems: result.actionItems.map((item) => ({
+          ...item,
+          assignedToUserName: item.assignedToUserId
+            ? (memberMap.get(item.assignedToUserId)?.fullName ?? null)
+            : null,
+        })),
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`AI extraction failed: ${message}`, err instanceof Error ? err.stack : undefined);
+      throw new InternalServerErrorException(`AI hatası: ${message}`);
+    }
+  }
 
   async create(
     associationId: string,
@@ -31,8 +77,40 @@ export class MeetingsService {
     const uniqueAttendees = Array.from(new Set(input.attendeeUserIds));
     await this.ensureAllAreMembers(associationId, uniqueAttendees);
 
+    let tasksToCreate: {
+      associationId: string;
+      title: string;
+      description: string | null;
+      assignedToUserId: string;
+      assignedById: string;
+      sourceMeetingNoteId: string;
+    }[] = [];
+
+    if (input.preApprovedTasks && input.preApprovedTasks.length > 0) {
+      const members = await this.prisma.associationMembership.findMany({
+        where: { associationId, isActive: true, deletedAt: null },
+        select: { userId: true },
+      });
+      const validMemberIds = new Set(members.map((m) => m.userId));
+
+      tasksToCreate = input.preApprovedTasks.map((t) => {
+        const assigneeId =
+          t.assignedToUserId && validMemberIds.has(t.assignedToUserId)
+            ? t.assignedToUserId
+            : user.id;
+        return {
+          associationId,
+          title: t.title,
+          description: t.description ?? null,
+          assignedToUserId: assigneeId,
+          assignedById: user.id,
+          sourceMeetingNoteId: '',
+        };
+      });
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      return tx.meetingNote.create({
+      const meeting = await tx.meetingNote.create({
         data: {
           associationId,
           title: input.title,
@@ -45,6 +123,17 @@ export class MeetingsService {
         },
         include: ATTENDEE_INCLUDE,
       });
+
+      if (tasksToCreate.length > 0) {
+        await tx.task.createMany({
+          data: tasksToCreate.map((t) => ({
+            ...t,
+            sourceMeetingNoteId: meeting.id,
+          })),
+        });
+      }
+
+      return meeting;
     });
   }
 

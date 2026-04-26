@@ -10,6 +10,7 @@ export const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
   SUPABASE_JWT_SECRET: z.string().min(1),
   JWT_SECRET: z.string().min(1),
+  GROQ_API_KEY: z.string().min(1),
   BOT_TOKEN: z.string().min(1),
   TELEGRAM_BOT_USERNAME: z.string().min(1).default('dernek_organizer_bot'),
   API_URL: z.string().url().default('http://localhost:3000'),

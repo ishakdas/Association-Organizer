@@ -20,6 +20,7 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { MeetingsService } from './meetings.service';
 import { CreateMeetingNoteDto } from './dto/create-meeting-note.dto';
+import { AnalyzeMeetingContentDto } from './dto/analyze-meeting-content.dto';
 import { ListMeetingNotesQueryDto } from './dto/list-meeting-notes-query.dto';
 
 /**
@@ -32,6 +33,18 @@ import { ListMeetingNotesQueryDto } from './dto/list-meeting-notes-query.dto';
 @UsePipes(ZodValidationPipe)
 export class MeetingsController {
   constructor(private readonly service: MeetingsService) {}
+
+  @Post('analyze')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+  )
+  analyze(
+    @Param('associationId') associationId: string,
+    @Body() body: AnalyzeMeetingContentDto,
+  ) {
+    return this.service.analyzeContent(associationId, body.content);
+  }
 
   @Post()
   @AssociationRoles(
