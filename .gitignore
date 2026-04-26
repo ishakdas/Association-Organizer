@@ -33,3 +33,12 @@ coverage/
 
 # Logs
 *.log
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Stray tsc emit in source-exported libs (libs expose ./src/index.ts directly)
+libs/**/src/**/*.js
+libs/**/src/**/*.js.map
+libs/**/src/**/*.d.ts
+libs/**/src/**/*.d.ts.map

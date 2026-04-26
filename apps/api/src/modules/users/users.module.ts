@@ -1,10 +1,8 @@
 import { Module } from '@nestjs/common';
+import { UsersService } from './users.service';
 
-// TODO: Implement UsersController and UsersService
-// Endpoints to implement:
-//   GET   /users/me            — current user profile
-//   PATCH /users/me            — update profile
-//   GET   /users/me/telegram   — telegram account status
-
-@Module({})
+@Module({
+  providers: [UsersService],
+  exports: [UsersService],
+})
 export class UsersModule {}

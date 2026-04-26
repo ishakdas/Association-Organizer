@@ -11,10 +11,10 @@
     "dev:bot": "nx run bot:serve",
     "dev:web": "nx run web:dev",
     "dev": "nx run-many -t serve dev --parallel=3",
-    "db:generate": "pnpm --filter @ticketbot/database prisma generate",
-    "db:migrate": "pnpm --filter @ticketbot/database prisma migrate dev",
-    "db:seed": "pnpm --filter @ticketbot/database prisma db seed",
-    "db:studio": "pnpm --filter @ticketbot/database prisma studio"
+    "db:generate": "pnpm --filter @ticketbot/database exec prisma generate",
+    "db:migrate": "pnpm --filter @ticketbot/database exec prisma migrate dev",
+    "db:seed": "pnpm --filter @ticketbot/database exec prisma db seed",
+    "db:studio": "pnpm --filter @ticketbot/database exec prisma studio"
   },
   "devDependencies": {
     "nx": "^22.6.5",
@@ -23,5 +23,10 @@
     "@typescript-eslint/parser": "^8.0.0",
     "eslint": "^9.0.0",
     "prettier": "^3.4.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "fastify": ">=5.8.5"
+    }
   }
 }

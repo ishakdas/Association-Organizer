@@ -7,9 +7,11 @@ export const envSchema = z.object({
   REDIS_URL: z.string().default('redis://localhost:6379'),
   SUPABASE_URL: z.string().url(),
   SUPABASE_ANON_KEY: z.string().min(1),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
   SUPABASE_JWT_SECRET: z.string().min(1),
   JWT_SECRET: z.string().min(1),
   BOT_TOKEN: z.string().min(1),
+  TELEGRAM_BOT_USERNAME: z.string().min(1).default('dernek_organizer_bot'),
   API_URL: z.string().url().default('http://localhost:3000'),
   WEB_URL: z.string().url().default('http://localhost:3001'),
 });

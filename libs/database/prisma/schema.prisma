@@ -11,47 +11,50 @@ datasource db {
 // Enums
 // -----------------------------------------------------------------------------
 
-enum Role {
-  SUPER_ADMIN
-  ADMIN
-  MANAGER
-  MEMBER
+enum UserRole {
+  SYSTEM_ADMIN
+  ASSOCIATION_MANAGER
+  ASSOCIATION_SECRETARY
+  ASSOCIATION_MEMBER
 }
 
-enum TicketStatus {
-  OPEN
+enum TaskStatus {
+  PENDING
   IN_PROGRESS
-  WAITING
-  RESOLVED
-  CLOSED
-  REOPENED
+  COMPLETED
+  CANCELLED
 }
 
-enum TicketPriority {
+enum TaskPriority {
   LOW
   MEDIUM
   HIGH
-  URGENT
+}
+
+enum ReminderFrequency {
+  NONE
+  ONCE
+  DAILY
+  WEEKLY
+  MONTHLY
 }
 
 // -----------------------------------------------------------------------------
-// Organisation
+// Reference: assignable titles (admin-managed)
 // -----------------------------------------------------------------------------
 
-model Organisation {
+model MemberTitleDefinition {
   id        String   @id @default(cuid())
-  name      String
+  name      String   @unique
   slug      String   @unique
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  memberships      Membership[]
-  tickets          Ticket[]
-  meetingNotes     MeetingNote[]
-  auditLogs        AuditLog[]
-  notificationLogs NotificationLog[]
+  memberships AssociationMembership[]
 
-  @@map("organisations")
+  @@map("member_title_definitions")
 }
 
 // -----------------------------------------------------------------------------
@@ -59,40 +62,27 @@ model Organisation {
 // -----------------------------------------------------------------------------
 
 model User {
-  id         String  @id @default(cuid())
-  email      String  @unique
-  name       String?
-  avatarUrl  String?
-  supabaseId String  @unique
+  id             String    @id @default(cuid())
+  supabaseUserId String?   @unique
+  email          String?   @unique
+  fullName       String
+  phone          String?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  deletedAt      DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  memberships         AssociationMembership[]
+  assignedTasks       Task[]            @relation("TaskAssignee")
+  createdTasks        Task[]            @relation("TaskCreator")
+  createdMeetings     MeetingNote[]     @relation("MeetingCreator")
+  attendedMeetings    MeetingAttendee[]
+  createdAssociations Association[]     @relation("AssociationsCreated")
+  telegramAccount     TelegramAccount?
 
-  memberships               Membership[]
-  telegramAccount           TelegramAccount?
-  assignedTickets           Ticket[]                   @relation("assignee")
-  createdTickets            Ticket[]                   @relation("creator")
-  ticketComments            TicketComment[]
-  deadlineExtensionRequests DeadlineExtensionRequest[]
-  auditLogs                 AuditLog[]
-
+  @@index([isActive])
+  @@index([deletedAt])
   @@map("users")
-}
-
-model Membership {
-  id             String   @id @default(cuid())
-  role           Role     @default(MEMBER)
-  organisationId String
-  userId         String
-  createdAt      DateTime @default(now())
-
-  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([organisationId, userId])
-  @@index([organisationId])
-  @@index([userId])
-  @@map("memberships")
 }
 
 model TelegramAccount {
@@ -124,172 +114,148 @@ model TelegramLinkToken {
 }
 
 // -----------------------------------------------------------------------------
-// Tickets
+// Association (Dernek Sicili)
 // -----------------------------------------------------------------------------
 
-model Ticket {
-  id             String         @id @default(cuid())
-  title          String
-  description    String?
-  status         TicketStatus   @default(OPEN)
-  priority       TicketPriority @default(MEDIUM)
-  organisationId String
-  creatorId      String
-  assigneeId     String?
-  dueDate        DateTime?
+model Association {
+  id           String  @id @default(cuid())
+  name         String
+  shortName    String?
+  taxNumber    String  @unique
+  foundedAt    DateTime
+  address      String
+  city         String
+  district     String
+  phone        String
+  email        String
+  website      String?
+  logoUrl      String?
+  activityArea String
+  memberCount  Int     @default(0)
+  isActive     Boolean @default(true)
+  notes        String?
+
+  createdById String
+  createdBy   User   @relation("AssociationsCreated", fields: [createdById], references: [id])
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  organisation      Organisation               @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  creator           User                       @relation("creator", fields: [creatorId], references: [id])
-  assignee          User?                      @relation("assignee", fields: [assigneeId], references: [id])
-  comments          TicketComment[]
-  statusHistory     TicketStatusHistory[]
-  extensionRequests DeadlineExtensionRequest[]
+  memberships AssociationMembership[]
+  tasks       Task[]
+  meetings    MeetingNote[]
 
-  @@index([organisationId])
-  @@index([organisationId, status])
-  @@index([organisationId, status, dueDate])
-  @@index([assigneeId, status])
-  @@index([creatorId])
+  @@index([city])
+  @@index([isActive])
+  @@index([createdById])
   @@index([deletedAt])
-  @@map("tickets")
+  @@map("associations")
 }
 
-model TicketComment {
-  id       String @id @default(cuid())
-  content  String
-  ticketId String
-  authorId String
+model AssociationMembership {
+  id            String    @id @default(cuid())
+  userId        String
+  associationId String
+  role          UserRole
+  titleId       String?
+  customTitle   String?
+  joinedAt      DateTime  @default(now())
+  leftAt        DateTime?
+  isActive      Boolean   @default(true)
+  deletedAt     DateTime?
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  user        User                   @relation(fields: [userId], references: [id])
+  association Association            @relation(fields: [associationId], references: [id])
+  title       MemberTitleDefinition? @relation(fields: [titleId], references: [id])
 
-  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  author User   @relation(fields: [authorId], references: [id])
-
-  @@index([ticketId])
-  @@index([authorId])
-  @@map("ticket_comments")
-}
-
-model TicketStatusHistory {
-  id         String        @id @default(cuid())
-  ticketId   String
-  fromStatus TicketStatus?
-  toStatus   TicketStatus
-
-  changedAt DateTime @default(now())
-
-  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-
-  @@index([ticketId])
-  @@map("ticket_status_history")
+  @@unique([userId, associationId, role])
+  @@index([associationId, role])
+  @@index([userId])
+  @@index([deletedAt])
+  @@map("association_memberships")
 }
 
 // -----------------------------------------------------------------------------
-// Deadline Extensions
+// Tasks
 // -----------------------------------------------------------------------------
 
-model DeadlineExtensionRequest {
-  id                String    @id @default(cuid())
-  ticketId          String
-  requesterId       String
-  currentDeadline   DateTime
-  requestedDeadline DateTime
-  reason            String
-  approved          Boolean?
-  resolvedAt        DateTime?
+model Task {
+  id            String  @id @default(cuid())
+  associationId String
+  title         String
+  description   String?
 
-  createdAt DateTime @default(now())
+  assignedToUserId String
+  assignedById     String
 
-  ticket    Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  requester User   @relation(fields: [requesterId], references: [id])
+  status   TaskStatus   @default(PENDING)
+  priority TaskPriority @default(MEDIUM)
 
-  @@index([ticketId])
-  @@index([requesterId])
-  @@map("deadline_extension_requests")
+  dueDate           DateTime?
+  reminderAt        DateTime?
+  reminderFrequency ReminderFrequency @default(NONE)
+
+  notifiedViaTelegram Boolean   @default(false)
+  notifiedViaWhatsapp Boolean   @default(false)
+  notifiedViaEmail    Boolean   @default(false)
+  lastNotifiedAt      DateTime?
+
+  sourceMeetingNoteId String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+  deletedAt   DateTime?
+
+  association       Association  @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  assignedTo        User         @relation("TaskAssignee", fields: [assignedToUserId], references: [id])
+  assignedBy        User         @relation("TaskCreator", fields: [assignedById], references: [id])
+  sourceMeetingNote MeetingNote? @relation(fields: [sourceMeetingNoteId], references: [id])
+
+  @@index([associationId, status])
+  @@index([assignedToUserId, status])
+  @@index([assignedToUserId, associationId, status])
+  @@index([dueDate])
+  @@index([deletedAt])
+  @@map("tasks")
 }
 
 // -----------------------------------------------------------------------------
-// Meeting Notes & AI Extraction
+// Meeting Notes
 // -----------------------------------------------------------------------------
 
 model MeetingNote {
-  id             String    @id @default(cuid())
-  title          String
-  content        String
-  organisationId String
+  id            String   @id @default(cuid())
+  associationId String
+  title         String
+  content       String
+  meetingDate   DateTime
+  createdById   String
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  organisation         Organisation        @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  extractedActionItems ExtractedActionItem[]
+  association  Association       @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  createdBy    User              @relation("MeetingCreator", fields: [createdById], references: [id])
+  attendees    MeetingAttendee[]
+  derivedTasks Task[]
 
-  @@index([organisationId])
+  @@index([associationId, meetingDate])
   @@index([deletedAt])
   @@map("meeting_notes")
 }
 
-model ExtractedActionItem {
-  id            String  @id @default(cuid())
+model MeetingAttendee {
+  id            String @id @default(cuid())
   meetingNoteId String
-  content       String
-  assigneeName  String?
-  ticketId      String?
-
-  createdAt DateTime @default(now())
+  userId        String
 
   meetingNote MeetingNote @relation(fields: [meetingNoteId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id])
 
-  @@index([meetingNoteId])
-  @@map("extracted_action_items")
-}
-
-// -----------------------------------------------------------------------------
-// Audit & Notifications
-// -----------------------------------------------------------------------------
-
-model AuditLog {
-  id             String  @id @default(cuid())
-  action         String
-  entityType     String
-  entityId       String
-  userId         String?
-  organisationId String
-  metadata       Json?
-
-  createdAt DateTime @default(now())
-
-  user         User?        @relation(fields: [userId], references: [id])
-  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-
-  @@index([organisationId])
-  @@index([organisationId, createdAt(sort: Desc)])
-  @@index([entityType, entityId])
+  @@unique([meetingNoteId, userId])
   @@index([userId])
-  @@map("audit_logs")
-}
-
-model NotificationLog {
-  id             String    @id @default(cuid())
-  channel        String
-  recipientId    String
-  organisationId String
-  subject        String
-  body           String
-  sentAt         DateTime  @default(now())
-  deliveredAt    DateTime?
-  failedAt       DateTime?
-  errorMessage   String?
-
-  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-
-  @@index([organisationId])
-  @@index([recipientId])
-  @@map("notification_logs")
+  @@map("meeting_attendees")
 }

@@ -1,27 +1,33 @@
 // Mirrored from Prisma enums — kept here so web/validation libs don't depend on Prisma.
 
-export const Role = {
-  SUPER_ADMIN: 'SUPER_ADMIN',
-  ADMIN: 'ADMIN',
-  MANAGER: 'MANAGER',
-  MEMBER: 'MEMBER',
+export const UserRole = {
+  SYSTEM_ADMIN: 'SYSTEM_ADMIN',
+  ASSOCIATION_MANAGER: 'ASSOCIATION_MANAGER',
+  ASSOCIATION_SECRETARY: 'ASSOCIATION_SECRETARY',
+  ASSOCIATION_MEMBER: 'ASSOCIATION_MEMBER',
 } as const;
-export type Role = (typeof Role)[keyof typeof Role];
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
 
-export const TicketStatus = {
-  OPEN: 'OPEN',
+export const TaskStatus = {
+  PENDING: 'PENDING',
   IN_PROGRESS: 'IN_PROGRESS',
-  WAITING: 'WAITING',
-  RESOLVED: 'RESOLVED',
-  CLOSED: 'CLOSED',
-  REOPENED: 'REOPENED',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
 } as const;
-export type TicketStatus = (typeof TicketStatus)[keyof typeof TicketStatus];
+export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
 
-export const TicketPriority = {
+export const TaskPriority = {
   LOW: 'LOW',
   MEDIUM: 'MEDIUM',
   HIGH: 'HIGH',
-  URGENT: 'URGENT',
 } as const;
-export type TicketPriority = (typeof TicketPriority)[keyof typeof TicketPriority];
+export type TaskPriority = (typeof TaskPriority)[keyof typeof TaskPriority];
+
+export const ReminderFrequency = {
+  NONE: 'NONE',
+  ONCE: 'ONCE',
+  DAILY: 'DAILY',
+  WEEKLY: 'WEEKLY',
+  MONTHLY: 'MONTHLY',
+} as const;
+export type ReminderFrequency = (typeof ReminderFrequency)[keyof typeof ReminderFrequency];

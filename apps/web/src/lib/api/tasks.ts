@@ -1,0 +1,66 @@
+import { apiClient } from './client';
+import type {
+  CreateTaskInput,
+  TaskResponse,
+  TaskStatusValue,
+} from '@ticketbot/shared-validation';
+
+export interface TasksListParams {
+  status?: TaskStatusValue;
+  assignedToUserId?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface TasksListResponse {
+  data: TaskResponse[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+function buildQuery(params: TasksListParams): string {
+  const sp = new URLSearchParams();
+  if (params.status) sp.set('status', params.status);
+  if (params.assignedToUserId)
+    sp.set('assignedToUserId', params.assignedToUserId);
+  if (params.page) sp.set('page', String(params.page));
+  if (params.pageSize) sp.set('pageSize', String(params.pageSize));
+  const q = sp.toString();
+  return q ? `?${q}` : '';
+}
+
+export function listTasks(
+  token: string,
+  associationId: string,
+  params: TasksListParams = {},
+) {
+  return apiClient<TasksListResponse>(
+    `/associations/${associationId}/tasks${buildQuery(params)}`,
+    { token },
+  );
+}
+
+export function createTask(
+  token: string,
+  associationId: string,
+  input: CreateTaskInput,
+) {
+  return apiClient<TaskResponse>(`/associations/${associationId}/tasks`, {
+    token,
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export function updateTaskStatus(
+  token: string,
+  taskId: string,
+  status: TaskStatusValue,
+) {
+  return apiClient<TaskResponse>(`/tasks/${taskId}/status`, {
+    token,
+    method: 'PATCH',
+    body: JSON.stringify({ status }),
+  });
+}

@@ -1,42 +1,35 @@
 // Common
 export { paginationSchema, type PaginationInput } from './schemas/common.schema';
 
-// Tickets
-export {
-  createTicketSchema,
-  updateTicketSchema,
-  ticketQuerySchema,
-  type CreateTicketInput,
-  type UpdateTicketInput,
-  type TicketQueryInput,
-} from './schemas/ticket.schema';
-
-// Comments
-export { createCommentSchema, type CreateCommentInput } from './schemas/comment.schema';
-
-// Meeting Notes
+// Meeting Notes (Toplantı Notları)
 export {
   createMeetingNoteSchema,
   updateMeetingNoteSchema,
+  listMeetingNotesQuerySchema,
+  meetingNoteResponseSchema,
   type CreateMeetingNoteInput,
   type UpdateMeetingNoteInput,
+  type ListMeetingNotesQuery,
+  type MeetingNoteResponse,
 } from './schemas/meeting-note.schema';
 
-// AI Extraction
+// Tasks (Görevler)
 export {
-  extractedActionItemSchema,
-  extractionResultSchema,
-  type ExtractedActionItemOutput,
-  type ExtractionResultOutput,
-} from './schemas/extracted-action-item.schema';
-
-// Extensions
-export {
-  createExtensionRequestSchema,
-  resolveExtensionRequestSchema,
-  type CreateExtensionRequestInput,
-  type ResolveExtensionRequestInput,
-} from './schemas/extension.schema';
+  createTaskSchema,
+  updateTaskStatusSchema,
+  listTasksQuerySchema,
+  taskResponseSchema,
+  taskStatusEnum,
+  taskPriorityEnum,
+  reminderFrequencyEnum,
+  type CreateTaskInput,
+  type UpdateTaskStatusInput,
+  type ListTasksQuery,
+  type TaskResponse,
+  type TaskStatusValue,
+  type TaskPriorityValue,
+  type ReminderFrequencyValue,
+} from './schemas/task.schema';
 
 // Auth
 export {
@@ -47,3 +40,54 @@ export {
   type TelegramLinkRedeemInput,
   type BotAuthPayload,
 } from './schemas/auth.schema';
+
+// Associations (Dernek Sicili)
+export {
+  createAssociationSchema,
+  updateAssociationSchema,
+  listAssociationsQuerySchema,
+  associationResponseSchema,
+  type CreateAssociationInput,
+  type CreateAssociationManagerInput,
+  type UpdateAssociationInput,
+  type ListAssociationsQuery,
+  type AssociationResponse,
+} from './schemas/association.schema';
+
+// Association Memberships (Üyeler)
+export {
+  addMemberSchema,
+  updateMemberSchema,
+  listMembersQuerySchema,
+  memberResponseSchema,
+  type AddMemberInput,
+  type UpdateMemberInput,
+  type ListMembersQuery,
+  type MemberResponse,
+  type MembershipRole,
+} from './schemas/membership.schema';
+
+// Member Titles (Unvanlar)
+export {
+  titleResponseSchema,
+  createMemberTitleSchema,
+  updateMemberTitleSchema,
+  listMemberTitlesQuerySchema,
+  type TitleResponse,
+  type CreateMemberTitleInput,
+  type UpdateMemberTitleInput,
+  type ListMemberTitlesQuery,
+} from './schemas/title.schema';
+
+// AI extraction (Toplantı notlarından görev üretimi)
+export {
+  extractedActionItemSchema,
+  extractionResultSchema,
+  type ExtractedActionItemOutput,
+  type ExtractionResultOutput,
+} from './schemas/extracted-action-item.schema';
+
+// Helpers (pure utilities — usable from apps/api and apps/web)
+export { parsePhoneE164 } from './helpers/phone';
+export { isValidTaxNumber, TAX_NUMBER_PATTERN } from './helpers/tax-number';
+export { slugifyTr } from './helpers/slugify';

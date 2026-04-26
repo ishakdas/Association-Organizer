@@ -1,9 +1,10 @@
-import { Injectable, BadRequestException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@ticketbot/database';
 import { TelegramLinkRedeemInput } from '@ticketbot/shared-validation';
 import * as jose from 'jose';
 import { randomBytes } from 'crypto';
+import { BOT_JWT_ISSUER } from './auth.constants';
 
 @Injectable()
 export class AuthService {
@@ -68,25 +69,25 @@ export class AuthService {
     // Issue a bot JWT
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: linkToken.userId },
-      include: { memberships: { take: 1 } },
     });
 
-    return this.issueBotToken(
-      user.id,
-      input.telegramId,
-      user.memberships[0]?.organisationId,
-    );
+    return this.issueBotToken(user.id, input.telegramId);
   }
 
-  async issueBotToken(userId: string, telegramId: string, organisationId?: string) {
+  async unlinkTelegram(userId: string): Promise<{ unlinked: boolean }> {
+    const result = await this.prisma.telegramAccount.deleteMany({
+      where: { userId },
+    });
+    return { unlinked: result.count > 0 };
+  }
+
+  async issueBotToken(userId: string, telegramId: string) {
     const secret = new TextEncoder().encode(this.config.get<string>('jwt.secret')!);
 
-    const token = await new jose.SignJWT({
-      sub: userId,
-      telegramId,
-      ...(organisationId && { organisationId }),
-    })
+    const token = await new jose.SignJWT({ telegramId })
       .setProtectedHeader({ alg: 'HS256' })
+      .setIssuer(BOT_JWT_ISSUER)
+      .setSubject(userId)
       .setIssuedAt()
       .setExpirationTime('30d')
       .sign(secret);

@@ -1,26 +1,66 @@
-// Telegram MarkdownV2 requires escaping these characters
 const SPECIAL_CHARS = /([_*\[\]()~`>#+\-=|{}.!])/g;
 
 export function escapeMarkdown(text: string): string {
   return text.replace(SPECIAL_CHARS, '\\$1');
 }
 
-export function formatReminderMessage(ticket: {
+const TR_FORMATTER = new Intl.DateTimeFormat('tr-TR', {
+  day: '2-digit',
+  month: 'long',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  timeZone: 'Europe/Istanbul',
+});
+
+function formatDate(d: Date | null): string {
+  if (!d) return 'Tarihsiz';
+  return TR_FORMATTER.format(d);
+}
+
+export interface TaskMessagePayload {
   id: string;
   title: string;
+  description: string | null;
   dueDate: Date | null;
   status: string;
-}): string {
-  const title = escapeMarkdown(ticket.title);
-  const due = ticket.dueDate
-    ? escapeMarkdown(ticket.dueDate.toISOString().split('T')[0])
-    : 'No deadline';
+  priority: string;
+}
+
+const PRIORITY_LABELS: Record<string, string> = {
+  LOW: 'Düşük',
+  MEDIUM: 'Orta',
+  HIGH: 'Yüksek',
+};
+
+export function formatDueMessage(task: TaskMessagePayload): string {
+  const title = escapeMarkdown(task.title);
+  const due = escapeMarkdown(formatDate(task.dueDate));
+  const priority = escapeMarkdown(PRIORITY_LABELS[task.priority] ?? task.priority);
+  const descLine = task.description
+    ? `\n${escapeMarkdown(task.description.slice(0, 200))}`
+    : '';
 
   return (
-    `🔔 *Ticket Reminder*\n\n` +
-    `*${title}*\n` +
-    `Status: ${escapeMarkdown(ticket.status)}\n` +
-    `Due: ${due}\n\n` +
-    `This ticket is due soon\\. Please take action\\.`
+    `🔴 *Görevin teslim tarihi geldi*\n\n` +
+    `*${title}*${descLine}\n\n` +
+    `📅 ${due}\n` +
+    `⚡ Öncelik: ${priority}`
+  );
+}
+
+export function formatReminderMessage(task: TaskMessagePayload): string {
+  const title = escapeMarkdown(task.title);
+  const due = escapeMarkdown(formatDate(task.dueDate));
+  const priority = escapeMarkdown(PRIORITY_LABELS[task.priority] ?? task.priority);
+  const descLine = task.description
+    ? `\n${escapeMarkdown(task.description.slice(0, 200))}`
+    : '';
+
+  return (
+    `🔔 *Görev hatırlatması*\n\n` +
+    `*${title}*${descLine}\n\n` +
+    `📅 Teslim: ${due}\n` +
+    `⚡ Öncelik: ${priority}`
   );
 }

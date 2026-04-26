@@ -1,0 +1,65 @@
+'use client';
+
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query';
+import { toast } from 'sonner';
+import {
+  createTask,
+  listTasks,
+  updateTaskStatus,
+  type TasksListParams,
+} from '@/lib/api/tasks';
+import type {
+  CreateTaskInput,
+  TaskResponse,
+  TaskStatusValue,
+} from '@ticketbot/shared-validation';
+import { getAccessToken } from './use-associations';
+
+export const tasksQueryKey = (
+  associationId: string,
+  params: TasksListParams,
+) => ['tasks', associationId, params] as const;
+
+export function useTasks(
+  associationId: string,
+  params: TasksListParams = {},
+) {
+  return useQuery({
+    queryKey: tasksQueryKey(associationId, params),
+    queryFn: async () =>
+      listTasks(await getAccessToken(), associationId, params),
+  });
+}
+
+export function useCreateTask(
+  associationId: string,
+  options?: { onSuccess?: (task: TaskResponse) => void },
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: CreateTaskInput) =>
+      createTask(await getAccessToken(), associationId, input),
+    onSuccess: (task) => {
+      toast.success(`"${task.title}" görevi eklendi`);
+      queryClient.invalidateQueries({ queryKey: ['tasks', associationId] });
+      options?.onSuccess?.(task);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+export function useUpdateTaskStatus(associationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { taskId: string; status: TaskStatusValue }) =>
+      updateTaskStatus(await getAccessToken(), input.taskId, input.status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', associationId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}

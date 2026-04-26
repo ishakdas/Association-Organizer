@@ -1,14 +1,28 @@
 import type { Metadata } from 'next';
+import { Plus_Jakarta_Sans } from 'next/font/google';
+import { QueryProvider } from '@/providers/query-provider';
+import { Toaster } from '@/components/ui/sonner';
+import './globals.css';
+
+const jakarta = Plus_Jakarta_Sans({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['400', '500', '600', '700', '800'],
+  variable: '--font-sans',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
-  title: 'TicketBot — Dashboard',
-  description: 'Manage your organisation tickets',
+  title: 'Dernek Yönetim Sistemi',
+  description: 'Dernek sekreterlik ve üye yönetim platformu',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="tr" className={jakarta.variable}>
+      <body className="font-sans antialiased">
+        <QueryProvider>{children}</QueryProvider>
+        <Toaster position="top-right" richColors />
+      </body>
     </html>
   );
 }
