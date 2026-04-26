@@ -18,6 +18,10 @@ import { AuthGuard } from '../../common/guards/auth.guard';
 import { SupabaseUserGuard } from '../../common/guards/supabase-user.guard';
 import { AssociationRolesGuard } from '../../common/guards/association-roles.guard';
 import { AssociationRoles } from '../../common/decorators/association-roles.decorator';
+import {
+  CurrentUser,
+  RequestUser,
+} from '../../common/decorators/current-user.decorator';
 import { AssociationMembersService } from './association-members.service';
 import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
@@ -57,8 +61,9 @@ export class AssociationMembersController {
     @Param('id') associationId: string,
     @Param('membershipId') membershipId: string,
     @Body() body: UpdateMemberDto,
+    @CurrentUser() actor: RequestUser,
   ) {
-    return this.service.update(associationId, membershipId, body);
+    return this.service.update(associationId, membershipId, body, actor);
   }
 
   @Delete(':membershipId')
@@ -67,8 +72,9 @@ export class AssociationMembersController {
   remove(
     @Param('id') associationId: string,
     @Param('membershipId') membershipId: string,
+    @CurrentUser() actor: RequestUser,
   ) {
-    return this.service.remove(associationId, membershipId);
+    return this.service.remove(associationId, membershipId, actor);
   }
 
   @Post(':membershipId/telegram-link')

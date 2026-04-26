@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import {
   canCreateTasksAndMeetings,
   canManageMembers,
+  isSystemAdmin,
 } from '@/lib/permissions';
 import { DetailTabs } from '../_components/detail/detail-tabs';
 import { GeneralSection } from '../_components/detail/general-section';
@@ -40,8 +41,11 @@ export default async function AssociationDetailPage({ params }: Props) {
     const a = await getAssociation(session.access_token, id);
 
     // Roster ekle/çıkar yalnızca başkan (+ SYSTEM_ADMIN) içindir.
+    // Başkanı değiştirmek/görevden almak ise yalnızca SYSTEM_ADMIN'in
+    // yetkisinde — başkan diğer başkanları yönetemez.
     // Görev ve toplantı notu oluşturma başkan + sekreter içindir.
     const canManageRoster = canManageMembers(me, id);
+    const canManageManagerCard = isSystemAdmin(me);
     const canCreateWork = canCreateTasksAndMeetings(me, id);
 
     return (
@@ -55,7 +59,7 @@ export default async function AssociationDetailPage({ params }: Props) {
               <RosterSection
                 associationId={a.id}
                 role="ASSOCIATION_MANAGER"
-                canManage={canManageRoster}
+                canManage={canManageManagerCard}
                 variant="single"
               />
             }

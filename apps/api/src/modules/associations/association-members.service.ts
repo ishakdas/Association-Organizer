@@ -1,15 +1,22 @@
 import {
+  ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
-  ConflictException,
 } from '@nestjs/common';
-import { PrismaService, Prisma, type User } from '@ticketbot/database';
+import {
+  PrismaService,
+  Prisma,
+  UserRole,
+  type User,
+} from '@ticketbot/database';
 import {
   AddMemberInput,
   ListMembersQuery,
   UpdateMemberInput,
 } from '@ticketbot/shared-validation';
+import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
 
@@ -117,8 +124,22 @@ export class AssociationMembersService {
     associationId: string,
     membershipId: string,
     input: UpdateMemberInput,
+    actor: AuthenticatedUser,
   ) {
-    await this.ensureMembership(associationId, membershipId);
+    const existing = await this.ensureMembership(associationId, membershipId);
+
+    // Yalnızca SYSTEM_ADMIN bir başkanı görevden alabilir veya bir
+    // üyeyi başkan yapabilir. Mevcut rolü MANAGER olan bir üyeliğin
+    // değiştirilmesi (demote) ve yeni rolü MANAGER yapma (promote) bu
+    // kapsamdadır — başkan kendisini de görevden alamaz.
+    const touchesManager =
+      existing.role === UserRole.ASSOCIATION_MANAGER ||
+      input.role === UserRole.ASSOCIATION_MANAGER;
+    if (touchesManager && actor.systemRole !== UserRole.SYSTEM_ADMIN) {
+      throw new ForbiddenException(
+        'Başkanlık rolünü yalnızca sistem yöneticisi değiştirebilir',
+      );
+    }
 
     const data: Prisma.AssociationMembershipUpdateInput = {};
     if (input.role !== undefined) data.role = input.role;
@@ -152,8 +173,21 @@ export class AssociationMembersService {
     }
   }
 
-  async remove(associationId: string, membershipId: string) {
-    await this.ensureMembership(associationId, membershipId);
+  async remove(
+    associationId: string,
+    membershipId: string,
+    actor: AuthenticatedUser,
+  ) {
+    const existing = await this.ensureMembership(associationId, membershipId);
+
+    if (
+      existing.role === UserRole.ASSOCIATION_MANAGER &&
+      actor.systemRole !== UserRole.SYSTEM_ADMIN
+    ) {
+      throw new ForbiddenException(
+        'Başkanı yalnızca sistem yöneticisi görevden alabilir',
+      );
+    }
 
     return this.prisma.associationMembership.update({
       where: { id: membershipId },
@@ -190,11 +224,14 @@ export class AssociationMembersService {
   // Scoped by `associationId` + `membershipId`: a membership that exists
   // but belongs to a different dernek is treated as not-found so the
   // route guard cannot be bypassed by passing a foreign membershipId.
+  // Returns `role` so callers can enforce role-specific gates (e.g.
+  // only SYSTEM_ADMIN may mutate a MANAGER row).
   private async ensureMembership(associationId: string, membershipId: string) {
-    const exists = await this.prisma.associationMembership.findFirst({
+    const found = await this.prisma.associationMembership.findFirst({
       where: { id: membershipId, associationId, deletedAt: null },
-      select: { id: true },
+      select: { id: true, role: true },
     });
-    if (!exists) throw new NotFoundException('Üyelik bulunamadı');
+    if (!found) throw new NotFoundException('Üyelik bulunamadı');
+    return found;
   }
 }
