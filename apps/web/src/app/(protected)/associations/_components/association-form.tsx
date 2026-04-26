@@ -150,12 +150,37 @@ export function AssociationForm() {
     setStep(((step as number) - 1) as StepNum);
   }
 
-  function onSubmit(values: FormValues) {
-    if (step !== 3) {
-      // Defensive — submit can only fire on step 3.
-      void nextStep();
+  async function jumpToStep(target: StepNum) {
+    if (target === step) return;
+    if (target < step) {
+      setStep(target);
       return;
     }
+    let cursor = step;
+    while (cursor < target) {
+      if (cursor === 1 || cursor === 2) {
+        const ok = await form.trigger(STEP_FIELDS[cursor]);
+        if (!ok) {
+          setStep(cursor);
+          return;
+        }
+      }
+      cursor = (cursor + 1) as StepNum;
+    }
+    setStep(target);
+  }
+
+  async function handleSave() {
+    if (step !== 3) return;
+    const ok = await form.trigger();
+    if (!ok) {
+      const errs = form.formState.errors;
+      if (STEP_FIELDS[1].some((f) => errs[f as keyof typeof errs])) setStep(1);
+      else if (STEP_FIELDS[2].some((f) => errs[f as keyof typeof errs]))
+        setStep(2);
+      return;
+    }
+    const values = form.getValues();
     const foundedAtIso = new Date(`${values.foundedAt}T00:00:00Z`).toISOString();
     const {
       managerFullName,
@@ -216,10 +241,14 @@ export function AssociationForm() {
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={(e) => {
+          // Submission is driven by the explicit "Kaydet ve oluştur" button
+          // (handleSave). Block native submit so a stray Enter or focus-stuck
+          // button can never write to the DB on its own.
+          e.preventDefault();
+        }}
         onKeyDown={(e) => {
-          // Prevent Enter from auto-submitting before step 3.
-          if (e.key === 'Enter' && step !== 3) {
+          if (e.key === 'Enter') {
             const tag = (e.target as HTMLElement).tagName;
             if (tag !== 'TEXTAREA') e.preventDefault();
           }
@@ -227,7 +256,7 @@ export function AssociationForm() {
         className="pb-28"
       >
         <div className="space-y-8">
-          <FormHeader step={step} />
+          <FormHeader step={step} onJump={jumpToStep} />
 
           <div className="rounded-lg border border-border bg-card">
             {step === 1 && <StepDernek />}
@@ -241,6 +270,7 @@ export function AssociationForm() {
           isPending={mutation.isPending}
           onPrev={prevStep}
           onNext={nextStep}
+          onSave={handleSave}
         />
       </form>
 
@@ -728,7 +758,13 @@ function PreviewRow({
   );
 }
 
-function FormHeader({ step }: { step: StepNum }) {
+function FormHeader({
+  step,
+  onJump,
+}: {
+  step: StepNum;
+  onJump: (n: StepNum) => void;
+}) {
   return (
     <header className="space-y-5 border-b border-border pb-6">
       <Breadcrumb
@@ -747,12 +783,18 @@ function FormHeader({ step }: { step: StepNum }) {
         </p>
       </div>
 
-      <Stepper current={step} />
+      <Stepper current={step} onJump={onJump} />
     </header>
   );
 }
 
-function Stepper({ current }: { current: StepNum }) {
+function Stepper({
+  current,
+  onJump,
+}: {
+  current: StepNum;
+  onJump: (n: StepNum) => void;
+}) {
   return (
     <ol className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-2">
       {STEPS.map((s, i) => {
@@ -763,50 +805,56 @@ function Stepper({ current }: { current: StepNum }) {
               ? 'done'
               : 'upcoming';
         return (
-          <li
-            key={s.n}
-            aria-current={state === 'current' ? 'step' : undefined}
-            className={cn(
-              'flex flex-1 items-center gap-3 rounded-md border px-3 py-2.5 transition-colors',
-              state === 'current'
-                ? 'border-primary/40 bg-primary/[0.04]'
-                : state === 'done'
-                  ? 'border-border bg-muted/30'
-                  : 'border-dashed border-border/60 bg-background',
-            )}
-          >
-            <span
-              aria-hidden
+          <li key={s.n} className="flex flex-1 items-stretch">
+            <button
+              type="button"
+              aria-current={state === 'current' ? 'step' : undefined}
+              onClick={() => onJump(s.n as StepNum)}
               className={cn(
-                'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold',
+                'flex w-full items-center gap-3 rounded-md border px-3 py-2.5 text-left transition-colors',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
                 state === 'current'
-                  ? 'bg-primary text-primary-foreground'
+                  ? 'border-primary/40 bg-primary/[0.04]'
                   : state === 'done'
-                    ? 'bg-foreground text-background'
-                    : 'bg-muted text-muted-foreground',
+                    ? 'border-border bg-muted/30 hover:border-primary/30 hover:bg-primary/[0.03]'
+                    : 'border-dashed border-border/60 bg-background hover:border-border hover:bg-muted/20',
               )}
             >
-              {state === 'done' ? '✓' : s.n}
-            </span>
-            <div className="min-w-0 flex-1">
-              <div
+              <span
+                aria-hidden
                 className={cn(
-                  'truncate text-[13px] font-semibold',
-                  state === 'upcoming'
-                    ? 'text-muted-foreground'
-                    : 'text-foreground',
+                  'flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold',
+                  state === 'current'
+                    ? 'bg-primary text-primary-foreground'
+                    : state === 'done'
+                      ? 'bg-foreground text-background'
+                      : 'bg-muted text-muted-foreground',
                 )}
               >
-                {s.title}
+                {state === 'done' ? '✓' : s.n}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div
+                  className={cn(
+                    'truncate text-[13px] font-semibold',
+                    state === 'upcoming'
+                      ? 'text-muted-foreground'
+                      : 'text-foreground',
+                  )}
+                >
+                  {s.title}
+                </div>
+                <div className="text-[11px] text-muted-foreground">
+                  {s.hint}
+                </div>
               </div>
-              <div className="text-[11px] text-muted-foreground">{s.hint}</div>
-            </div>
-            {i < STEPS.length - 1 && (
-              <ChevronRight
-                aria-hidden
-                className="hidden h-4 w-4 text-muted-foreground/40 sm:block"
-              />
-            )}
+              {i < STEPS.length - 1 && (
+                <ChevronRight
+                  aria-hidden
+                  className="hidden h-4 w-4 text-muted-foreground/40 sm:block"
+                />
+              )}
+            </button>
           </li>
         );
       })}
@@ -879,11 +927,13 @@ function StickyFooter({
   isPending,
   onPrev,
   onNext,
+  onSave,
 }: {
   step: StepNum;
   isPending: boolean;
   onPrev: () => void;
   onNext: () => void;
+  onSave: () => void;
 }) {
   const isFinal = step === 3;
   return (
@@ -907,7 +957,12 @@ function StickyFooter({
             Adım {step} / 3
           </span>
           {isFinal ? (
-            <Button type="submit" disabled={isPending}>
+            <Button
+              key="save"
+              type="button"
+              onClick={onSave}
+              disabled={isPending}
+            >
               {isPending ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -921,7 +976,7 @@ function StickyFooter({
               )}
             </Button>
           ) : (
-            <Button type="button" onClick={onNext}>
+            <Button key="next" type="button" onClick={onNext}>
               İleri
               <ArrowRight className="h-4 w-4" />
             </Button>
