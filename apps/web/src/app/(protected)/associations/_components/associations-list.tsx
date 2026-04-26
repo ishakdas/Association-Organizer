@@ -33,8 +33,10 @@ function useDebounced<T>(value: T, delay = 350): T {
 
 export function AssociationsList({
   initialData,
+  canCreate,
 }: {
   initialData: AssociationListResponse;
+  canCreate: boolean;
 }) {
   const [searchInput, setSearchInput] = useState('');
   const [city, setCity] = useState('');
@@ -79,7 +81,11 @@ export function AssociationsList({
 
   return (
     <div className="space-y-8">
-      <PageHeader total={meta.total} isFetching={isFetching} />
+      <PageHeader
+        total={meta.total}
+        isFetching={isFetching}
+        canCreate={canCreate}
+      />
 
       <FilterBar
         searchInput={searchInput}
@@ -104,7 +110,11 @@ export function AssociationsList({
       {isLoading ? (
         <ListSkeleton />
       ) : rows.length === 0 ? (
-        <EmptyState hasFilters={hasFilters} onReset={resetFilters} />
+        <EmptyState
+          hasFilters={hasFilters}
+          onReset={resetFilters}
+          canCreate={canCreate}
+        />
       ) : (
         <>
           <div className="hidden md:block">
@@ -133,9 +143,11 @@ export function AssociationsList({
 function PageHeader({
   total,
   isFetching,
+  canCreate,
 }: {
   total: number;
   isFetching: boolean;
+  canCreate: boolean;
 }) {
   return (
     <header className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-6">
@@ -153,12 +165,14 @@ function PageHeader({
           )}
         </p>
       </div>
-      <Button asChild size="default">
-        <Link href="/associations/new">
-          <Plus className="h-4 w-4" />
-          Yeni Dernek
-        </Link>
-      </Button>
+      {canCreate && (
+        <Button asChild size="default">
+          <Link href="/associations/new">
+            <Plus className="h-4 w-4" />
+            Yeni Dernek
+          </Link>
+        </Button>
+      )}
     </header>
   );
 }

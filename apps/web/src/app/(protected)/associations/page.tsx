@@ -1,5 +1,7 @@
 import { createServerClient } from '@/lib/supabase/server';
 import { listAssociations } from '@/lib/api/associations';
+import { getMe } from '@/lib/api/me';
+import { isSystemAdmin } from '@/lib/permissions';
 import type { AssociationListResponse } from '@ticketbot/shared-types';
 import { AssociationsList } from './_components/associations-list';
 
@@ -15,6 +17,7 @@ export default async function AssociationsPage() {
   } = await supabase.auth.getSession();
 
   let initialData = EMPTY;
+  let canCreate = false;
   if (session) {
     try {
       initialData = await listAssociations(session.access_token, {
@@ -26,7 +29,13 @@ export default async function AssociationsPage() {
       // Client side will refetch via TanStack Query.
       initialData = EMPTY;
     }
+    try {
+      const me = await getMe(session.access_token);
+      canCreate = isSystemAdmin(me);
+    } catch {
+      canCreate = false;
+    }
   }
 
-  return <AssociationsList initialData={initialData} />;
+  return <AssociationsList initialData={initialData} canCreate={canCreate} />;
 }
