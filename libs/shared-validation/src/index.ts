@@ -7,10 +7,14 @@ export {
   updateMeetingNoteSchema,
   listMeetingNotesQuerySchema,
   meetingNoteResponseSchema,
+  analyzeMeetingContentSchema,
+  preApprovedTaskSchema,
   type CreateMeetingNoteInput,
   type UpdateMeetingNoteInput,
   type ListMeetingNotesQuery,
   type MeetingNoteResponse,
+  type AnalyzeMeetingContentInput,
+  type PreApprovedTask,
 } from './schemas/meeting-note.schema';
 
 // Tasks (Görevler)

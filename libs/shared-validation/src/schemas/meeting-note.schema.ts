@@ -4,6 +4,18 @@ const isoDateTime = z
   .string()
   .datetime({ offset: true, message: 'Geçerli bir tarih girin (ISO 8601)' });
 
+export const preApprovedTaskSchema = z.object({
+  title: z.string().min(1).max(255),
+  description: z.string().max(2000).nullable().optional(),
+  assignedToUserId: z.string().nullable().optional(),
+});
+export type PreApprovedTask = z.infer<typeof preApprovedTaskSchema>;
+
+export const analyzeMeetingContentSchema = z.object({
+  content: z.string().min(1).max(50000),
+});
+export type AnalyzeMeetingContentInput = z.infer<typeof analyzeMeetingContentSchema>;
+
 export const createMeetingNoteSchema = z.object({
   title: z.string().min(2, 'En az 2 karakter').max(255),
   content: z.string().min(1).max(50000),
@@ -12,6 +24,7 @@ export const createMeetingNoteSchema = z.object({
     .array(z.string().cuid('Geçersiz kullanıcı'))
     .min(1, 'En az bir katılımcı gerekli')
     .max(500),
+  preApprovedTasks: z.array(preApprovedTaskSchema).optional(),
 });
 export type CreateMeetingNoteInput = z.infer<typeof createMeetingNoteSchema>;
 

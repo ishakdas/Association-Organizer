@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
 export const extractedActionItemSchema = z.object({
-  content: z.string().min(1).max(2000),
-  assigneeName: z.string().min(1).max(200).nullable().optional(),
+  title: z.string().min(1).max(255),
+  description: z.string().max(2000).nullable(),
+  assignedToUserId: z.string().nullable(),
 });
 
 export type ExtractedActionItemOutput = z.infer<typeof extractedActionItemSchema>;
