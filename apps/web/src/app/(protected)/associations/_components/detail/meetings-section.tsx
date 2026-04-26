@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMeetings } from '../../_hooks/use-meetings';
 import { AddMeetingDialog } from './add-meeting-dialog';
+import { AnalyzeMeetingDialog } from './analyze-meeting-dialog';
 
 export function MeetingsSection({
   associationId,
@@ -63,7 +64,12 @@ export function MeetingsSection({
       {data && data.data.length > 0 && (
         <ul className="space-y-2">
           {data.data.map((m) => (
-            <MeetingCard key={m.id} m={m} />
+            <MeetingCard
+              key={m.id}
+              m={m}
+              associationId={associationId}
+              canManage={canManage}
+            />
           ))}
         </ul>
       )}
@@ -71,7 +77,15 @@ export function MeetingsSection({
   );
 }
 
-function MeetingCard({ m }: { m: MeetingNoteResponse }) {
+function MeetingCard({
+  m,
+  associationId,
+  canManage,
+}: {
+  m: MeetingNoteResponse;
+  associationId: string;
+  canManage: boolean;
+}) {
   const date = useMemo(() => new Date(m.meetingDate), [m.meetingDate]);
   const preview = m.content.slice(0, 220);
 
@@ -92,6 +106,10 @@ function MeetingCard({ m }: { m: MeetingNoteResponse }) {
             </span>
           </div>
         </div>
+
+        {canManage && (
+          <AnalyzeMeetingDialog meeting={m} associationId={associationId} />
+        )}
       </div>
 
       {preview && (

@@ -11,13 +11,13 @@ import {
   canManageMembers,
   isSystemAdmin,
 } from '@/lib/permissions';
+
 import { DetailTabs } from '../_components/detail/detail-tabs';
 import { GeneralSection } from '../_components/detail/general-section';
 import { RosterSection } from '../_components/detail/roster-section';
 import { TasksSection } from '../_components/detail/tasks-section';
 import { MeetingsSection } from '../_components/detail/meetings-section';
 import { TelegramSection } from '../_components/detail/telegram-section';
-import { DeleteAssociationDialog } from '../_components/delete-association-dialog';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -49,14 +49,11 @@ export default async function AssociationDetailPage({ params }: Props) {
     const canManageRoster = canManageMembers(me, id);
     const canManageManagerCard = isSystemAdmin(me);
     const canCreateWork = canCreateTasksAndMeetings(me, id);
-    const canDelete = isSystemAdmin(me);
 
     return (
       <div className="pb-10">
         <DetailHeader
           name={a.name}
-          associationId={a.id}
-          canDelete={canDelete}
         />
 
         <div className="mt-8">
@@ -107,15 +104,7 @@ export default async function AssociationDetailPage({ params }: Props) {
   }
 }
 
-function DetailHeader({
-  name,
-  associationId,
-  canDelete,
-}: {
-  name: string;
-  associationId: string;
-  canDelete: boolean;
-}) {
+function DetailHeader({ name }: { name: string }) {
   return (
     <header className="space-y-5 border-b border-border pb-6">
       <nav
@@ -131,19 +120,13 @@ function DetailHeader({
         <ChevronRight className="h-3 w-3 text-muted-foreground/50" />
         <span className="truncate font-medium text-foreground">{name}</span>
       </nav>
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center gap-4">
         <Button variant="ghost" size="sm" asChild className="-ml-2">
           <Link href="/associations">
             <ArrowLeft className="h-3.5 w-3.5" />
             Tüm derneklere dön
           </Link>
         </Button>
-        {canDelete && (
-          <DeleteAssociationDialog
-            associationId={associationId}
-            associationName={name}
-          />
-        )}
       </div>
     </header>
   );
