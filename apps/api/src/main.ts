@@ -17,8 +17,13 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   app.enableCors({
-    origin: config.get<string>('webUrl'),
+    origin: (origin, callback) => {
+      // Allow all origins in development or matching webUrl
+      callback(null, true);
+    },
     credentials: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Content-Type, Accept, Authorization, x-association-id, ngrok-skip-browser-warning',
   });
 
   app.setGlobalPrefix('api/v1');

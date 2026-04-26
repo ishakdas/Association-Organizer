@@ -10,6 +10,7 @@ export async function apiClient<T>(path: string, options: FetchOptions = {}): Pr
 
   const headers: Record<string, string> = {
     ...((customHeaders as Record<string, string>) ?? {}),
+    'ngrok-skip-browser-warning': 'true',
   };
 
   if (rest.body !== undefined && rest.body !== null) {
