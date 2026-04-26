@@ -1,6 +1,9 @@
 import {
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Post,
   Param,
   Body,
@@ -57,5 +60,12 @@ export class AssociationsController {
   )
   findOne(@Param('id') id: string) {
     return this.associationsService.findOne(id);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.SYSTEM_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  delete(@Param('id') id: string) {
+    return this.associationsService.delete(id);
   }
 }

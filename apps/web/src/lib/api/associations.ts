@@ -38,3 +38,16 @@ export function createAssociation(token: string, input: CreateAssociationInput) 
     body: JSON.stringify(input),
   });
 }
+
+export interface DeleteAssociationResult {
+  associationId: string;
+  membershipsDeleted: number;
+  telegramAccountsUnlinked: number;
+}
+
+export function deleteAssociation(token: string, id: string) {
+  return apiClient<DeleteAssociationResult>(`/associations/${id}`, {
+    token,
+    method: 'DELETE',
+  });
+}
