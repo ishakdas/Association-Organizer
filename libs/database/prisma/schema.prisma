@@ -48,6 +48,7 @@ enum TaskActivityAction {
   DESCRIPTION_CHANGED
   TITLE_CHANGED
   REMINDER_CHANGED
+  REMINDER_SENT
 }
 
 // -----------------------------------------------------------------------------

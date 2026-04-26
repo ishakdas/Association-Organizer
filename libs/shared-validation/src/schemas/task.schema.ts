@@ -120,6 +120,7 @@ export const taskActivityActionEnum = z.enum([
   'DESCRIPTION_CHANGED',
   'TITLE_CHANGED',
   'REMINDER_CHANGED',
+  'REMINDER_SENT',
 ]);
 export type TaskActivityActionValue = z.infer<typeof taskActivityActionEnum>;
 

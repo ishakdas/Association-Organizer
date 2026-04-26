@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ClipboardList,
   Clock,
+  Eye,
   Flag,
   Loader2,
   UserPlus,
@@ -250,10 +251,22 @@ function TaskCard({
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-secondary text-[9px] font-semibold text-secondary-foreground">
                 {initials}
               </span>
-              <span className="text-foreground">
-                {assignee?.fullName ?? '—'}
+              <span>
+                Atanan:{' '}
+                <span className="text-foreground">
+                  {assignee?.fullName ?? '—'}
+                </span>
               </span>
             </span>
+            {task.watcher && (
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-primary">
+                <Eye className="h-3 w-3" />
+                <span>
+                  Takipçi:{' '}
+                  <span className="font-medium">{task.watcher.fullName}</span>
+                </span>
+              </span>
+            )}
             {due && (
               <span
                 className={cn(
@@ -268,7 +281,7 @@ function TaskCard({
             <span className="inline-flex items-center gap-1.5">
               <UserPlus className="h-3 w-3" />
               <span>
-                Atayan: {task.assignedBy.fullName} ·{' '}
+                Oluşturan: {task.assignedBy.fullName} ·{' '}
                 {format(new Date(task.createdAt), 'd MMM yyyy', { locale: tr })}
               </span>
             </span>

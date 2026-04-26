@@ -3,6 +3,7 @@
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import {
+  Bell,
   CheckCircle2,
   Clock,
   Flag,
@@ -36,6 +37,7 @@ const ACTION_ICON: Record<TaskActivityActionValue, LucideIcon> = {
   DESCRIPTION_CHANGED: History,
   TITLE_CHANGED: History,
   REMINDER_CHANGED: Clock,
+  REMINDER_SENT: Bell,
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -73,6 +75,11 @@ function describe(activity: TaskActivity): string {
       return 'Açıklamayı düzenledi';
     case 'REMINDER_CHANGED':
       return 'Hatırlatmayı güncelledi';
+    case 'REMINDER_SENT': {
+      const channel = p.channel === 'telegram' ? ' (Telegram)' : '';
+      const kind = p.type === 'DUE' ? 'Bitiş tarihi hatırlatıldı' : 'Görev hatırlatıldı';
+      return `${kind}${channel}`;
+    }
     default:
       return activity.action;
   }
@@ -155,6 +162,10 @@ function ActivityList({
       <span className="absolute bottom-2 left-2 top-2 w-px bg-border" />
       {data.map((a) => {
         const Icon = ACTION_ICON[a.action] ?? History;
+        // System-triggered actions (e.g. reminder fan-out) carry an
+        // assignee actor for FK reasons but should read as "Sistem".
+        const actorLabel =
+          a.action === 'REMINDER_SENT' ? 'Sistem' : a.actor.fullName;
         return (
           <li key={a.id} className="relative">
             <span className="absolute -left-[14px] top-0.5 flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background">
@@ -162,7 +173,7 @@ function ActivityList({
             </span>
             <div className="space-y-0.5">
               <p className="text-[13px] leading-snug text-foreground">
-                <span className="font-medium">{a.actor.fullName}</span> ·{' '}
+                <span className="font-medium">{actorLabel}</span> ·{' '}
                 {describe(a)}
               </p>
               <p className="text-[11px] text-muted-foreground">
