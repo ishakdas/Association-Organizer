@@ -47,6 +47,7 @@ import {
   useMyTasks,
   useUpdateMyTaskStatus,
 } from '../_hooks/use-my-tasks';
+import { TaskActivityDialog } from '@/app/(protected)/associations/_components/detail/task-activity-dialog';
 
 const ALL_ASSOC = 'ALL';
 type StatusTab = 'ALL' | TaskStatusValue;
@@ -354,11 +355,19 @@ function TaskCard({
               </span>
             </span>
             {task.watcher && (
-              <span className="inline-flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-primary">
                 <Eye className="h-3 w-3" />
-                <span>Takipçi: {task.watcher.fullName}</span>
+                <span>
+                  Takipçi:{' '}
+                  <span className="font-medium">{task.watcher.fullName}</span>
+                </span>
               </span>
             )}
+            <TaskActivityDialog
+              associationId={task.association.id}
+              taskId={task.id}
+              taskTitle={task.title}
+            />
           </div>
         </div>
 
