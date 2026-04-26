@@ -135,12 +135,12 @@ model Association {
   id           String  @id @default(cuid())
   name         String
   shortName    String?
-  taxNumber    String  @unique
+  taxNumber    String? @unique
   foundedAt    DateTime
-  address      String
+  address      String?
   city         String
   district     String
-  phone        String
+  phone        String?
   email        String
   website      String?
   logoUrl      String?

@@ -2,12 +2,12 @@ export interface AssociationDto {
   id: string;
   name: string;
   shortName: string | null;
-  taxNumber: string;
+  taxNumber: string | null;
   foundedAt: string;
-  address: string;
+  address: string | null;
   city: string;
   district: string;
-  phone: string;
+  phone: string | null;
   email: string;
   website: string | null;
   logoUrl: string | null;

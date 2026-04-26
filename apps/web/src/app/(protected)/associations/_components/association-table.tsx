@@ -48,7 +48,7 @@ export function AssociationTable({ rows }: { rows: AssociationDto[] }) {
                 </Link>
               </TableCell>
               <TableCell className="font-mono text-[12.5px] text-muted-foreground">
-                {a.taxNumber}
+                {a.taxNumber ?? '—'}
               </TableCell>
               <TableCell className="text-[13px] text-muted-foreground">
                 <span className="text-foreground">{a.city}</span>

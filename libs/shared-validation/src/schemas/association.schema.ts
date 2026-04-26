@@ -2,24 +2,8 @@ import { z } from 'zod';
 import { parsePhoneE164 } from '../helpers/phone';
 import { TAX_NUMBER_PATTERN } from '../helpers/tax-number';
 
-const phoneSchema = z
-  .string()
-  .min(1, 'Telefon zorunlu')
-  .transform((raw, ctx) => {
-    const e164 = parsePhoneE164(raw);
-    if (!e164) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Geçerli bir telefon numarası girin',
-      });
-      return z.NEVER;
-    }
-    return e164;
-  });
-
 const optionalPhoneSchema = z
   .string()
-  .min(1)
   .optional()
   .transform((raw, ctx) => {
     if (raw === undefined || raw === '') return undefined;
@@ -54,17 +38,34 @@ const optionalUrl = z
   .optional()
   .transform((v) => (v ? v : undefined));
 
+const optionalTaxNumberSchema = z
+  .string()
+  .optional()
+  .transform((v) => (v === undefined || v === '' ? undefined : v))
+  .refine(
+    (v) => v === undefined || TAX_NUMBER_PATTERN.test(v),
+    'Vergi numarası 10 haneli ve sadece rakam olmalı',
+  );
+
+const optionalAddressSchema = z
+  .string()
+  .max(500)
+  .optional()
+  .transform((v) => (v === undefined || v === '' ? undefined : v))
+  .refine(
+    (v) => v === undefined || v.length >= 5,
+    'En az 5 karakter',
+  );
+
 export const createAssociationSchema = z.object({
   name: z.string().min(2).max(200),
   shortName: z.string().min(2).max(50).optional(),
-  taxNumber: z
-    .string()
-    .regex(TAX_NUMBER_PATTERN, 'Vergi numarası 10 haneli ve sadece rakam olmalı'),
+  taxNumber: optionalTaxNumberSchema,
   foundedAt: foundedAtSchema,
-  address: z.string().min(5).max(500),
+  address: optionalAddressSchema,
   city: z.string().min(2).max(100),
   district: z.string().min(2).max(100),
-  phone: phoneSchema,
+  phone: optionalPhoneSchema,
   email: z.string().email('Geçerli bir e-posta girin').max(200),
   website: optionalUrl,
   logoUrl: optionalUrl,
@@ -99,12 +100,12 @@ export const associationResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   shortName: z.string().nullable(),
-  taxNumber: z.string(),
+  taxNumber: z.string().nullable(),
   foundedAt: z.string(),
-  address: z.string(),
+  address: z.string().nullable(),
   city: z.string(),
   district: z.string(),
-  phone: z.string(),
+  phone: z.string().nullable(),
   email: z.string(),
   website: z.string().nullable(),
   logoUrl: z.string().nullable(),

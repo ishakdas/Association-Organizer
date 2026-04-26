@@ -19,7 +19,7 @@ export function AssociationCard({ association }: { association: AssociationDto }
             {association.name}
           </h3>
           <p className="font-mono text-[11.5px] text-muted-foreground">
-            VKN · {association.taxNumber}
+            VKN · {association.taxNumber ?? '—'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -34,7 +34,9 @@ export function AssociationCard({ association }: { association: AssociationDto }
         <Meta icon={<MapPin className="h-3.5 w-3.5" />}>
           {association.city} / {association.district}
         </Meta>
-        <Meta icon={<Phone className="h-3.5 w-3.5" />}>{association.phone}</Meta>
+        <Meta icon={<Phone className="h-3.5 w-3.5" />}>
+          {association.phone ?? '—'}
+        </Meta>
         <Meta icon={<Users className="h-3.5 w-3.5" />}>
           <span className="tabular-nums">{association.memberCount}</span> üye
         </Meta>

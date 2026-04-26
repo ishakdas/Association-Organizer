@@ -40,7 +40,11 @@ export function GeneralSection({ a }: { a: AssociationDto }) {
           <Row
             icon={<Hash className="h-3.5 w-3.5" />}
             label="Vergi Numarası"
-            value={<span className="font-mono text-[13.5px]">{a.taxNumber}</span>}
+            value={
+              <span className="font-mono text-[13.5px]">
+                {a.taxNumber ?? '—'}
+              </span>
+            }
           />
           <Row
             icon={<Calendar className="h-3.5 w-3.5" />}
@@ -76,12 +80,16 @@ export function GeneralSection({ a }: { a: AssociationDto }) {
             icon={<Phone className="h-3.5 w-3.5" />}
             label="Telefon"
             value={
-              <a
-                href={`tel:${a.phone}`}
-                className="text-foreground hover:text-primary"
-              >
-                {a.phone}
-              </a>
+              a.phone ? (
+                <a
+                  href={`tel:${a.phone}`}
+                  className="text-foreground hover:text-primary"
+                >
+                  {a.phone}
+                </a>
+              ) : (
+                '—'
+              )
             }
           />
           <Row
@@ -127,7 +135,9 @@ export function GeneralSection({ a }: { a: AssociationDto }) {
           <Row
             icon={<MapPin className="h-3.5 w-3.5" />}
             label="Adres"
-            value={<span className="whitespace-pre-wrap">{a.address}</span>}
+            value={
+              <span className="whitespace-pre-wrap">{a.address ?? '—'}</span>
+            }
           />
         </InfoCard>
 

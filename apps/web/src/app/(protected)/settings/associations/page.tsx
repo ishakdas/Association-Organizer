@@ -227,7 +227,7 @@ export default function AssociationsAdminPage() {
                       )}
                     </TableCell>
                     <TableCell className="font-mono text-[12px] text-muted-foreground">
-                      {r.taxNumber}
+                      {r.taxNumber ?? '—'}
                     </TableCell>
                     <TableCell className="text-[12.5px] text-muted-foreground">
                       {r.city} / {r.district}
