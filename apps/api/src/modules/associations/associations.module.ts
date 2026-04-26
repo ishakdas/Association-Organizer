@@ -5,9 +5,10 @@ import { AssociationsRepository } from './associations.repository';
 import { AssociationMembersController } from './association-members.controller';
 import { AssociationMembersService } from './association-members.service';
 import { UsersModule } from '../users/users.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [UsersModule],
+  imports: [UsersModule, AuthModule],
   controllers: [AssociationsController, AssociationMembersController],
   providers: [AssociationsService, AssociationsRepository, AssociationMembersService],
   exports: [AssociationsService, AssociationMembersService],

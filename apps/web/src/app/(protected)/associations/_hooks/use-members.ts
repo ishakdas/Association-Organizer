@@ -6,6 +6,7 @@ import {
   listMembers,
   addMember,
   removeMember,
+  generateMemberTelegramLink,
   type ListMembersParams,
 } from '@/lib/api/members';
 import type { AddMemberInput, MemberResponse } from '@ticketbot/shared-validation';
@@ -56,6 +57,20 @@ export function useRemoveMember(associationId: string) {
       toast.success(`${member.user.fullName} dernekten çıkarıldı`);
       queryClient.invalidateQueries({ queryKey: ['members', associationId] });
     },
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
+  });
+}
+
+export function useGenerateMemberTelegramLink(associationId: string) {
+  return useMutation({
+    mutationFn: async (membershipId: string) =>
+      generateMemberTelegramLink(
+        await getAccessToken(),
+        associationId,
+        membershipId,
+      ),
     onError: (err: Error) => {
       toast.error(err.message);
     },

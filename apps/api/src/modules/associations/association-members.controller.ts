@@ -70,4 +70,13 @@ export class AssociationMembersController {
   ) {
     return this.service.remove(associationId, membershipId);
   }
+
+  @Post(':membershipId/telegram-link')
+  @AssociationRoles(UserRole.ASSOCIATION_MANAGER)
+  generateTelegramLink(
+    @Param('id') associationId: string,
+    @Param('membershipId') membershipId: string,
+  ) {
+    return this.service.generateTelegramLink(associationId, membershipId);
+  }
 }

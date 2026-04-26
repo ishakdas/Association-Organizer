@@ -9,9 +9,12 @@ export async function apiClient<T>(path: string, options: FetchOptions = {}): Pr
   const { token, associationId, headers: customHeaders, ...rest } = options;
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...((customHeaders as Record<string, string>) ?? {}),
   };
+
+  if (rest.body !== undefined && rest.body !== null) {
+    headers['Content-Type'] ??= 'application/json';
+  }
 
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;

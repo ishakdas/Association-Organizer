@@ -11,6 +11,7 @@ import {
   UpdateMemberInput,
 } from '@ticketbot/shared-validation';
 import { UsersService } from '../users/users.service';
+import { AuthService } from '../auth/auth.service';
 
 @Injectable()
 export class AssociationMembersService {
@@ -19,6 +20,7 @@ export class AssociationMembersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly users: UsersService,
+    private readonly auth: AuthService,
   ) {}
 
   async create(associationId: string, input: AddMemberInput) {
@@ -161,6 +163,20 @@ export class AssociationMembersService {
       },
       include: { user: true, title: true },
     });
+  }
+
+  // Admin-issued Telegram link code: a manager (or system admin) generates
+  // a one-time code on behalf of a member, who then sends `/link <code>`
+  // to the bot. Required for DB-only members (no Supabase login = cannot
+  // self-issue from /settings/telegram).
+  async generateTelegramLink(associationId: string, membershipId: string) {
+    const membership = await this.prisma.associationMembership.findFirst({
+      where: { id: membershipId, associationId, deletedAt: null },
+      select: { userId: true },
+    });
+    if (!membership) throw new NotFoundException('Üyelik bulunamadı');
+
+    return this.auth.generateLinkToken(membership.userId);
   }
 
   private async ensureAssociation(id: string) {

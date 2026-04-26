@@ -7,6 +7,7 @@ import {
   Loader2,
   Mail,
   Phone,
+  Send,
   UserMinus,
   Users,
 } from 'lucide-react';
@@ -32,6 +33,7 @@ import { Input } from '@/components/ui/input';
 import { useMembers, useRemoveMember } from '../../_hooks/use-members';
 import { useTitles } from '../../_hooks/use-titles';
 import { AddMemberDialog } from '../add-member-dialog';
+import { TelegramLinkDialog } from './telegram-link-dialog';
 import type { MemberResponse, MembershipRole } from '@ticketbot/shared-validation';
 
 const COPY: Record<
@@ -94,6 +96,7 @@ export function RosterSection({
   const { data: titles } = useTitles();
   const [search, setSearch] = useState('');
   const [titleId, setTitleId] = useState<string>(NO_TITLE);
+  const [telegramFor, setTelegramFor] = useState<MemberResponse | null>(null);
 
   const copy = COPY[role];
   const Icon = copy.icon;
@@ -199,6 +202,7 @@ export function RosterSection({
               m={m}
               canManage={canManage}
               onRemove={() => handleRemove(m)}
+              onGenerateTelegram={() => setTelegramFor(m)}
               isRemoving={
                 removeMutation.isPending && removeMutation.variables === m.id
               }
@@ -206,6 +210,15 @@ export function RosterSection({
           ))}
         </div>
       )}
+
+      <TelegramLinkDialog
+        associationId={associationId}
+        member={telegramFor}
+        open={telegramFor !== null}
+        onOpenChange={(open) => {
+          if (!open) setTelegramFor(null);
+        }}
+      />
 
       {filtered && filtered.length > 0 && variant === 'list' && (
         <Table>
@@ -250,19 +263,30 @@ export function RosterSection({
                   </TableCell>
                   {canManage && (
                     <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleRemove(m)}
-                        disabled={isRemoving}
-                        aria-label={`${m.user.fullName} adlı kişiyi çıkar`}
-                      >
-                        {isRemoving ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <UserMinus className="h-3.5 w-3.5" />
-                        )}
-                      </Button>
+                      <div className="inline-flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setTelegramFor(m)}
+                          aria-label={`${m.user.fullName} için Telegram kodu üret`}
+                          title="Telegram bağlantı kodu üret"
+                        >
+                          <Send className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemove(m)}
+                          disabled={isRemoving}
+                          aria-label={`${m.user.fullName} adlı kişiyi çıkar`}
+                        >
+                          {isRemoving ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <UserMinus className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      </div>
                     </TableCell>
                   )}
                 </TableRow>
@@ -279,11 +303,13 @@ function SingleCard({
   m,
   canManage,
   onRemove,
+  onGenerateTelegram,
   isRemoving,
 }: {
   m: MemberResponse;
   canManage: boolean;
   onRemove: () => void;
+  onGenerateTelegram: () => void;
   isRemoving: boolean;
 }) {
   const initials = m.user.fullName
@@ -330,19 +356,25 @@ function SingleCard({
         </div>
       </div>
       {canManage && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onRemove}
-          disabled={isRemoving}
-        >
-          {isRemoving ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <UserMinus className="h-3.5 w-3.5" />
-          )}
-          Görevden al
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={onGenerateTelegram}>
+            <Send className="h-3.5 w-3.5" />
+            Telegram kodu
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRemove}
+            disabled={isRemoving}
+          >
+            {isRemoving ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <UserMinus className="h-3.5 w-3.5" />
+            )}
+            Görevden al
+          </Button>
+        </div>
       )}
     </div>
   );

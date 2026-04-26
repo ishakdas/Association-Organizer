@@ -1,12 +1,19 @@
+// jose v6 is ESM-only and ts-jest can't transform it. AuthService imports
+// jose; this spec only uses AuthService as a DI token (mock injected via
+// `useValue`), so an empty stub keeps Jest's CJS runtime happy.
+jest.mock('jose', () => ({}));
+
 import { Test } from '@nestjs/testing';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaClient, PrismaService, Prisma } from '@ticketbot/database';
 import { AssociationMembersService } from './association-members.service';
 import { UsersService } from '../users/users.service';
+import { AuthService } from '../auth/auth.service';
 
 type PrismaMock = DeepMockProxy<PrismaClient>;
 type UsersMock = jest.Mocked<Pick<UsersService, 'createSupabaseUser' | 'createDbOnlyUser' | 'deleteUser'>>;
+type AuthMock = jest.Mocked<Pick<AuthService, 'generateLinkToken'>>;
 
 const sampleUser = {
   id: 'user-1',
@@ -57,6 +64,7 @@ describe('AssociationMembersService', () => {
   let service: AssociationMembersService;
   let prisma: PrismaMock;
   let users: UsersMock;
+  let auth: AuthMock;
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
@@ -65,12 +73,16 @@ describe('AssociationMembersService', () => {
       createDbOnlyUser: jest.fn(),
       deleteUser: jest.fn().mockResolvedValue(undefined),
     } as unknown as UsersMock;
+    auth = {
+      generateLinkToken: jest.fn(),
+    } as unknown as AuthMock;
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         AssociationMembersService,
         { provide: PrismaService, useValue: prisma },
         { provide: UsersService, useValue: users },
+        { provide: AuthService, useValue: auth },
       ],
     }).compile();
 

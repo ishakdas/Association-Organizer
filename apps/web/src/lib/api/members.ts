@@ -54,3 +54,22 @@ export function removeMember(
     },
   );
 }
+
+export interface MemberTelegramLinkCode {
+  token: string;
+  expiresAt: string;
+}
+
+export function generateMemberTelegramLink(
+  token: string,
+  associationId: string,
+  membershipId: string,
+) {
+  return apiClient<MemberTelegramLinkCode>(
+    `/associations/${associationId}/members/${membershipId}/telegram-link`,
+    {
+      token,
+      method: 'POST',
+    },
+  );
+}
