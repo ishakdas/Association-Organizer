@@ -1,6 +1,8 @@
 import { apiClient } from './client';
 import type {
   CreateTaskInput,
+  MyTaskItem,
+  TaskActivity,
   TaskResponse,
   TaskStatusValue,
 } from '@ticketbot/shared-validation';
@@ -63,4 +65,48 @@ export function updateTaskStatus(
     method: 'PATCH',
     body: JSON.stringify({ status }),
   });
+}
+
+export interface MyTasksListParams {
+  associationId?: string;
+  status?: TaskStatusValue;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface MyTasksListResponse {
+  data: MyTaskItem[];
+  meta: {
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  };
+}
+
+function buildMyQuery(params: MyTasksListParams): string {
+  const sp = new URLSearchParams();
+  if (params.associationId) sp.set('associationId', params.associationId);
+  if (params.status) sp.set('status', params.status);
+  if (params.page) sp.set('page', String(params.page));
+  if (params.pageSize) sp.set('pageSize', String(params.pageSize));
+  const q = sp.toString();
+  return q ? `?${q}` : '';
+}
+
+export function listMyTasks(token: string, params: MyTasksListParams = {}) {
+  return apiClient<MyTasksListResponse>(`/tasks/me${buildMyQuery(params)}`, {
+    token,
+  });
+}
+
+export function listTaskActivities(
+  token: string,
+  associationId: string,
+  taskId: string,
+) {
+  return apiClient<TaskActivity[]>(
+    `/associations/${associationId}/tasks/${taskId}/activities`,
+    { token },
+  );
 }

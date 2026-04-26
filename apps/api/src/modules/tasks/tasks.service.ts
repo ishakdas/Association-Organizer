@@ -4,10 +4,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService, UserRole, Prisma, TaskStatus } from '@ticketbot/database';
+import {
+  PrismaService,
+  UserRole,
+  Prisma,
+  TaskStatus,
+  TaskActivityAction,
+} from '@ticketbot/database';
 import { addDays } from 'date-fns';
 import {
   CreateTaskInput,
+  ListMyTasksQuery,
   ListTasksQuery,
   UpdateTaskStatusInput,
 } from '@ticketbot/shared-validation';
@@ -27,19 +34,45 @@ export class TasksService {
     user: AuthenticatedUser,
   ) {
     await this.ensureAssigneeIsMember(associationId, input.assignedToUserId);
+    if (input.watcherUserId) {
+      await this.ensureAssigneeIsMember(associationId, input.watcherUserId);
+    }
 
-    const task = await this.prisma.task.create({
-      data: {
-        associationId,
-        title: input.title,
-        description: input.description ?? null,
-        assignedToUserId: input.assignedToUserId,
-        assignedById: user.id,
-        priority: input.priority,
-        reminderFrequency: input.reminderFrequency,
-        dueDate: input.dueDate ? new Date(input.dueDate) : null,
-        reminderAt: input.reminderAt ? new Date(input.reminderAt) : null,
-      },
+    const task = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.task.create({
+        data: {
+          associationId,
+          title: input.title,
+          description: input.description ?? null,
+          assignedToUserId: input.assignedToUserId,
+          assignedById: user.id,
+          watcherUserId: input.watcherUserId ?? null,
+          priority: input.priority,
+          reminderFrequency: input.reminderFrequency,
+          dueDate: input.dueDate ? new Date(input.dueDate) : null,
+          reminderAt: input.reminderAt ? new Date(input.reminderAt) : null,
+        },
+        include: {
+          assignedBy: { select: { id: true, fullName: true } },
+          watcher: { select: { id: true, fullName: true } },
+        },
+      });
+
+      await tx.taskActivity.create({
+        data: {
+          taskId: created.id,
+          actorId: user.id,
+          action: TaskActivityAction.CREATED,
+          payload: {
+            assigneeId: created.assignedToUserId,
+            watcherId: created.watcherUserId,
+            priority: created.priority,
+            dueDate: created.dueDate?.toISOString() ?? null,
+          },
+        },
+      });
+
+      return created;
     });
 
     await this.scheduler.scheduleTask({
@@ -75,12 +108,107 @@ export class TasksService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
+        include: {
+          assignedBy: { select: { id: true, fullName: true } },
+          watcher: { select: { id: true, fullName: true } },
+        },
       }),
       this.prisma.task.count({ where }),
     ]);
 
     return {
       data,
+      meta: {
+        total,
+        page,
+        pageSize,
+        totalPages: Math.max(1, Math.ceil(total / pageSize)),
+      },
+    };
+  }
+
+  // Cross-association list for the global Görevler page. The visible
+  // set is computed from the caller's memberships:
+  //   - SYSTEM_ADMIN  : every association
+  //   - MANAGER/SECRT : every task in those associations
+  //   - MEMBER        : only tasks assigned to the caller in that association
+  // Optional `associationId` and `status` filters narrow within that set.
+  async listForUser(query: ListMyTasksQuery, user: AuthenticatedUser) {
+    const isSysAdmin = user.systemRole === UserRole.SYSTEM_ADMIN;
+    const active = user.memberships.filter((m) => m.isActive);
+
+    if (!isSysAdmin && active.length === 0) {
+      return {
+        data: [],
+        meta: { total: 0, page: query.page, pageSize: query.pageSize, totalPages: 1 },
+      };
+    }
+
+    const orClauses: Prisma.TaskWhereInput[] = [];
+    if (isSysAdmin) {
+      orClauses.push({});
+    } else {
+      const privilegedAssoc = active
+        .filter(
+          (m) =>
+            m.role === UserRole.ASSOCIATION_MANAGER ||
+            m.role === UserRole.ASSOCIATION_SECRETARY,
+        )
+        .map((m) => m.associationId);
+      const memberOnlyAssoc = active
+        .filter((m) => m.role === UserRole.ASSOCIATION_MEMBER)
+        .map((m) => m.associationId);
+
+      if (privilegedAssoc.length > 0) {
+        orClauses.push({ associationId: { in: privilegedAssoc } });
+      }
+      if (memberOnlyAssoc.length > 0) {
+        orClauses.push({
+          associationId: { in: memberOnlyAssoc },
+          assignedToUserId: user.id,
+        });
+      }
+    }
+
+    if (orClauses.length === 0) {
+      return {
+        data: [],
+        meta: { total: 0, page: query.page, pageSize: query.pageSize, totalPages: 1 },
+      };
+    }
+
+    const where: Prisma.TaskWhereInput = {
+      deletedAt: null,
+      OR: orClauses,
+    };
+    if (query.status) where.status = query.status;
+    if (query.associationId) where.associationId = query.associationId;
+
+    const { page, pageSize } = query;
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.task.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'desc' }],
+        include: {
+          association: { select: { id: true, name: true } },
+          assignedTo: { select: { id: true, fullName: true } },
+          assignedBy: { select: { id: true, fullName: true } },
+          watcher: { select: { id: true, fullName: true } },
+        },
+      }),
+      this.prisma.task.count({ where }),
+    ]);
+
+    return {
+      data: rows.map(({ assignedTo, assignedBy, watcher, ...rest }) => ({
+        ...rest,
+        association: rest.association,
+        assignedBy: { id: assignedBy.id, fullName: assignedBy.fullName },
+        watcher: watcher ? { id: watcher.id, fullName: watcher.fullName } : null,
+        assignee: { id: assignedTo.id, fullName: assignedTo.fullName },
+      })),
       meta: {
         total,
         page,
@@ -115,9 +243,28 @@ export class TasksService {
       data.completedAt = new Date();
     }
 
-    const updated = await this.prisma.task.update({
-      where: { id: taskId },
-      data,
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.task.update({
+        where: { id: taskId },
+        data,
+        include: {
+          assignedBy: { select: { id: true, fullName: true } },
+          watcher: { select: { id: true, fullName: true } },
+        },
+      });
+
+      if (next.status !== task.status) {
+        await tx.taskActivity.create({
+          data: {
+            taskId,
+            actorId: user.id,
+            action: TaskActivityAction.STATUS_CHANGED,
+            payload: { from: task.status, to: next.status },
+          },
+        });
+      }
+
+      return next;
     });
 
     if (input.status === 'COMPLETED' || input.status === 'CANCELLED') {
@@ -141,12 +288,35 @@ export class TasksService {
       task.status === TaskStatus.COMPLETED ||
       task.status === TaskStatus.CANCELLED
     ) {
-      return this.prisma.task.findUniqueOrThrow({ where: { id: taskId } });
+      return this.prisma.task.findUniqueOrThrow({
+        where: { id: taskId },
+        include: {
+          assignedBy: { select: { id: true, fullName: true } },
+          watcher: { select: { id: true, fullName: true } },
+        },
+      });
     }
 
-    const updated = await this.prisma.task.update({
-      where: { id: taskId },
-      data: { status: TaskStatus.COMPLETED, completedAt: new Date() },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.task.update({
+        where: { id: taskId },
+        data: { status: TaskStatus.COMPLETED, completedAt: new Date() },
+        include: {
+          assignedBy: { select: { id: true, fullName: true } },
+          watcher: { select: { id: true, fullName: true } },
+        },
+      });
+
+      await tx.taskActivity.create({
+        data: {
+          taskId,
+          actorId: actingUserId,
+          action: TaskActivityAction.STATUS_CHANGED,
+          payload: { from: task.status, to: next.status, via: 'telegram' },
+        },
+      });
+
+      return next;
     });
 
     await this.scheduler.cancelTask(taskId);
@@ -179,11 +349,33 @@ export class TasksService {
       throw new BadRequestException('Bitiş tarihi yok');
     }
 
-    const newDue = addDays(task.dueDate, days);
+    const previousDue = task.dueDate;
+    const newDue = addDays(previousDue, days);
 
-    const updated = await this.prisma.task.update({
-      where: { id: taskId },
-      data: { dueDate: newDue },
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.task.update({
+        where: { id: taskId },
+        data: { dueDate: newDue },
+        include: {
+          assignedBy: { select: { id: true, fullName: true } },
+          watcher: { select: { id: true, fullName: true } },
+        },
+      });
+
+      await tx.taskActivity.create({
+        data: {
+          taskId,
+          actorId: actingUserId,
+          action: TaskActivityAction.DUE_DATE_CHANGED,
+          payload: {
+            from: previousDue.toISOString(),
+            to: newDue.toISOString(),
+            via: 'telegram',
+          },
+        },
+      });
+
+      return next;
     });
 
     await this.scheduler.rescheduleTask({
@@ -193,6 +385,41 @@ export class TasksService {
     });
 
     return updated;
+  }
+
+  // Returns the activity timeline for a single task. Authorization
+  // mirrors `list`: SYSTEM_ADMIN sees everything, MANAGER/SECRETARY in
+  // the task's association sees everything, MEMBER only sees activities
+  // for tasks assigned to them.
+  async listActivities(
+    associationId: string,
+    taskId: string,
+    user: AuthenticatedUser,
+  ) {
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, associationId, deletedAt: null },
+      select: { id: true, assignedToUserId: true },
+    });
+    if (!task) throw new NotFoundException('Görev bulunamadı');
+
+    if (this.isMemberOnly(user, associationId) && task.assignedToUserId !== user.id) {
+      throw new ForbiddenException('Bu görevin geçmişine erişiminiz yok');
+    }
+
+    const rows = await this.prisma.taskActivity.findMany({
+      where: { taskId },
+      orderBy: { createdAt: 'desc' },
+      include: { actor: { select: { id: true, fullName: true } } },
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      taskId: row.taskId,
+      action: row.action,
+      payload: row.payload,
+      createdAt: row.createdAt,
+      actor: row.actor,
+    }));
   }
 
   private async ensureAssigneeIsMember(

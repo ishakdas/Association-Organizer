@@ -5,22 +5,18 @@ import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import {
   AlertTriangle,
-  CheckCircle2,
   ChevronDown,
   ClipboardList,
   Clock,
   Flag,
   Loader2,
-  PauseCircle,
-  XCircle,
+  UserPlus,
 } from 'lucide-react';
 import type {
-  TaskPriorityValue,
   TaskResponse,
   TaskStatusValue,
 } from '@ticketbot/shared-validation';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Tabs,
@@ -36,9 +32,18 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
+import {
+  TASK_PRIORITY_CLASS,
+  TASK_PRIORITY_LABEL,
+  TASK_STATUS_CLASS,
+  TASK_STATUS_ICON,
+  TASK_STATUS_LABEL,
+  TASK_STATUS_ORDER,
+} from '@/lib/task-display';
 import { useMembers } from '../../_hooks/use-members';
 import { useTasks, useUpdateTaskStatus } from '../../_hooks/use-tasks';
 import { AddTaskDialog } from './add-task-dialog';
+import { TaskActivityDialog } from './task-activity-dialog';
 
 type StatusTab = 'ALL' | TaskStatusValue;
 
@@ -48,33 +53,6 @@ const STATUS_TABS: { value: StatusTab; label: string }[] = [
   { value: 'IN_PROGRESS', label: 'Devam Eden' },
   { value: 'COMPLETED', label: 'Tamamlanan' },
 ];
-
-const PRIORITY_LABEL: Record<TaskPriorityValue, string> = {
-  LOW: 'Düşük',
-  MEDIUM: 'Orta',
-  HIGH: 'Yüksek',
-};
-
-// LOW: gri, MEDIUM: mavi (primary/sky), HIGH: kırmızı
-const PRIORITY_CLASS: Record<TaskPriorityValue, string> = {
-  LOW: 'bg-muted text-muted-foreground border-border',
-  MEDIUM: 'bg-primary/10 text-primary border-primary/20',
-  HIGH: 'bg-destructive/10 text-destructive border-destructive/20',
-};
-
-const STATUS_LABEL: Record<TaskStatusValue, string> = {
-  PENDING: 'Bekliyor',
-  IN_PROGRESS: 'Devam ediyor',
-  COMPLETED: 'Tamamlandı',
-  CANCELLED: 'İptal',
-};
-
-const STATUS_ICON: Record<TaskStatusValue, typeof Clock> = {
-  PENDING: PauseCircle,
-  IN_PROGRESS: Clock,
-  COMPLETED: CheckCircle2,
-  CANCELLED: XCircle,
-};
 
 export function TasksSection({
   associationId,
@@ -184,6 +162,7 @@ function TasksList({
           key={task.id}
           task={task}
           assignee={userById.get(task.assignedToUserId)}
+          associationId={associationId}
           canManage={canManage}
           onStatusChange={(s) =>
             updateStatus.mutate({ taskId: task.id, status: s })
@@ -200,12 +179,14 @@ function TasksList({
 function TaskCard({
   task,
   assignee,
+  associationId,
   canManage,
   onStatusChange,
   isUpdating,
 }: {
   task: TaskResponse;
   assignee: { fullName: string; email: string | null } | undefined;
+  associationId: string;
   canManage: boolean;
   onStatusChange: (s: TaskStatusValue) => void;
   isUpdating: boolean;
@@ -216,7 +197,7 @@ function TaskCard({
     due.getTime() < Date.now() &&
     task.status !== 'COMPLETED' &&
     task.status !== 'CANCELLED';
-  const StatusIcon = STATUS_ICON[task.status];
+  const StatusIcon = TASK_STATUS_ICON[task.status];
   const initials = (assignee?.fullName ?? '??')
     .split(/\s+/)
     .map((p) => p[0])
@@ -231,14 +212,17 @@ function TaskCard({
           <div className="flex flex-wrap items-center gap-2">
             <Badge
               variant="outline"
-              className={cn('gap-1', PRIORITY_CLASS[task.priority])}
+              className={cn('gap-1', TASK_PRIORITY_CLASS[task.priority])}
             >
               <Flag className="h-3 w-3" />
-              {PRIORITY_LABEL[task.priority]}
+              {TASK_PRIORITY_LABEL[task.priority]}
             </Badge>
-            <Badge variant="outline" className="gap-1 text-[11px]">
+            <Badge
+              variant="outline"
+              className={cn('gap-1 text-[11px]', TASK_STATUS_CLASS[task.status])}
+            >
               <StatusIcon className="h-3 w-3" />
-              {STATUS_LABEL[task.status]}
+              {TASK_STATUS_LABEL[task.status]}
             </Badge>
             {isOverdue && (
               <Badge
@@ -281,6 +265,18 @@ function TaskCard({
                 {format(due, 'd MMM yyyy', { locale: tr })}
               </span>
             )}
+            <span className="inline-flex items-center gap-1.5">
+              <UserPlus className="h-3 w-3" />
+              <span>
+                Atayan: {task.assignedBy.fullName} ·{' '}
+                {format(new Date(task.createdAt), 'd MMM yyyy', { locale: tr })}
+              </span>
+            </span>
+            <TaskActivityDialog
+              associationId={associationId}
+              taskId={task.id}
+              taskTitle={task.title}
+            />
           </div>
         </div>
 
@@ -300,13 +296,11 @@ function TaskCard({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {(['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'] as const).map(
-                  (s) => (
-                    <SelectItem key={s} value={s}>
-                      {STATUS_LABEL[s]}
-                    </SelectItem>
-                  ),
-                )}
+                {TASK_STATUS_ORDER.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {TASK_STATUS_LABEL[s]}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

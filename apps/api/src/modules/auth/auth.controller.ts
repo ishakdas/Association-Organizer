@@ -1,18 +1,45 @@
-import { Controller, Delete, Get, Post, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Get,
+  Patch,
+  Post,
+  Body,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '../../common/guards/auth.guard';
+import { SupabaseUserGuard } from '../../common/guards/supabase-user.guard';
 import { CurrentUser, RequestUser } from '../../common/decorators/current-user.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { AuthService } from './auth.service';
-import { telegramLinkRedeemSchema, TelegramLinkRedeemInput } from '@ticketbot/shared-validation';
+import { AdminService } from '../admin/admin.service';
+import {
+  telegramLinkRedeemSchema,
+  TelegramLinkRedeemInput,
+  updateProfileSchema,
+  UpdateProfileInput,
+} from '@ticketbot/shared-validation';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly adminService: AdminService,
+  ) {}
 
   @Get('me')
   @UseGuards(AuthGuard)
   me(@CurrentUser() user: RequestUser) {
     return user;
+  }
+
+  @Patch('me')
+  @UseGuards(AuthGuard, SupabaseUserGuard)
+  updateMe(
+    @CurrentUser() user: RequestUser,
+    @Body(new ZodValidationPipe(updateProfileSchema)) body: UpdateProfileInput,
+  ) {
+    return this.adminService.updateProfile(user.id, body);
   }
 
   @Post('telegram-link')

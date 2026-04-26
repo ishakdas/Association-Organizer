@@ -10,6 +10,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { MeetingsModule } from './modules/meetings/meetings.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { BotModule } from 'bot';
 
 @Module({
@@ -27,6 +28,7 @@ import { BotModule } from 'bot';
     JobsModule,
     TasksModule,
     MeetingsModule,
+    AdminModule,
     BotModule,
   ],
 })

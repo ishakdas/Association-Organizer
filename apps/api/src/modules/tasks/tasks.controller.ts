@@ -22,6 +22,7 @@ import {
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
+import { ListMyTasksQueryDto } from './dto/list-my-tasks-query.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 
 /**
@@ -61,6 +62,20 @@ export class TasksController {
   ) {
     return this.service.list(associationId, query, user);
   }
+
+  @Get(':taskId/activities')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
+  activities(
+    @Param('associationId') associationId: string,
+    @Param('taskId') taskId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.listActivities(associationId, taskId, user);
+  }
 }
 
 /**
@@ -81,5 +96,25 @@ export class TaskStatusController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.service.updateStatus(taskId, body, user);
+  }
+}
+
+/**
+ * Cross-association list for the global Görevler page. The visible set
+ * is derived from `request.user.memberships`; no role decorator is
+ * needed because the service narrows by membership/role internally.
+ */
+@Controller('tasks/me')
+@UseGuards(AuthGuard, SupabaseUserGuard)
+@UsePipes(ZodValidationPipe)
+export class MyTasksController {
+  constructor(private readonly service: TasksService) {}
+
+  @Get()
+  list(
+    @Query() query: ListMyTasksQueryDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.listForUser(query, user);
   }
 }

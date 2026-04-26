@@ -8,6 +8,7 @@ import {
 import { toast } from 'sonner';
 import {
   createTask,
+  listTaskActivities,
   listTasks,
   updateTaskStatus,
   type TasksListParams,
@@ -57,9 +58,28 @@ export function useUpdateTaskStatus(associationId: string) {
   return useMutation({
     mutationFn: async (input: { taskId: string; status: TaskStatusValue }) =>
       updateTaskStatus(await getAccessToken(), input.taskId, input.status),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['tasks', associationId] });
+      queryClient.invalidateQueries({
+        queryKey: taskActivitiesQueryKey(associationId, vars.taskId),
+      });
     },
     onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+export const taskActivitiesQueryKey = (associationId: string, taskId: string) =>
+  ['task-activities', associationId, taskId] as const;
+
+export function useTaskActivities(
+  associationId: string,
+  taskId: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: taskActivitiesQueryKey(associationId, taskId),
+    queryFn: async () =>
+      listTaskActivities(await getAccessToken(), associationId, taskId),
+    enabled,
   });
 }
