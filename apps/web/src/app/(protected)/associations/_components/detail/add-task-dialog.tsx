@@ -87,11 +87,26 @@ const formSchema = z
     reminderAt: z.date().optional(),
   })
   .superRefine((v, ctx) => {
+    const now = new Date();
     if (v.reminderFrequency !== 'NONE' && !v.reminderAt) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['reminderAt'],
         message: 'Hatırlatma için tarih girin',
+      });
+    }
+    if (v.dueDate && v.dueDate <= now) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['dueDate'],
+        message: 'Bitiş tarihi gelecekte olmalı',
+      });
+    }
+    if (v.reminderAt && v.reminderAt <= now) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reminderAt'],
+        message: 'Hatırlatma tarihi gelecekte olmalı',
       });
     }
     if (v.reminderAt && v.dueDate && v.reminderAt > v.dueDate) {

@@ -35,6 +35,10 @@ export class TaskReminderScheduler {
           { type: 'DUE', taskId: task.id },
           delay,
         );
+      } else {
+        this.logger.warn(
+          `Task ${task.id}: dueDate ${task.dueDate.toISOString()} is in the past (delay=${delay}ms); skipping DUE job`,
+        );
       }
     }
 
@@ -45,6 +49,10 @@ export class TaskReminderScheduler {
           this.reminderJobId(task.id),
           { type: 'REMINDER', taskId: task.id },
           delay,
+        );
+      } else {
+        this.logger.warn(
+          `Task ${task.id}: reminderAt ${task.reminderAt.toISOString()} is in the past (delay=${delay}ms); skipping REMINDER job`,
         );
       }
     }
@@ -74,11 +82,11 @@ export class TaskReminderScheduler {
   }
 
   private dueJobId(taskId: string): string {
-    return `due:${taskId}`;
+    return `due-${taskId}`;
   }
 
   private reminderJobId(taskId: string): string {
-    return `reminder:${taskId}`;
+    return `reminder-${taskId}`;
   }
 
   private async addJob(
