@@ -2,12 +2,15 @@
  * Integration test for the partial unique index:
  *   "one active ASSOCIATION_MANAGER per association"
  *
- * Hits a real Postgres (docker-compose @ 5433). Skipped if DATABASE_URL is unset.
+ * Hits a real Postgres (docker-compose @ 5433) against a dedicated
+ * `ticketbot_test` database. Opt-in only — set `RUN_DB_INTEGRATION_TESTS=1`
+ * with a reachable test DB. Default `pnpm test` runs skip this suite so it
+ * doesn't fail when the test database has not been provisioned.
  */
 import { PrismaClient, UserRole } from '@ticketbot/database';
 
-const hasDb = !!process.env.DATABASE_URL;
-const describeIfDb = hasDb ? describe : describe.skip;
+const runIntegration = process.env.RUN_DB_INTEGRATION_TESTS === '1';
+const describeIfDb = runIntegration ? describe : describe.skip;
 
 describeIfDb('AssociationMembership — one active manager per association', () => {
   const prisma = new PrismaClient();
