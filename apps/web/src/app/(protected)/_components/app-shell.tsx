@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   BookUser,
-  ClipboardList,
   LogOut,
   Menu,
   Settings,
@@ -35,11 +34,6 @@ const NAV: readonly NavItem[] = [
     href: '/associations',
     access: 'auth',
     meta: { label: 'Dernek Sicili', icon: BookUser, primary: true },
-  },
-  {
-    href: '/tasks',
-    access: 'task_creator',
-    meta: { label: 'Görevler', icon: ClipboardList, primary: true },
   },
   {
     href: '/settings',
@@ -313,9 +307,6 @@ function isActive(pathname: string | null, href: string): boolean {
   if (!pathname) return false;
   if (href === '/associations') {
     return pathname === '/associations' || pathname.startsWith('/associations/');
-  }
-  if (href === '/tasks') {
-    return pathname === '/tasks' || pathname.startsWith('/tasks/');
   }
   if (href === '/settings') {
     return pathname.startsWith('/settings') || pathname.startsWith('/admin/');

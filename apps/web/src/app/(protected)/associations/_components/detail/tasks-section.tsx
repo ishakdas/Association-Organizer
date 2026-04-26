@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import {
@@ -10,10 +10,13 @@ import {
   Clock,
   Eye,
   Flag,
+  LayoutGrid,
+  List,
   Loader2,
   UserPlus,
 } from 'lucide-react';
 import type {
+  MyTaskItem,
   TaskResponse,
   TaskStatusValue,
 } from '@ticketbot/shared-validation';
@@ -41,18 +44,23 @@ import {
   TASK_STATUS_LABEL,
   TASK_STATUS_ORDER,
 } from '@/lib/task-display';
+import { TasksKanban } from '@/app/(protected)/tasks/_components/tasks-kanban';
 import { useMembers } from '../../_hooks/use-members';
 import { useTasks, useUpdateTaskStatus } from '../../_hooks/use-tasks';
 import { AddTaskDialog } from './add-task-dialog';
 import { TaskActivityDialog } from './task-activity-dialog';
 
 type StatusTab = 'ALL' | TaskStatusValue;
+type ViewMode = 'list' | 'kanban';
+
+const VIEW_STORAGE_KEY = 'association-tasks-view';
 
 const STATUS_TABS: { value: StatusTab; label: string }[] = [
   { value: 'ALL', label: 'Tümü' },
   { value: 'PENDING', label: 'Bekleyen' },
   { value: 'IN_PROGRESS', label: 'Devam Eden' },
   { value: 'COMPLETED', label: 'Tamamlanan' },
+  { value: 'CANCELLED', label: 'İptal' },
 ];
 
 export function TasksSection({
@@ -63,6 +71,45 @@ export function TasksSection({
   canManage: boolean;
 }) {
   const [tab, setTab] = useState<StatusTab>('ALL');
+  const [view, setView] = useState<ViewMode>('list');
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(VIEW_STORAGE_KEY);
+    if (saved === 'kanban' || saved === 'list') setView(saved);
+  }, []);
+  useEffect(() => {
+    window.localStorage.setItem(VIEW_STORAGE_KEY, view);
+  }, [view]);
+
+  // Kanban requires all tasks at once; list can filter by status per-tab.
+  const allTasks = useTasks(associationId, { pageSize: 100 });
+  const updateStatus = useUpdateTaskStatus(associationId);
+  const { data: members } = useMembers(associationId);
+
+  const userById = useMemo(() => {
+    const map = new Map<string, { fullName: string; email: string | null }>();
+    members?.forEach((m) =>
+      map.set(m.user.id, { fullName: m.user.fullName, email: m.user.email }),
+    );
+    return map;
+  }, [members]);
+
+  // Adapt TaskResponse[] to MyTaskItem[] so TasksKanban can be reused.
+  const kanbanTasks = useMemo<MyTaskItem[]>(() => {
+    if (!allTasks.data) return [];
+    return allTasks.data.data.map((t) => ({
+      ...t,
+      association: { id: associationId, name: '' },
+      assignee: {
+        id: t.assignedToUserId,
+        fullName: userById.get(t.assignedToUserId)?.fullName ?? '—',
+      },
+    }));
+  }, [allTasks.data, associationId, userById]);
+
+  const pendingTaskId = updateStatus.isPending
+    ? updateStatus.variables?.taskId
+    : undefined;
 
   return (
     <section className="space-y-4">
@@ -73,32 +120,95 @@ export function TasksSection({
             Görevler
           </h2>
         </div>
-        {canManage && <AddTaskDialog associationId={associationId} />}
+        <div className="flex items-center gap-2">
+          <ViewToggle value={view} onChange={setView} />
+          {canManage && <AddTaskDialog associationId={associationId} />}
+        </div>
       </header>
 
-      <Tabs
-        value={tab}
-        onValueChange={(v) => setTab(v as StatusTab)}
-        className="gap-3"
-      >
-        <TabsList className="w-fit">
+      {view === 'kanban' ? (
+        <TasksKanban
+          isLoading={allTasks.isLoading}
+          isError={allTasks.isError}
+          errorMessage={allTasks.error?.message}
+          tasks={kanbanTasks}
+          showAssociation={false}
+          onStatusChange={(taskId, status) =>
+            updateStatus.mutate({ taskId, status })
+          }
+          pendingTaskId={pendingTaskId}
+        />
+      ) : (
+        <Tabs
+          value={tab}
+          onValueChange={(v) => setTab(v as StatusTab)}
+          className="gap-3"
+        >
+          <TabsList className="w-fit flex-wrap">
+            {STATUS_TABS.map((t) => (
+              <TabsTrigger key={t.value} value={t.value}>
+                {t.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
           {STATUS_TABS.map((t) => (
-            <TabsTrigger key={t.value} value={t.value}>
-              {t.label}
-            </TabsTrigger>
+            <TabsContent key={t.value} value={t.value} className="mt-0">
+              <TasksList
+                associationId={associationId}
+                status={t.value === 'ALL' ? undefined : t.value}
+                canManage={canManage}
+                userById={userById}
+              />
+            </TabsContent>
           ))}
-        </TabsList>
-        {STATUS_TABS.map((t) => (
-          <TabsContent key={t.value} value={t.value} className="mt-0">
-            <TasksList
-              associationId={associationId}
-              status={t.value === 'ALL' ? undefined : t.value}
-              canManage={canManage}
-            />
-          </TabsContent>
-        ))}
-      </Tabs>
+        </Tabs>
+      )}
     </section>
+  );
+}
+
+function ViewToggle({
+  value,
+  onChange,
+}: {
+  value: ViewMode;
+  onChange: (v: ViewMode) => void;
+}) {
+  return (
+    <div
+      role="tablist"
+      aria-label="Görünüm"
+      className="inline-flex h-8 items-center rounded-md border border-border bg-card p-0.5 text-sm"
+    >
+      <button
+        role="tab"
+        aria-selected={value === 'list'}
+        onClick={() => onChange('list')}
+        className={cn(
+          'inline-flex h-7 items-center gap-1.5 rounded-[4px] px-2.5 text-[12px] font-medium transition-colors',
+          value === 'list'
+            ? 'bg-primary text-primary-foreground'
+            : 'text-muted-foreground hover:text-foreground',
+        )}
+      >
+        <List className="h-3 w-3" />
+        Liste
+      </button>
+      <button
+        role="tab"
+        aria-selected={value === 'kanban'}
+        onClick={() => onChange('kanban')}
+        className={cn(
+          'inline-flex h-7 items-center gap-1.5 rounded-[4px] px-2.5 text-[12px] font-medium transition-colors',
+          value === 'kanban'
+            ? 'bg-primary text-primary-foreground'
+            : 'text-muted-foreground hover:text-foreground',
+        )}
+      >
+        <LayoutGrid className="h-3 w-3" />
+        Pano
+      </button>
+    </div>
   );
 }
 
@@ -106,25 +216,18 @@ function TasksList({
   associationId,
   status,
   canManage,
+  userById,
 }: {
   associationId: string;
   status: TaskStatusValue | undefined;
   canManage: boolean;
+  userById: Map<string, { fullName: string; email: string | null }>;
 }) {
   const { data, isLoading, isError, error } = useTasks(associationId, {
     status,
     pageSize: 50,
   });
-  const { data: members } = useMembers(associationId);
   const updateStatus = useUpdateTaskStatus(associationId);
-
-  const userById = useMemo(() => {
-    const map = new Map<string, { fullName: string; email: string | null }>();
-    members?.forEach((m) =>
-      map.set(m.user.id, { fullName: m.user.fullName, email: m.user.email }),
-    );
-    return map;
-  }, [members]);
 
   if (isLoading) {
     return (
@@ -148,9 +251,7 @@ function TasksList({
       <div className="rounded-lg border border-dashed border-border bg-card px-6 py-12 text-center">
         <ClipboardList className="mx-auto h-6 w-6 text-muted-foreground/60" />
         <p className="mt-3 text-[13px] text-muted-foreground">
-          {status
-            ? 'Bu durumda görev yok.'
-            : 'Henüz görev oluşturulmamış.'}
+          {status ? 'Bu durumda görev yok.' : 'Henüz görev oluşturulmamış.'}
         </p>
       </div>
     );
