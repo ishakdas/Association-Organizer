@@ -29,6 +29,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { PhoneInput } from '@/components/ui/phone-input';
 import {
   Select,
   SelectContent,
@@ -52,7 +53,13 @@ const formSchema = z
     mode: z.enum(['secretary', 'member']),
     fullName: z.string().min(2, 'En az 2 karakter').max(200),
     email: z.string().optional(),
-    phone: z.string().optional(),
+    phone: z
+      .string()
+      .optional()
+      .refine(
+        (v) => !v || /^0\d{10}$/.test(v),
+        'Telefon 11 haneli olmalı (0 ile başlamalı)',
+      ),
     titleId: z.string().optional(),
     customTitle: z.string().optional(),
     password: z.string().optional(),
@@ -303,7 +310,12 @@ export function AddMemberDialog({
                     <FormItem>
                       <FormLabel>Telefon</FormLabel>
                       <FormControl>
-                        <Input placeholder="0555 111 22 33" {...field} />
+                        <PhoneInput
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          value={field.value}
+                          onChange={field.onChange}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

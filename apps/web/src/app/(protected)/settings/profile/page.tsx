@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Label } from '@/components/ui/label';
 import { createClient } from '@/lib/supabase/client';
 import { getMe } from '@/lib/api/me';
@@ -171,12 +172,10 @@ export default function SettingsProfilePage() {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="phone">Telefon</Label>
-              <Input
+              <PhoneInput
                 id="phone"
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+90555…"
-                maxLength={32}
+                onChange={(digits) => setPhone(digits)}
               />
               <p className="text-[11.5px] text-muted-foreground">
                 E-posta Supabase tarafında yönetilir, buradan değiştirilemez.

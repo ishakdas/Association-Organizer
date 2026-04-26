@@ -112,6 +112,10 @@ export {
 } from './schemas/admin.schema';
 
 // Helpers (pure utilities — usable from apps/api and apps/web)
-export { parsePhoneE164 } from './helpers/phone';
+export {
+  parsePhoneE164,
+  normalizeTrPhoneInput,
+  formatTrPhoneDisplay,
+} from './helpers/phone';
 export { isValidTaxNumber, TAX_NUMBER_PATTERN } from './helpers/tax-number';
 export { slugifyTr } from './helpers/slugify';

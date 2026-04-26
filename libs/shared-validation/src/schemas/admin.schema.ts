@@ -1,9 +1,30 @@
 import { z } from 'zod';
+import { parsePhoneE164 } from '../helpers/phone';
+
+const profilePhoneSchema = z
+  .string()
+  .trim()
+  .max(32)
+  .nullable()
+  .optional()
+  .transform((raw, ctx) => {
+    if (raw === undefined) return undefined;
+    if (raw === null || raw === '') return null;
+    const e164 = parsePhoneE164(raw);
+    if (!e164) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Geçerli bir telefon numarası girin',
+      });
+      return z.NEVER;
+    }
+    return e164;
+  });
 
 export const updateProfileSchema = z
   .object({
     fullName: z.string().trim().min(2).max(120).optional(),
-    phone: z.string().trim().min(7).max(32).nullable().optional(),
+    phone: profilePhoneSchema,
   })
   .refine((v) => v.fullName !== undefined || v.phone !== undefined, {
     message: 'En az bir alan değiştirilmeli',
@@ -46,7 +67,7 @@ export const adminAssociationResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
   shortName: z.string().nullable(),
-  taxNumber: z.string(),
+  taxNumber: z.string().nullable(),
   city: z.string(),
   district: z.string(),
   isActive: z.boolean(),

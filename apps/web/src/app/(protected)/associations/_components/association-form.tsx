@@ -12,7 +12,10 @@ import {
 } from 'lucide-react';
 import { useForm, type FieldPath } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { createAssociationSchema } from '@ticketbot/shared-validation';
+import {
+  createAssociationSchema,
+  formatTrPhoneDisplay,
+} from '@ticketbot/shared-validation';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,9 +28,11 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
+import { DatePicker } from '@/components/ui/date-picker';
 import { cn } from '@/lib/utils';
 import { useCreateAssociation } from '../_hooks/use-create-association';
 import { LogoUploader } from './logo-uploader';
@@ -39,12 +44,29 @@ const formSchema = z.object({
   shortName: z.string().max(50).optional(),
   taxNumber: z
     .string()
-    .regex(/^\d{10}$/, 'Vergi numarası 10 haneli ve sadece rakam olmalı'),
-  foundedAt: z.string().min(1, 'Kuruluş tarihi zorunlu'),
-  address: z.string().min(5, 'En az 5 karakter').max(500),
+    .optional()
+    .refine(
+      (v) => !v || /^\d{10}$/.test(v),
+      'Vergi numarası 10 haneli ve sadece rakam olmalı',
+    ),
+  foundedAt: z.date({
+    required_error: 'Kuruluş tarihi zorunlu',
+    invalid_type_error: 'Kuruluş tarihi zorunlu',
+  }),
+  address: z
+    .string()
+    .max(500)
+    .optional()
+    .refine((v) => !v || v.length >= 5, 'En az 5 karakter'),
   city: z.string().min(2).max(100),
   district: z.string().min(2).max(100),
-  phone: z.string().min(1, 'Telefon zorunlu'),
+  phone: z
+    .string()
+    .optional()
+    .refine(
+      (v) => !v || /^0\d{10}$/.test(v),
+      'Telefon 11 haneli olmalı (0 ile başlamalı)',
+    ),
   email: z.string().email('Geçerli bir e-posta girin'),
   website: z.string().url('Geçerli bir URL girin').or(z.literal('')).optional(),
   logoUrl: z.string().url('Geçerli bir URL girin').or(z.literal('')).optional(),
@@ -57,7 +79,13 @@ const formSchema = z.object({
   managerFullName: z.string().min(2, 'En az 2 karakter').max(200),
   managerEmail: z.string().email('Geçerli bir e-posta girin'),
   managerPassword: z.string().min(8, 'En az 8 karakter').max(72),
-  managerPhone: z.string().optional(),
+  managerPhone: z
+    .string()
+    .optional()
+    .refine(
+      (v) => !v || /^0\d{10}$/.test(v),
+      'Telefon 11 haneli olmalı (0 ile başlamalı)',
+    ),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -108,7 +136,7 @@ export function AssociationForm() {
       name: '',
       shortName: '',
       taxNumber: '',
-      foundedAt: '',
+      foundedAt: undefined,
       address: '',
       city: '',
       district: '',
@@ -181,7 +209,7 @@ export function AssociationForm() {
       return;
     }
     const values = form.getValues();
-    const foundedAtIso = new Date(`${values.foundedAt}T00:00:00Z`).toISOString();
+    const foundedAtIso = values.foundedAt.toISOString();
     const {
       managerFullName,
       managerEmail,
@@ -193,6 +221,9 @@ export function AssociationForm() {
     const parsed = createAssociationSchema.safeParse({
       ...associationFields,
       foundedAt: foundedAtIso,
+      taxNumber: values.taxNumber || undefined,
+      address: values.address || undefined,
+      phone: values.phone || undefined,
       website: values.website || undefined,
       logoUrl: values.logoUrl || undefined,
       notes: values.notes || undefined,
@@ -325,7 +356,7 @@ function StepDernek() {
             name="taxNumber"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Vergi Numarası *</FormLabel>
+                <FormLabel>Vergi Numarası</FormLabel>
                 <FormControl>
                   <Input
                     inputMode="numeric"
@@ -335,7 +366,9 @@ function StepDernek() {
                     {...field}
                   />
                 </FormControl>
-                <FormDescription>10 haneli, sadece rakam.</FormDescription>
+                <FormDescription>
+                  Opsiyonel — girilirse 10 haneli, sadece rakam.
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -346,10 +379,11 @@ function StepDernek() {
               <FormItem>
                 <FormLabel>Kuruluş Tarihi *</FormLabel>
                 <FormControl>
-                  <Input
-                    type="date"
-                    max={new Date().toISOString().slice(0, 10)}
-                    {...field}
+                  <DatePicker
+                    value={field.value}
+                    onChange={field.onChange}
+                    disabled={(d) => d > new Date()}
+                    placeholder="Kuruluş tarihini seç"
                   />
                 </FormControl>
                 <FormMessage />
@@ -383,12 +417,18 @@ function StepDernek() {
             name="phone"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Telefon *</FormLabel>
+                <FormLabel>Telefon</FormLabel>
                 <FormControl>
-                  <Input placeholder="0555 111 22 33" {...field} />
+                  <PhoneInput
+                    name={field.name}
+                    onBlur={field.onBlur}
+                    value={field.value}
+                    onChange={field.onChange}
+                  />
                 </FormControl>
                 <FormDescription>
-                  Otomatik olarak +90 formatına çevrilir.
+                  Opsiyonel — 11 haneli, 0 ile başlar. Sunucuda +90 formatına
+                  çevrilir.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -422,10 +462,13 @@ function StepDernek() {
             name="address"
             render={({ field }) => (
               <FormItem className="sm:col-span-2">
-                <FormLabel>Adres *</FormLabel>
+                <FormLabel>Adres</FormLabel>
                 <FormControl>
                   <Textarea rows={2} placeholder="Mahalle, sokak, no" {...field} />
                 </FormControl>
+                <FormDescription>
+                  Opsiyonel — girilirse en az 5 karakter.
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -589,8 +632,17 @@ function StepBaskan() {
             <FormItem>
               <FormLabel>Telefon</FormLabel>
               <FormControl>
-                <Input placeholder="0555 444 55 66" {...field} />
+                <PhoneInput
+                  name={field.name}
+                  onBlur={field.onBlur}
+                  value={field.value}
+                  onChange={field.onChange}
+                />
               </FormControl>
+              <FormDescription>
+                Telegram bağlamak için bu numara şart — başkanın Telegram
+                hesabıyla aynı olmalı.
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -620,8 +672,8 @@ function StepBaskan() {
 function StepOnizleme({ values }: { values: FormValues }) {
   const founded = useMemo(
     () =>
-      values.foundedAt
-        ? new Date(`${values.foundedAt}T00:00:00Z`).toLocaleDateString('tr-TR', {
+      values.foundedAt instanceof Date
+        ? values.foundedAt.toLocaleDateString('tr-TR', {
             day: '2-digit',
             month: 'long',
             year: 'numeric',
@@ -674,7 +726,10 @@ function StepOnizleme({ values }: { values: FormValues }) {
         </PreviewCard>
 
         <PreviewCard title="İletişim">
-          <PreviewRow label="Telefon" value={values.phone || '—'} />
+          <PreviewRow
+            label="Telefon"
+            value={values.phone ? formatTrPhoneDisplay(values.phone) : '—'}
+          />
           <PreviewRow label="E-posta" value={values.email || '—'} />
           {values.website && (
             <PreviewRow label="Web" value={values.website} />
@@ -697,7 +752,10 @@ function StepOnizleme({ values }: { values: FormValues }) {
           <PreviewRow label="Ad" value={values.managerFullName || '—'} />
           <PreviewRow label="E-posta" value={values.managerEmail || '—'} />
           {values.managerPhone && (
-            <PreviewRow label="Telefon" value={values.managerPhone} />
+            <PreviewRow
+              label="Telefon"
+              value={formatTrPhoneDisplay(values.managerPhone)}
+            />
           )}
           <PreviewRow
             label="Şifre"
