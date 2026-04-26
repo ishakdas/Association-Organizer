@@ -79,6 +79,14 @@ export {
   type ListMemberTitlesQuery,
 } from './schemas/title.schema';
 
+// AI extraction (Toplantı notlarından görev üretimi)
+export {
+  extractedActionItemSchema,
+  extractionResultSchema,
+  type ExtractedActionItemOutput,
+  type ExtractionResultOutput,
+} from './schemas/extracted-action-item.schema';
+
 // Helpers (pure utilities — usable from apps/api and apps/web)
 export { parsePhoneE164 } from './helpers/phone';
 export { isValidTaxNumber, TAX_NUMBER_PATTERN } from './helpers/tax-number';
