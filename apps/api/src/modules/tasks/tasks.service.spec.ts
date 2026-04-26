@@ -123,16 +123,18 @@ describe('TasksService', () => {
         },
         select: { id: true },
       });
-      expect(prisma.task.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          associationId: ASSOC,
-          assignedToUserId: 'mem-1',
-          assignedById: SECRETARY_USER.id,
-          title: 'Bağış toplama',
-          priority: 'MEDIUM',
-          reminderFrequency: 'NONE',
+      expect(prisma.task.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            associationId: ASSOC,
+            assignedToUserId: 'mem-1',
+            assignedById: SECRETARY_USER.id,
+            title: 'Bağış toplama',
+            priority: 'MEDIUM',
+            reminderFrequency: 'NONE',
+          }),
         }),
-      });
+      );
       expect(result).toEqual(sampleTask);
     });
 

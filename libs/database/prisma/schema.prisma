@@ -39,6 +39,18 @@ enum ReminderFrequency {
   MONTHLY
 }
 
+enum TaskActivityAction {
+  CREATED
+  REASSIGNED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  DUE_DATE_CHANGED
+  DESCRIPTION_CHANGED
+  TITLE_CHANGED
+  REMINDER_CHANGED
+  REMINDER_SENT
+}
+
 // -----------------------------------------------------------------------------
 // Reference: assignable titles (admin-managed)
 // -----------------------------------------------------------------------------
@@ -75,9 +87,11 @@ model User {
   memberships         AssociationMembership[]
   assignedTasks       Task[]            @relation("TaskAssignee")
   createdTasks        Task[]            @relation("TaskCreator")
+  watchedTasks        Task[]            @relation("TaskWatcher")
   createdMeetings     MeetingNote[]     @relation("MeetingCreator")
   attendedMeetings    MeetingAttendee[]
   createdAssociations Association[]     @relation("AssociationsCreated")
+  taskActivities      TaskActivity[]    @relation("TaskActivityActor")
   telegramAccount     TelegramAccount?
 
   @@index([isActive])
@@ -121,12 +135,12 @@ model Association {
   id           String  @id @default(cuid())
   name         String
   shortName    String?
-  taxNumber    String  @unique
+  taxNumber    String? @unique
   foundedAt    DateTime
-  address      String
+  address      String?
   city         String
   district     String
-  phone        String
+  phone        String?
   email        String
   website      String?
   logoUrl      String?
@@ -188,6 +202,7 @@ model Task {
 
   assignedToUserId String
   assignedById     String
+  watcherUserId    String?
 
   status   TaskStatus   @default(PENDING)
   priority TaskPriority @default(MEDIUM)
@@ -208,17 +223,40 @@ model Task {
   completedAt DateTime?
   deletedAt   DateTime?
 
-  association       Association  @relation(fields: [associationId], references: [id], onDelete: Cascade)
-  assignedTo        User         @relation("TaskAssignee", fields: [assignedToUserId], references: [id])
-  assignedBy        User         @relation("TaskCreator", fields: [assignedById], references: [id])
-  sourceMeetingNote MeetingNote? @relation(fields: [sourceMeetingNoteId], references: [id])
+  association       Association   @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  assignedTo        User          @relation("TaskAssignee", fields: [assignedToUserId], references: [id])
+  assignedBy        User          @relation("TaskCreator", fields: [assignedById], references: [id])
+  watcher           User?         @relation("TaskWatcher", fields: [watcherUserId], references: [id], onDelete: SetNull)
+  sourceMeetingNote MeetingNote?  @relation(fields: [sourceMeetingNoteId], references: [id])
+  activities        TaskActivity[]
 
   @@index([associationId, status])
   @@index([assignedToUserId, status])
   @@index([assignedToUserId, associationId, status])
+  @@index([watcherUserId])
   @@index([dueDate])
   @@index([deletedAt])
   @@map("tasks")
+}
+
+// Append-only audit trail for a Task. One row per state change
+// (assignment, status flip, due-date move, etc.). Read-only from the
+// app's perspective — never updated, never soft-deleted; if the parent
+// task is hard-deleted, activities cascade.
+model TaskActivity {
+  id        String             @id @default(cuid())
+  taskId    String
+  actorId   String
+  action    TaskActivityAction
+  payload   Json               @default("{}")
+  createdAt DateTime           @default(now())
+
+  task  Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actor User @relation("TaskActivityActor", fields: [actorId], references: [id])
+
+  @@index([taskId, createdAt])
+  @@index([actorId])
+  @@map("task_activities")
 }
 
 // -----------------------------------------------------------------------------

@@ -5,10 +5,10 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   BookUser,
+  ClipboardList,
   LogOut,
   Menu,
   Settings,
-  Tags,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -37,12 +37,12 @@ const NAV: readonly NavItem[] = [
     meta: { label: 'Dernek Sicili', icon: BookUser, primary: true },
   },
   {
-    href: '/admin/member-titles',
-    access: 'system_admin',
-    meta: { label: 'Unvanlar', icon: Tags },
+    href: '/tasks',
+    access: 'task_creator',
+    meta: { label: 'Görevler', icon: ClipboardList, primary: true },
   },
   {
-    href: '/settings/telegram',
+    href: '/settings',
     access: 'auth',
     meta: { label: 'Ayarlar', icon: Settings, primary: true },
   },
@@ -314,11 +314,11 @@ function isActive(pathname: string | null, href: string): boolean {
   if (href === '/associations') {
     return pathname === '/associations' || pathname.startsWith('/associations/');
   }
-  if (href === '/settings/telegram') {
-    return pathname.startsWith('/settings');
+  if (href === '/tasks') {
+    return pathname === '/tasks' || pathname.startsWith('/tasks/');
   }
-  if (href === '/admin/member-titles') {
-    return pathname.startsWith('/admin/member-titles');
+  if (href === '/settings') {
+    return pathname.startsWith('/settings') || pathname.startsWith('/admin/');
   }
   return pathname === href;
 }

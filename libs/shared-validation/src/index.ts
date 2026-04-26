@@ -22,14 +22,22 @@ export {
   createTaskSchema,
   updateTaskStatusSchema,
   listTasksQuerySchema,
+  listMyTasksQuerySchema,
   taskResponseSchema,
+  myTaskItemSchema,
+  taskActivitySchema,
+  taskActivityActionEnum,
   taskStatusEnum,
   taskPriorityEnum,
   reminderFrequencyEnum,
   type CreateTaskInput,
   type UpdateTaskStatusInput,
   type ListTasksQuery,
+  type ListMyTasksQuery,
   type TaskResponse,
+  type MyTaskItem,
+  type TaskActivity,
+  type TaskActivityActionValue,
   type TaskStatusValue,
   type TaskPriorityValue,
   type ReminderFrequencyValue,
@@ -91,7 +99,27 @@ export {
   type ExtractionResultOutput,
 } from './schemas/extracted-action-item.schema';
 
+// Admin (Sistem Yönetimi)
+export {
+  updateProfileSchema,
+  listAdminUsersQuerySchema,
+  listAdminAssociationsQuerySchema,
+  adminUserResponseSchema,
+  adminAssociationResponseSchema,
+  adminLinkTokenResponseSchema,
+  type UpdateProfileInput,
+  type ListAdminUsersQuery,
+  type ListAdminAssociationsQuery,
+  type AdminUserResponse,
+  type AdminAssociationResponse,
+  type AdminLinkTokenResponse,
+} from './schemas/admin.schema';
+
 // Helpers (pure utilities — usable from apps/api and apps/web)
-export { parsePhoneE164 } from './helpers/phone';
+export {
+  parsePhoneE164,
+  normalizeTrPhoneInput,
+  formatTrPhoneDisplay,
+} from './helpers/phone';
 export { isValidTaxNumber, TAX_NUMBER_PATTERN } from './helpers/tax-number';
 export { slugifyTr } from './helpers/slugify';

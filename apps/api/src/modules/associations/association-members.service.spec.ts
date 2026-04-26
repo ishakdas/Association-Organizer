@@ -5,11 +5,43 @@ jest.mock('jose', () => ({}));
 
 import { Test } from '@nestjs/testing';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaClient, PrismaService, Prisma } from '@ticketbot/database';
+import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { AssociationMembersService } from './association-members.service';
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
+
+const SYSTEM_ADMIN_ACTOR: AuthenticatedUser = {
+  id: 'sysadmin-1',
+  email: 'admin@example.com',
+  fullName: 'Sistem Yöneticisi',
+  supabaseUserId: 'sup-sysadmin',
+  systemRole: 'SYSTEM_ADMIN',
+  memberships: [],
+  telegramAccount: null,
+};
+
+const MANAGER_ACTOR: AuthenticatedUser = {
+  id: 'manager-1',
+  email: 'baskan@example.com',
+  fullName: 'Dernek Başkanı',
+  supabaseUserId: 'sup-manager',
+  systemRole: null,
+  memberships: [
+    {
+      id: 'mem-actor-1',
+      associationId: 'assoc-1',
+      role: 'ASSOCIATION_MANAGER',
+      isActive: true,
+    },
+  ],
+  telegramAccount: null,
+};
 
 type PrismaMock = DeepMockProxy<PrismaClient>;
 type UsersMock = jest.Mocked<Pick<UsersService, 'createSupabaseUser' | 'createDbOnlyUser' | 'deleteUser'>>;
@@ -257,9 +289,12 @@ describe('AssociationMembersService', () => {
       prisma.associationMembership.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.update(sampleAssociation.id, 'missing-mem', {
-          role: 'ASSOCIATION_SECRETARY',
-        }),
+        service.update(
+          sampleAssociation.id,
+          'missing-mem',
+          { role: 'ASSOCIATION_SECRETARY' },
+          SYSTEM_ADMIN_ACTOR,
+        ),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(prisma.associationMembership.update).not.toHaveBeenCalled();
     });
@@ -271,9 +306,12 @@ describe('AssociationMembersService', () => {
       prisma.associationMembership.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.update('other-assoc', sampleMembership.id, {
-          role: 'ASSOCIATION_SECRETARY',
-        }),
+        service.update(
+          'other-assoc',
+          sampleMembership.id,
+          { role: 'ASSOCIATION_SECRETARY' },
+          SYSTEM_ADMIN_ACTOR,
+        ),
       ).rejects.toBeInstanceOf(NotFoundException);
 
       const args = prisma.associationMembership.findFirst.mock.calls[0][0];
@@ -298,6 +336,7 @@ describe('AssociationMembersService', () => {
         sampleAssociation.id,
         sampleMembership.id,
         { role: 'ASSOCIATION_SECRETARY' },
+        MANAGER_ACTOR,
       );
 
       expect(prisma.associationMembership.update).toHaveBeenCalledWith({
@@ -319,10 +358,66 @@ describe('AssociationMembersService', () => {
       prisma.associationMembership.update.mockRejectedValue(violation);
 
       await expect(
-        service.update(sampleAssociation.id, sampleMembership.id, {
-          role: 'ASSOCIATION_MANAGER',
-        }),
+        service.update(
+          sampleAssociation.id,
+          sampleMembership.id,
+          { role: 'ASSOCIATION_MANAGER' },
+          SYSTEM_ADMIN_ACTOR,
+        ),
       ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('forbids a non-SYSTEM_ADMIN actor from promoting a member to MANAGER', async () => {
+      prisma.associationMembership.findFirst.mockResolvedValue(
+        sampleMembership as never,
+      );
+
+      await expect(
+        service.update(
+          sampleAssociation.id,
+          sampleMembership.id,
+          { role: 'ASSOCIATION_MANAGER' },
+          MANAGER_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.associationMembership.update).not.toHaveBeenCalled();
+    });
+
+    it('forbids a non-SYSTEM_ADMIN actor from demoting an existing MANAGER', async () => {
+      prisma.associationMembership.findFirst.mockResolvedValue({
+        ...sampleMembership,
+        role: 'ASSOCIATION_MANAGER',
+      } as never);
+
+      await expect(
+        service.update(
+          sampleAssociation.id,
+          sampleMembership.id,
+          { role: 'ASSOCIATION_MEMBER' },
+          MANAGER_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.associationMembership.update).not.toHaveBeenCalled();
+    });
+
+    it('lets SYSTEM_ADMIN demote an existing MANAGER', async () => {
+      prisma.associationMembership.findFirst.mockResolvedValue({
+        ...sampleMembership,
+        role: 'ASSOCIATION_MANAGER',
+      } as never);
+      prisma.associationMembership.update.mockResolvedValue({
+        ...sampleMembership,
+        role: 'ASSOCIATION_MEMBER',
+      } as never);
+
+      const result = await service.update(
+        sampleAssociation.id,
+        sampleMembership.id,
+        { role: 'ASSOCIATION_MEMBER' },
+        SYSTEM_ADMIN_ACTOR,
+      );
+
+      expect(result.role).toBe('ASSOCIATION_MEMBER');
     });
   });
 
@@ -331,7 +426,7 @@ describe('AssociationMembersService', () => {
       prisma.associationMembership.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.remove(sampleAssociation.id, 'missing-mem'),
+        service.remove(sampleAssociation.id, 'missing-mem', SYSTEM_ADMIN_ACTOR),
       ).rejects.toBeInstanceOf(NotFoundException);
       expect(prisma.associationMembership.update).not.toHaveBeenCalled();
     });
@@ -340,7 +435,7 @@ describe('AssociationMembersService', () => {
       prisma.associationMembership.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.remove('other-assoc', sampleMembership.id),
+        service.remove('other-assoc', sampleMembership.id, SYSTEM_ADMIN_ACTOR),
       ).rejects.toBeInstanceOf(NotFoundException);
 
       const args = prisma.associationMembership.findFirst.mock.calls[0][0];
@@ -364,6 +459,7 @@ describe('AssociationMembersService', () => {
       const result = await service.remove(
         sampleAssociation.id,
         sampleMembership.id,
+        MANAGER_ACTOR,
       );
 
       const args = prisma.associationMembership.update.mock.calls[0][0];
@@ -372,6 +468,43 @@ describe('AssociationMembersService', () => {
       expect((args?.data as any)?.leftAt).toBeInstanceOf(Date);
       expect(result.isActive).toBe(false);
       expect(result.leftAt).not.toBeNull();
+    });
+
+    it('forbids a non-SYSTEM_ADMIN actor from removing a MANAGER membership', async () => {
+      prisma.associationMembership.findFirst.mockResolvedValue({
+        ...sampleMembership,
+        role: 'ASSOCIATION_MANAGER',
+      } as never);
+
+      await expect(
+        service.remove(
+          sampleAssociation.id,
+          sampleMembership.id,
+          MANAGER_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.associationMembership.update).not.toHaveBeenCalled();
+    });
+
+    it('lets SYSTEM_ADMIN remove a MANAGER membership', async () => {
+      prisma.associationMembership.findFirst.mockResolvedValue({
+        ...sampleMembership,
+        role: 'ASSOCIATION_MANAGER',
+      } as never);
+      prisma.associationMembership.update.mockResolvedValue({
+        ...sampleMembership,
+        role: 'ASSOCIATION_MANAGER',
+        isActive: false,
+        leftAt: new Date(),
+      } as never);
+
+      const result = await service.remove(
+        sampleAssociation.id,
+        sampleMembership.id,
+        SYSTEM_ADMIN_ACTOR,
+      );
+
+      expect(result.isActive).toBe(false);
     });
   });
 

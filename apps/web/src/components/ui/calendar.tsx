@@ -1,14 +1,13 @@
-"use client"
+'use client';
 
-import * as React from "react"
-import { ChevronLeft, ChevronRight } from "lucide-react"
-import { DayPicker } from "react-day-picker"
-import { tr } from "date-fns/locale"
+import * as React from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { DayPicker } from 'react-day-picker';
+import { tr } from 'date-fns/locale';
 
-import { cn } from "@/lib/utils"
-import { buttonVariants } from "@/components/ui/button"
+import { cn } from '@/lib/utils';
 
-export type CalendarProps = React.ComponentProps<typeof DayPicker>
+export type CalendarProps = React.ComponentProps<typeof DayPicker>;
 
 function Calendar({
   className,
@@ -20,36 +19,54 @@ function Calendar({
     <DayPicker
       locale={tr}
       showOutsideDays={showOutsideDays}
-      className={cn("p-3", className)}
+      className={cn('p-3.5 select-none', className)}
       classNames={{
-        months: "flex flex-col sm:flex-row gap-2",
-        month: "flex flex-col gap-3",
-        caption: "flex justify-center pt-1 relative items-center w-full",
-        caption_label: "text-[13px] font-medium capitalize",
-        nav: "flex items-center gap-1",
-        nav_button: cn(
-          buttonVariants({ variant: "outline", size: "icon" }),
-          "size-7 bg-transparent p-0 opacity-60 hover:opacity-100"
+        months: 'flex flex-col sm:flex-row gap-4',
+        month: 'flex flex-col gap-4',
+        month_caption:
+          'relative flex h-8 items-center justify-center pt-0.5 px-9',
+        caption_label:
+          'text-[13.5px] font-semibold tracking-tight text-foreground capitalize',
+        nav: 'absolute inset-x-0 top-1 flex items-center justify-between px-1',
+        button_previous: cn(
+          'inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors',
+          'hover:bg-accent hover:text-foreground',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+          'disabled:pointer-events-none disabled:opacity-30',
         ),
-        nav_button_previous: "absolute left-1",
-        nav_button_next: "absolute right-1",
-        table: "w-full border-collapse space-x-1",
-        head_row: "flex",
-        head_cell:
-          "text-muted-foreground rounded-md w-8 font-normal text-[0.7rem] uppercase",
-        row: "flex w-full mt-1",
-        cell: "relative p-0 text-center text-[13px] focus-within:relative focus-within:z-20 [&:has([aria-selected])]:bg-accent [&:has([aria-selected])]:rounded-md",
+        button_next: cn(
+          'inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors',
+          'hover:bg-accent hover:text-foreground',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+          'disabled:pointer-events-none disabled:opacity-30',
+        ),
+        month_grid: 'w-full border-collapse',
+        weekdays: 'flex',
+        weekday:
+          'w-9 pb-1.5 text-[10.5px] font-medium uppercase tracking-widest text-muted-foreground/60',
+        week: 'flex w-full mt-1',
         day: cn(
-          buttonVariants({ variant: "ghost" }),
-          "size-8 p-0 font-normal aria-selected:opacity-100"
+          'relative h-9 w-9 p-0 text-center text-[13px]',
+          'focus-within:relative focus-within:z-20',
         ),
-        day_selected:
-          "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-        day_today: "bg-accent text-accent-foreground",
-        day_outside:
-          "day-outside text-muted-foreground aria-selected:text-muted-foreground",
-        day_disabled: "text-muted-foreground opacity-50",
-        day_hidden: "invisible",
+        day_button: cn(
+          'inline-flex h-9 w-9 items-center justify-center rounded-md font-normal text-foreground transition-all duration-150',
+          'hover:bg-accent hover:text-foreground',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+        ),
+        selected: cn(
+          '[&>button]:bg-primary [&>button]:text-primary-foreground [&>button]:font-medium [&>button]:shadow-sm',
+          'hover:[&>button]:bg-primary hover:[&>button]:text-primary-foreground',
+        ),
+        today: cn(
+          '[&>button]:font-semibold [&>button]:text-primary',
+          '[&>button]:ring-1 [&>button]:ring-inset [&>button]:ring-primary/30',
+          'aria-selected:[&>button]:ring-0 aria-selected:[&>button]:text-primary-foreground',
+        ),
+        outside: '[&>button]:text-muted-foreground/35',
+        disabled:
+          '[&>button]:pointer-events-none [&>button]:text-muted-foreground/30 [&>button]:line-through',
+        hidden: 'invisible',
         ...classNames,
       }}
       components={{
@@ -62,7 +79,7 @@ function Calendar({
       }}
       {...props}
     />
-  )
+  );
 }
 
-export { Calendar }
+export { Calendar };

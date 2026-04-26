@@ -37,11 +37,13 @@ export class AssociationsService {
   async create(input: CreateAssociationInput, createdById: string) {
     const { manager, ...associationData } = input;
 
-    const exists = await this.repository.existsByTaxNumber(input.taxNumber);
-    if (exists) {
-      throw new ConflictException(
-        'Bu vergi numarasıyla kayıtlı bir dernek zaten mevcut',
-      );
+    if (input.taxNumber) {
+      const exists = await this.repository.existsByTaxNumber(input.taxNumber);
+      if (exists) {
+        throw new ConflictException(
+          'Bu vergi numarasıyla kayıtlı bir dernek zaten mevcut',
+        );
+      }
     }
 
     const managerUser = await this.users.createSupabaseUser({

@@ -2,7 +2,12 @@ import { Logger } from '@nestjs/common';
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { addDays, addMonths, addWeeks } from 'date-fns';
-import { PrismaService, ReminderFrequency, TaskStatus } from '@ticketbot/database';
+import {
+  PrismaService,
+  ReminderFrequency,
+  TaskActivityAction,
+  TaskStatus,
+} from '@ticketbot/database';
 import {
   BotService,
   formatDueMessage,
@@ -77,13 +82,26 @@ export class TaskReminderProcessor extends WorkerHost {
     });
 
     if (sent) {
-      await this.prisma.task.update({
-        where: { id: task.id },
-        data: {
-          notifiedViaTelegram: true,
-          lastNotifiedAt: new Date(),
-        },
-      });
+      await this.prisma.$transaction([
+        this.prisma.task.update({
+          where: { id: task.id },
+          data: {
+            notifiedViaTelegram: true,
+            lastNotifiedAt: new Date(),
+          },
+        }),
+        this.prisma.taskActivity.create({
+          data: {
+            taskId: task.id,
+            // System-triggered: no real user actor. We anchor on the
+            // assignee so the FK holds; the UI overrides the displayed
+            // name to "Sistem" for REMINDER_SENT regardless of actor.
+            actorId: task.assignedToUserId,
+            action: TaskActivityAction.REMINDER_SENT,
+            payload: { type, channel: 'telegram' },
+          },
+        }),
+      ]);
     }
 
     if (type !== 'REMINDER') return;

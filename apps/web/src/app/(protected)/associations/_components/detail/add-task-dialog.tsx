@@ -81,6 +81,7 @@ const formSchema = z
     title: z.string().min(2, 'En az 2 karakter').max(200),
     description: z.string().max(2000).optional(),
     assignedToUserId: z.string().min(1, 'Atanacak kişiyi seçin'),
+    watcherUserId: z.string().optional(),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH']),
     dueDate: z.date().optional(),
     reminderFrequency: z.enum(['NONE', 'ONCE', 'DAILY', 'WEEKLY', 'MONTHLY']),
@@ -134,6 +135,7 @@ export function AddTaskDialog({
       title: '',
       description: '',
       assignedToUserId: '',
+      watcherUserId: '',
       priority: 'MEDIUM',
       dueDate: undefined,
       reminderFrequency: 'NONE',
@@ -155,6 +157,7 @@ export function AddTaskDialog({
       title: values.title,
       description: values.description || undefined,
       assignedToUserId: values.assignedToUserId,
+      watcherUserId: values.watcherUserId || undefined,
       priority: values.priority,
       dueDate: values.dueDate ? values.dueDate.toISOString() : undefined,
       reminderFrequency: values.reminderFrequency,
@@ -169,6 +172,7 @@ export function AddTaskDialog({
           title: 'title',
           description: 'description',
           assignedToUserId: 'assignedToUserId',
+          watcherUserId: 'watcherUserId',
           priority: 'priority',
           dueDate: 'dueDate',
           reminderAt: 'reminderAt',
@@ -255,6 +259,30 @@ export function AddTaskDialog({
                       onChange={field.onChange}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="watcherUserId"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Takipçi</FormLabel>
+                  <FormControl>
+                    <AssigneeCombobox
+                      associationId={associationId}
+                      value={field.value ?? ''}
+                      onChange={field.onChange}
+                      placeholder="Takipçi seçin (opsiyonel)…"
+                      allowClear
+                    />
+                  </FormControl>
+                  <FormDescription className="text-[11.5px]">
+                    Görev güncellemelerinde bildirim alacak kişi. Boş
+                    bırakırsanız atayan kişi takipçi sayılır.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -395,10 +423,14 @@ function AssigneeCombobox({
   associationId,
   value,
   onChange,
+  placeholder = 'Üye seçin…',
+  allowClear = false,
 }: {
   associationId: string;
   value: string;
   onChange: (next: string) => void;
+  placeholder?: string;
+  allowClear?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -430,7 +462,7 @@ function AssigneeCombobox({
             !selected && 'text-muted-foreground',
           )}
         >
-          {selected ? selected.user.fullName : 'Üye seçin…'}
+          {selected ? selected.user.fullName : placeholder}
           <ChevronsUpDown className="h-4 w-4 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -460,6 +492,18 @@ function AssigneeCombobox({
             <div className="px-3 py-3 text-center text-[12px] text-muted-foreground">
               Kayıt yok
             </div>
+          )}
+          {allowClear && value && !query && (
+            <button
+              type="button"
+              onClick={() => {
+                onChange('');
+                setOpen(false);
+              }}
+              className="flex w-full items-center gap-2 border-b border-border px-3 py-2 text-left text-[12px] text-muted-foreground transition-colors hover:bg-accent/60"
+            >
+              Seçimi kaldır
+            </button>
           )}
           {filtered.map((m) => {
             const active = m.user.id === value;

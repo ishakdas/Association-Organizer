@@ -9,9 +9,10 @@ import type {
  *
  * - `auth`: any signed-in user
  * - `member`: user must have at least one active membership
+ * - `task_creator`: SYSTEM_ADMIN, or active başkan/sekreter in any dernek
  * - `system_admin`: user must be a SYSTEM_ADMIN
  */
-export type RouteAccess = 'auth' | 'member' | 'system_admin';
+export type RouteAccess = 'auth' | 'member' | 'task_creator' | 'system_admin';
 
 export function isSystemAdmin(user: AuthenticatedUser | null): boolean {
   return user?.systemRole === 'SYSTEM_ADMIN';
@@ -62,6 +63,18 @@ export function canCreateTasksAndMeetings(
   ]);
 }
 
+// True when the user is a başkan or sekreter in *any* dernek (or a
+// SYSTEM_ADMIN). Gates the global Görevler page in the sidebar — plain
+// members manage their tasks from each dernek's detail page instead.
+export function isTaskCreator(user: AuthenticatedUser | null): boolean {
+  if (!user) return false;
+  if (isSystemAdmin(user)) return true;
+  return activeMemberships(user).some(
+    (m) =>
+      m.role === 'ASSOCIATION_MANAGER' || m.role === 'ASSOCIATION_SECRETARY',
+  );
+}
+
 export function canAccessRoute(
   user: AuthenticatedUser | null,
   access: RouteAccess,
@@ -73,6 +86,8 @@ export function canAccessRoute(
       return true;
     case 'member':
       return hasAnyMembership(user);
+    case 'task_creator':
+      return isTaskCreator(user);
     case 'system_admin':
       return false;
   }

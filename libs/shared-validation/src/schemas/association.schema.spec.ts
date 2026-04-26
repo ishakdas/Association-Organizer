@@ -152,8 +152,60 @@ describe('createAssociationSchema', () => {
       expect(r.success).toBe(false);
     });
 
-    it('rejects empty string', () => {
+    it('treats empty string as omitted (optional)', () => {
       const r = createAssociationSchema.safeParse({ ...validInput, phone: '' });
+      expect(r.success).toBe(true);
+      if (r.success) expect(r.data.phone).toBeUndefined();
+    });
+
+    it('accepts when omitted (optional)', () => {
+      const { phone: _omit, ...rest } = validInput;
+      const r = createAssociationSchema.safeParse(rest);
+      expect(r.success).toBe(true);
+      if (r.success) expect(r.data.phone).toBeUndefined();
+    });
+  });
+
+  describe('taxNumber (optional)', () => {
+    it('accepts when omitted', () => {
+      const { taxNumber: _omit, ...rest } = validInput;
+      const r = createAssociationSchema.safeParse(rest);
+      expect(r.success).toBe(true);
+      if (r.success) expect(r.data.taxNumber).toBeUndefined();
+    });
+
+    it('treats empty string as omitted', () => {
+      const r = createAssociationSchema.safeParse({
+        ...validInput,
+        taxNumber: '',
+      });
+      expect(r.success).toBe(true);
+      if (r.success) expect(r.data.taxNumber).toBeUndefined();
+    });
+  });
+
+  describe('address (optional)', () => {
+    it('accepts when omitted', () => {
+      const { address: _omit, ...rest } = validInput;
+      const r = createAssociationSchema.safeParse(rest);
+      expect(r.success).toBe(true);
+      if (r.success) expect(r.data.address).toBeUndefined();
+    });
+
+    it('treats empty string as omitted', () => {
+      const r = createAssociationSchema.safeParse({
+        ...validInput,
+        address: '',
+      });
+      expect(r.success).toBe(true);
+      if (r.success) expect(r.data.address).toBeUndefined();
+    });
+
+    it('rejects when shorter than 5 chars', () => {
+      const r = createAssociationSchema.safeParse({
+        ...validInput,
+        address: 'No 1',
+      });
       expect(r.success).toBe(false);
     });
   });
