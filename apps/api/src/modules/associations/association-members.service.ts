@@ -13,6 +13,17 @@ import {
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
 
+const memberInclude = {
+  user: {
+    include: {
+      telegramAccount: {
+        select: { username: true, firstName: true, createdAt: true },
+      },
+    },
+  },
+  title: true,
+} as const;
+
 @Injectable()
 export class AssociationMembersService {
   private readonly logger = new Logger(AssociationMembersService.name);
@@ -26,6 +37,52 @@ export class AssociationMembersService {
   async create(associationId: string, input: AddMemberInput) {
     await this.ensureAssociation(associationId);
 
+    // --- Re-use existing user if the email is already in our DB ---
+    // This covers the case where a user was a member of an association that
+    // was later deleted: the membership is removed but the User row stays,
+    // so attempting to add the same email again must NOT create a duplicate.
+    if (input.email) {
+      const existing = await this.prisma.user.findUnique({
+        where: { email: input.email },
+        select: { id: true, supabaseUserId: true, isActive: true },
+      });
+
+      if (existing) {
+        // Reactivate if previously deactivated.
+        if (!existing.isActive) {
+          await this.prisma.user.update({
+            where: { id: existing.id },
+            data: { isActive: true },
+          });
+        }
+
+        try {
+          return await this.prisma.associationMembership.create({
+            data: {
+              associationId,
+              userId: existing.id,
+              role: input.role,
+              titleId: input.titleId ?? null,
+              customTitle: input.customTitle ?? null,
+              isActive: true,
+            },
+            include: memberInclude,
+          });
+        } catch (e) {
+          if (
+            e instanceof Prisma.PrismaClientKnownRequestError &&
+            e.code === 'P2002'
+          ) {
+            throw new ConflictException(
+              'Bu üye bu dernekte zaten kayıtlı',
+            );
+          }
+          throw e;
+        }
+      }
+    }
+
+    // --- No existing user found: original saga path ---
     // Saga path: secretaries get a Supabase auth user (web login).
     // Schema enforces password+email presence for SECRETARY role.
     const provisionsSupabase =
@@ -55,7 +112,7 @@ export class AssociationMembersService {
           customTitle: input.customTitle ?? null,
           isActive: true,
         },
-        include: { user: true, title: true },
+        include: memberInclude,
       });
     } catch (e) {
       // Membership insert failed after the user was created — roll the
@@ -108,7 +165,7 @@ export class AssociationMembersService {
 
     return this.prisma.associationMembership.findMany({
       where,
-      include: { user: true, title: true },
+      include: memberInclude,
       orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
     });
   }
@@ -137,7 +194,7 @@ export class AssociationMembersService {
       return await this.prisma.associationMembership.update({
         where: { id: membershipId },
         data,
-        include: { user: true, title: true },
+        include: memberInclude,
       });
     } catch (e) {
       if (
@@ -161,8 +218,21 @@ export class AssociationMembersService {
         isActive: false,
         leftAt: new Date(),
       },
-      include: { user: true, title: true },
+      include: memberInclude,
     });
+  }
+
+  async unlinkMemberTelegram(
+    associationId: string,
+    membershipId: string,
+  ): Promise<{ unlinked: boolean }> {
+    const membership = await this.prisma.associationMembership.findFirst({
+      where: { id: membershipId, associationId, deletedAt: null },
+      select: { userId: true },
+    });
+    if (!membership) throw new NotFoundException('Üyelik bulunamadı');
+
+    return this.auth.unlinkTelegram(membership.userId);
   }
 
   // Admin-issued Telegram link code: a manager (or system admin) generates

@@ -6,6 +6,7 @@ import {
   ClipboardList,
   Crown,
   Info,
+  MessageSquare,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -24,6 +25,7 @@ interface DetailTabsProps {
   uyeler: React.ReactNode;
   gorevler: React.ReactNode;
   toplantilar: React.ReactNode;
+  telegram: React.ReactNode;
 }
 
 interface TabDef {
@@ -39,6 +41,7 @@ const TABS: readonly TabDef[] = [
   { value: 'uyeler', label: 'Üyeler', icon: Users },
   { value: 'gorevler', label: 'Görevler', icon: ClipboardList },
   { value: 'toplantilar', label: 'Toplantılar', icon: BookOpen },
+  { value: 'telegram', label: 'Telegram', icon: MessageSquare },
 ];
 
 export function DetailTabs({
@@ -49,6 +52,7 @@ export function DetailTabs({
   uyeler,
   gorevler,
   toplantilar,
+  telegram,
 }: DetailTabsProps) {
   const panes: Record<string, React.ReactNode> = {
     genel,
@@ -57,6 +61,7 @@ export function DetailTabs({
     uyeler,
     gorevler,
     toplantilar,
+    telegram,
   };
 
   return (

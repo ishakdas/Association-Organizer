@@ -73,3 +73,17 @@ export function generateMemberTelegramLink(
     },
   );
 }
+
+export function unlinkMemberTelegramAccount(
+  token: string,
+  associationId: string,
+  membershipId: string,
+) {
+  return apiClient<{ unlinked: boolean }>(
+    `/associations/${associationId}/members/${membershipId}/telegram-link`,
+    {
+      token,
+      method: 'DELETE',
+    },
+  );
+}

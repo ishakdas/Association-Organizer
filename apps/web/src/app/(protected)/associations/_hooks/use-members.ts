@@ -7,6 +7,7 @@ import {
   addMember,
   removeMember,
   generateMemberTelegramLink,
+  unlinkMemberTelegramAccount,
   type ListMembersParams,
 } from '@/lib/api/members';
 import type { AddMemberInput, MemberResponse } from '@ticketbot/shared-validation';
@@ -71,6 +72,26 @@ export function useGenerateMemberTelegramLink(associationId: string) {
         associationId,
         membershipId,
       ),
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
+  });
+}
+
+export function useUnlinkMemberTelegram(associationId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (membershipId: string) =>
+      unlinkMemberTelegramAccount(
+        await getAccessToken(),
+        associationId,
+        membershipId,
+      ),
+    onSuccess: () => {
+      toast.success('Telegram bağlantısı kaldırıldı');
+      queryClient.invalidateQueries({ queryKey: ['members', associationId] });
+    },
     onError: (err: Error) => {
       toast.error(err.message);
     },
