@@ -49,6 +49,9 @@ enum TaskActivityAction {
   TITLE_CHANGED
   REMINDER_CHANGED
   REMINDER_SENT
+  ASSIGNED_NOTIFIED
+  REASSIGNMENT_REQUESTED
+  REASSIGNMENT_RESOLVED
 }
 
 enum EventType {
@@ -238,6 +241,11 @@ model Task {
   notifiedViaEmail    Boolean   @default(false)
   lastNotifiedAt      DateTime?
 
+  // Dispute: assignee flagged the task as wrongly assigned. Manager
+  // resolves from the web (reassign or dismiss) — flips back to false.
+  disputed   Boolean   @default(false)
+  disputedAt DateTime?
+
   sourceMeetingNoteId String?
 
   createdAt   DateTime  @default(now())
@@ -257,6 +265,7 @@ model Task {
   @@index([assignedToUserId, associationId, status])
   @@index([watcherUserId])
   @@index([dueDate])
+  @@index([associationId, disputed])
   @@index([deletedAt])
   @@map("tasks")
 }
