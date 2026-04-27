@@ -51,6 +51,23 @@ enum TaskActivityAction {
   REMINDER_SENT
 }
 
+enum EventType {
+  CONFERENCE
+  TALK
+  SEMINAR
+  IFTAR
+  KANDIL
+  MEETING
+  CUSTOM
+}
+
+enum RecurrenceType {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
 // -----------------------------------------------------------------------------
 // Reference: assignable titles (admin-managed)
 // -----------------------------------------------------------------------------
@@ -92,6 +109,7 @@ model User {
   attendedMeetings    MeetingAttendee[]
   createdAssociations Association[]     @relation("AssociationsCreated")
   taskActivities      TaskActivity[]    @relation("TaskActivityActor")
+  createdEvents       Event[]           @relation("EventCreator")
   telegramAccount     TelegramAccount?
 
   @@index([isActive])
@@ -156,9 +174,11 @@ model Association {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  memberships AssociationMembership[]
-  tasks       Task[]
-  meetings    MeetingNote[]
+  memberships         AssociationMembership[]
+  tasks               Task[]
+  meetings            MeetingNote[]
+  events              Event[]
+  eventRoleDefinitions EventRoleDefinition[]
 
   @@index([city])
   @@index([isActive])
@@ -182,6 +202,8 @@ model AssociationMembership {
   user        User                   @relation(fields: [userId], references: [id])
   association Association            @relation(fields: [associationId], references: [id])
   title       MemberTitleDefinition? @relation(fields: [titleId], references: [id])
+
+  eventAssignments EventAssignment[]
 
   @@unique([userId, associationId, role])
   @@index([associationId, role])
@@ -296,4 +318,101 @@ model MeetingAttendee {
   @@unique([meetingNoteId, userId])
   @@index([userId])
   @@map("meeting_attendees")
+}
+
+// -----------------------------------------------------------------------------
+// Events (Etkinlik & Program Yönetimi)
+// -----------------------------------------------------------------------------
+
+// Per-association role catalog for event responsibilities (e.g. "Ses Sistemi",
+// "İkram", "Karşılama"). Each association curates its own list — separate
+// from MemberTitleDefinition which is system-wide.
+model EventRoleDefinition {
+  id            String  @id @default(cuid())
+  associationId String
+  name          String
+  description   String?
+  sortOrder     Int     @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  association Association       @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  assignments EventAssignment[]
+
+  @@unique([associationId, name])
+  @@index([associationId, deletedAt])
+  @@map("event_role_definitions")
+}
+
+model Event {
+  id            String  @id @default(cuid())
+  associationId String
+  title         String
+  description   String?
+  type          EventType @default(CUSTOM)
+  location      String?
+
+  startsAt      DateTime
+  endsAt        DateTime?
+
+  // When the bot should DM each assignee. Per-event, set at creation.
+  notifyAt      DateTime
+
+  // Recurrence — for weekly sohbet, monthly kandil, etc. Master row stores
+  // the rule; the scheduler computes the next occurrence after each
+  // notification fires. Assignments stay attached to the master event.
+  recurrenceType     RecurrenceType @default(NONE)
+  recurrenceInterval Int            @default(1)
+  recurrenceEndsAt   DateTime?
+
+  // Set true once the bot has DM'd assignees for the current occurrence.
+  // For recurring events the scheduler resets this when it advances.
+  notificationSent Boolean @default(false)
+
+  createdById String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  association Association       @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  createdBy   User              @relation("EventCreator", fields: [createdById], references: [id])
+  assignments EventAssignment[]
+
+  @@index([associationId, startsAt])
+  @@index([associationId, deletedAt])
+  @@index([notifyAt])
+  @@map("events")
+}
+
+// One row per (event, member, role). A member can hold multiple roles in
+// the same event (e.g. ses + karşılama) — each is a separate row. The
+// role is either a catalog reference (roleDefinitionId) or a free-form
+// custom string; uniqueness is enforced in the service layer because
+// Postgres can't express "(eventId, membershipId, COALESCE(roleDefId,
+// customRole))" as a unique constraint cleanly.
+model EventAssignment {
+  id               String  @id @default(cuid())
+  eventId          String
+  membershipId     String
+  roleDefinitionId String?
+  customRole       String?
+  notes            String?
+
+  notificationSent Boolean   @default(false)
+  notifiedAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event          Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  membership     AssociationMembership @relation(fields: [membershipId], references: [id])
+  roleDefinition EventRoleDefinition?  @relation(fields: [roleDefinitionId], references: [id])
+
+  @@index([eventId])
+  @@index([membershipId])
+  @@index([roleDefinitionId])
+  @@map("event_assignments")
 }

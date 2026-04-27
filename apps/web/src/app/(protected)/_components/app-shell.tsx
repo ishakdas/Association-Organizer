@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   BookUser,
+  CalendarDays,
   ClipboardList,
   LogOut,
   Menu,
@@ -40,6 +41,11 @@ const NAV: readonly NavItem[] = [
     href: '/tasks',
     access: 'task_creator',
     meta: { label: 'Görevler', icon: ClipboardList, primary: true },
+  },
+  {
+    href: '/events',
+    access: 'member',
+    meta: { label: 'Etkinlikler', icon: CalendarDays, primary: true },
   },
   {
     href: '/settings',
@@ -316,6 +322,9 @@ function isActive(pathname: string | null, href: string): boolean {
   }
   if (href === '/tasks') {
     return pathname === '/tasks' || pathname.startsWith('/tasks/');
+  }
+  if (href === '/events') {
+    return pathname === '/events' || pathname.startsWith('/events/');
   }
   if (href === '/settings') {
     return pathname.startsWith('/settings') || pathname.startsWith('/admin/');
