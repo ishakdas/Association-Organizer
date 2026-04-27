@@ -8,11 +8,18 @@ import {
 import { TasksService } from './tasks.service';
 import { JobsModule } from '../jobs/jobs.module';
 import { TasksBotIntegration } from './tasks-bot.integration';
+import { IcsTokenService } from './ics-token.service';
+import { TaskIcsController } from './ics.controller';
 
 @Module({
   imports: [JobsModule, BotModule],
-  controllers: [TasksController, TaskStatusController, MyTasksController],
-  providers: [TasksService, TasksBotIntegration],
+  controllers: [
+    TasksController,
+    TaskStatusController,
+    MyTasksController,
+    TaskIcsController,
+  ],
+  providers: [TasksService, TasksBotIntegration, IcsTokenService],
   exports: [TasksService],
 })
 export class TasksModule {}

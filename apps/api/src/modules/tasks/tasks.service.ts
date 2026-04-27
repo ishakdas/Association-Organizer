@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -19,13 +20,23 @@ import {
   UpdateTaskStatusInput,
 } from '@ticketbot/shared-validation';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
+import {
+  BotService,
+  assignmentActionsKeyboard,
+  formatAssignmentMessage,
+} from 'bot';
 import { TaskReminderScheduler } from '../jobs/task-reminder.scheduler';
+import { IcsTokenService } from './ics-token.service';
 
 @Injectable()
 export class TasksService {
+  private readonly logger = new Logger(TasksService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly scheduler: TaskReminderScheduler,
+    private readonly bot: BotService,
+    private readonly icsTokens: IcsTokenService,
   ) {}
 
   async create(
@@ -81,7 +92,61 @@ export class TasksService {
       reminderAt: task.reminderAt,
     });
 
+    await this.notifyAssignment(task);
+
     return task;
+  }
+
+  // Sends an "atama" DM to the assignee on Telegram and logs an
+  // ASSIGNED_NOTIFIED activity. Failures (no Telegram bound, send
+  // error) are swallowed so a flaky bot can't fail task creation —
+  // assignees see the task in the web UI regardless.
+  private async notifyAssignment(task: {
+    id: string;
+    title: string;
+    description: string | null;
+    dueDate: Date | null;
+    status: TaskStatus;
+    priority: 'LOW' | 'MEDIUM' | 'HIGH';
+    assignedToUserId: string;
+    assignedById: string;
+    assignedBy: { id: string; fullName: string };
+  }): Promise<void> {
+    try {
+      const icsUrl = task.dueDate
+        ? this.icsTokens.signTaskIcsUrl(task.id)
+        : undefined;
+
+      const text = formatAssignmentMessage(
+        {
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          dueDate: task.dueDate,
+          status: task.status,
+          priority: task.priority,
+        },
+        task.assignedBy.fullName,
+      );
+
+      const keyboard = assignmentActionsKeyboard(task.id, { icsUrl }).reply_markup;
+      const delivered = await this.bot.sendToUser(task.assignedToUserId, text, {
+        replyMarkup: keyboard,
+      });
+
+      await this.prisma.taskActivity.create({
+        data: {
+          taskId: task.id,
+          actorId: task.assignedById,
+          action: TaskActivityAction.ASSIGNED_NOTIFIED,
+          payload: { channel: 'telegram', delivered },
+        },
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Assignment notification failed for task ${task.id}: ${(err as Error).message}`,
+      );
+    }
   }
 
   async list(
