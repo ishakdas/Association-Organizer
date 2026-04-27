@@ -6,6 +6,7 @@ import Link from 'next/link';
 import {
   ArrowLeft,
   ArrowRight,
+  CheckCircle2,
   ChevronRight,
   Loader2,
   Save,
@@ -33,11 +34,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { DatePicker } from '@/components/ui/date-picker';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useCreateAssociation } from '../_hooks/use-create-association';
 import { LogoUploader } from './logo-uploader';
-import { PasswordField } from './password-field';
-import { CredentialsSuccessDialog } from './credentials-success-dialog';
 
 const formSchema = z.object({
   name: z.string().min(2, 'En az 2 karakter').max(200),
@@ -74,11 +81,8 @@ const formSchema = z.object({
   memberCount: z.coerce.number().int().nonnegative(),
   isActive: z.boolean(),
   notes: z.string().max(2000).optional(),
-  // Flat manager fields keep react-hook-form's per-field error mapping
-  // straightforward; nested into `manager` at submit time.
   managerFullName: z.string().min(2, 'En az 2 karakter').max(200),
   managerEmail: z.string().email('Geçerli bir e-posta girin'),
-  managerPassword: z.string().min(8, 'En az 8 karakter').max(72),
   managerPhone: z
     .string()
     .optional()
@@ -108,12 +112,12 @@ const STEP_FIELDS: Record<1 | 2, FieldPath<FormValues>[]> = {
     'logoUrl',
     'notes',
   ],
-  2: ['managerFullName', 'managerEmail', 'managerPassword', 'managerPhone'],
+  2: ['managerFullName', 'managerEmail', 'managerPhone'],
 };
 
 const STEPS = [
   { n: 1, title: 'Dernek Bilgileri', hint: 'Sicil ve iletişim' },
-  { n: 2, title: 'Başkan Bilgileri', hint: 'Hesap açılışı' },
+  { n: 2, title: 'Başkan Bilgileri', hint: 'Davet gönderimi' },
   { n: 3, title: 'Önizleme', hint: 'Onay ve gönderim' },
 ] as const;
 
@@ -122,11 +126,10 @@ type StepNum = 1 | 2 | 3;
 export function AssociationForm() {
   const router = useRouter();
   const [step, setStep] = useState<StepNum>(1);
-  const [credentials, setCredentials] = useState<{
+  const [successInfo, setSuccessInfo] = useState<{
     associationId: string;
     associationName: string;
     email: string;
-    password: string;
   } | null>(null);
 
   const form = useForm<FormValues>({
@@ -150,7 +153,6 @@ export function AssociationForm() {
       notes: '',
       managerFullName: '',
       managerEmail: '',
-      managerPassword: '',
       managerPhone: '',
     },
   });
@@ -158,11 +160,10 @@ export function AssociationForm() {
   const mutation = useCreateAssociation({
     onSuccess: (id) => {
       const v = form.getValues();
-      setCredentials({
+      setSuccessInfo({
         associationId: id,
         associationName: v.name,
         email: v.managerEmail,
-        password: v.managerPassword,
       });
     },
   });
@@ -204,19 +205,12 @@ export function AssociationForm() {
     if (!ok) {
       const errs = form.formState.errors;
       if (STEP_FIELDS[1].some((f) => errs[f as keyof typeof errs])) setStep(1);
-      else if (STEP_FIELDS[2].some((f) => errs[f as keyof typeof errs]))
-        setStep(2);
+      else if (STEP_FIELDS[2].some((f) => errs[f as keyof typeof errs])) setStep(2);
       return;
     }
     const values = form.getValues();
     const foundedAtIso = values.foundedAt.toISOString();
-    const {
-      managerFullName,
-      managerEmail,
-      managerPassword,
-      managerPhone,
-      ...associationFields
-    } = values;
+    const { managerFullName, managerEmail, managerPhone, ...associationFields } = values;
 
     const parsed = createAssociationSchema.safeParse({
       ...associationFields,
@@ -231,7 +225,6 @@ export function AssociationForm() {
       manager: {
         fullName: managerFullName,
         email: managerEmail,
-        password: managerPassword,
         phone: managerPhone || undefined,
       },
     });
@@ -244,12 +237,10 @@ export function AssociationForm() {
           const map: Record<string, keyof FormValues> = {
             fullName: 'managerFullName',
             email: 'managerEmail',
-            password: 'managerPassword',
             phone: 'managerPhone',
           };
           if (typeof sub === 'string' && map[sub]) {
             form.setError(map[sub], { message: issue.message });
-            // Snap back to step 2 so the user can fix the field.
             setStep(2);
           }
         } else if (typeof head === 'string') {
@@ -264,20 +255,15 @@ export function AssociationForm() {
   }
 
   function acknowledgeAndNavigate() {
-    const id = credentials?.associationId;
-    setCredentials(null);
+    const id = successInfo?.associationId;
+    setSuccessInfo(null);
     if (id) router.push(`/associations/${id}`);
   }
 
   return (
     <Form {...form}>
       <form
-        onSubmit={(e) => {
-          // Submission is driven by the explicit "Kaydet ve oluştur" button
-          // (handleSave). Block native submit so a stray Enter or focus-stuck
-          // button can never write to the DB on its own.
-          e.preventDefault();
-        }}
+        onSubmit={(e) => { e.preventDefault(); }}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             const tag = (e.target as HTMLElement).tagName;
@@ -305,17 +291,51 @@ export function AssociationForm() {
         />
       </form>
 
-      {credentials && (
-        <CredentialsSuccessDialog
+      {successInfo && (
+        <InviteSentDialog
           open={true}
-          title={`"${credentials.associationName}" oluşturuldu`}
-          description="Başkanın hesabı açıldı. Aşağıdaki bilgileri güvenli bir kanaldan iletin."
-          email={credentials.email}
-          password={credentials.password}
+          associationName={successInfo.associationName}
+          email={successInfo.email}
           onAcknowledge={acknowledgeAndNavigate}
         />
       )}
     </Form>
+  );
+}
+
+function InviteSentDialog({
+  open,
+  associationName,
+  email,
+  onAcknowledge,
+}: {
+  open: boolean;
+  associationName: string;
+  email: string;
+  onAcknowledge: () => void;
+}) {
+  return (
+    <Dialog open={open}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <CheckCircle2 className="h-6 w-6" />
+          </div>
+          <DialogTitle className="text-center">
+            &quot;{associationName}&quot; oluşturuldu
+          </DialogTitle>
+          <DialogDescription className="text-center">
+            <strong>{email}</strong> adresine davet e-postası gönderildi. Başkan,
+            davet bağlantısına tıklayarak hesabını etkinleştirebilir.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button className="w-full" onClick={onAcknowledge}>
+            Tamam, devam et
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -427,8 +447,7 @@ function StepDernek() {
                   />
                 </FormControl>
                 <FormDescription>
-                  Opsiyonel — 11 haneli, 0 ile başlar. Sunucuda +90 formatına
-                  çevrilir.
+                  Opsiyonel — 11 haneli, 0 ile başlar.
                 </FormDescription>
                 <FormMessage />
               </FormItem>
@@ -466,9 +485,7 @@ function StepDernek() {
                 <FormControl>
                   <Textarea rows={2} placeholder="Mahalle, sokak, no" {...field} />
                 </FormControl>
-                <FormDescription>
-                  Opsiyonel — girilirse en az 5 karakter.
-                </FormDescription>
+                <FormDescription>Opsiyonel — girilirse en az 5 karakter.</FormDescription>
                 <FormMessage />
               </FormItem>
             )}
@@ -505,7 +522,7 @@ function StepDernek() {
       <Section
         number="03"
         title="Yönetim"
-        description="Üyelik ve durum bilgisi. Pasif dernekler varsayılan listede gösterilmez."
+        description="Üyelik ve durum bilgisi."
       >
         <div className="grid gap-5 sm:grid-cols-2">
           <FormField
@@ -525,16 +542,12 @@ function StepDernek() {
             render={({ field }) => (
               <FormItem className="flex items-start gap-3 space-y-0 rounded-md border border-border bg-background px-4 py-3 sm:col-span-2">
                 <FormControl>
-                  <Switch
-                    checked={field.value}
-                    onCheckedChange={field.onChange}
-                  />
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
                 </FormControl>
                 <div className="flex-1">
                   <FormLabel className="text-[13px]">Aktif dernek</FormLabel>
                   <FormDescription className="text-[12px]">
                     Pasif konuma alınırsa listede filtrelenerek gizlenebilir.
-                    Veriler silinmez.
                   </FormDescription>
                 </div>
               </FormItem>
@@ -548,7 +561,7 @@ function StepDernek() {
       <Section
         number="04"
         title="Görsel &amp; Notlar"
-        description="Opsiyonel bilgi. Logo URL'si bir CDN bağlantısı olmalıdır."
+        description="Opsiyonel bilgi."
       >
         <div className="space-y-5">
           <FormField
@@ -569,11 +582,7 @@ function StepDernek() {
               <FormItem>
                 <FormLabel>Notlar</FormLabel>
                 <FormControl>
-                  <Textarea
-                    rows={5}
-                    placeholder="İç notlar — üyelerle paylaşılmaz."
-                    {...field}
-                  />
+                  <Textarea rows={5} placeholder="İç notlar — üyelerle paylaşılmaz." {...field} />
                 </FormControl>
                 <FormDescription>En fazla 2000 karakter.</FormDescription>
                 <FormMessage />
@@ -591,7 +600,7 @@ function StepBaskan() {
     <Section
       number="05"
       title="Başkan"
-      description="Dernek başkanına web hesabı açılır. Şifre ilk girişte kullanılır; başkan ardından kendi şifresini değiştirebilir."
+      description="Başkana e-posta ile davet gönderilir. Davet bağlantısına tıklayarak hesabını etkinleştirebilir."
     >
       <div className="grid gap-5 sm:grid-cols-2">
         <FormField
@@ -620,7 +629,7 @@ function StepBaskan() {
                 />
               </FormControl>
               <FormDescription>
-                Bu adresle Supabase hesabı açılır.
+                Bu adrese davet e-postası gönderilir.
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -640,26 +649,8 @@ function StepBaskan() {
                 />
               </FormControl>
               <FormDescription>
-                Telegram bağlamak için bu numara şart — başkanın Telegram
-                hesabıyla aynı olmalı.
+                Telegram bağlamak için kullanılır.
               </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        <FormField
-          name="managerPassword"
-          render={({ field }) => (
-            <FormItem className="sm:col-span-2">
-              <FormLabel>Geçici Şifre *</FormLabel>
-              <FormControl>
-                <PasswordField
-                  value={field.value}
-                  onChange={field.onChange}
-                  onBlur={field.onBlur}
-                  name={field.name}
-                />
-              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -685,152 +676,68 @@ function StepOnizleme({ values }: { values: FormValues }) {
   return (
     <div className="px-6 py-7">
       <header className="mb-5 space-y-1">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-primary">
-          06
-        </span>
-        <h2 className="text-[15px] font-semibold tracking-tight text-foreground">
-          Önizleme
-        </h2>
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-primary">06</span>
+        <h2 className="text-[15px] font-semibold tracking-tight text-foreground">Önizleme</h2>
         <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-          Bilgileri son kez kontrol edin. Kaydet'e basınca dernek ve başkan
-          hesabı oluşturulur.
+          Bilgileri son kez kontrol edin. Kaydet&apos;e basınca dernek oluşturulur ve başkana davet gönderilir.
         </p>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2">
         <PreviewCard title="Dernek">
           <PreviewRow label="Ad" value={values.name || '—'} />
-          {values.shortName && (
-            <PreviewRow label="Kısa Ad" value={values.shortName} />
-          )}
-          <PreviewRow
-            label="Vergi No"
-            value={
-              <span className="font-mono">{values.taxNumber || '—'}</span>
-            }
-          />
+          {values.shortName && <PreviewRow label="Kısa Ad" value={values.shortName} />}
+          <PreviewRow label="Vergi No" value={<span className="font-mono">{values.taxNumber || '—'}</span>} />
           <PreviewRow label="Kuruluş" value={founded} />
           <PreviewRow label="Faaliyet" value={values.activityArea || '—'} />
-          <PreviewRow
-            label="Üye"
-            value={
-              <span className="tabular-nums">
-                {Number(values.memberCount).toLocaleString('tr-TR')}
-              </span>
-            }
-          />
-          <PreviewRow
-            label="Durum"
-            value={values.isActive ? 'Aktif' : 'Pasif'}
-          />
+          <PreviewRow label="Üye" value={<span className="tabular-nums">{Number(values.memberCount).toLocaleString('tr-TR')}</span>} />
+          <PreviewRow label="Durum" value={values.isActive ? 'Aktif' : 'Pasif'} />
         </PreviewCard>
 
         <PreviewCard title="İletişim">
-          <PreviewRow
-            label="Telefon"
-            value={values.phone ? formatTrPhoneDisplay(values.phone) : '—'}
-          />
+          <PreviewRow label="Telefon" value={values.phone ? formatTrPhoneDisplay(values.phone) : '—'} />
           <PreviewRow label="E-posta" value={values.email || '—'} />
-          {values.website && (
-            <PreviewRow label="Web" value={values.website} />
-          )}
-          <PreviewRow
-            label="Adres"
-            value={
-              <span className="whitespace-pre-wrap">
-                {values.address || '—'}
-              </span>
-            }
-          />
-          <PreviewRow
-            label="Konum"
-            value={`${values.city || '—'} / ${values.district || '—'}`}
-          />
+          {values.website && <PreviewRow label="Web" value={values.website} />}
+          <PreviewRow label="Adres" value={<span className="whitespace-pre-wrap">{values.address || '—'}</span>} />
+          <PreviewRow label="Konum" value={`${values.city || '—'} / ${values.district || '—'}`} />
         </PreviewCard>
 
         <PreviewCard title="Başkan" className="sm:col-span-2">
           <PreviewRow label="Ad" value={values.managerFullName || '—'} />
           <PreviewRow label="E-posta" value={values.managerEmail || '—'} />
           {values.managerPhone && (
-            <PreviewRow
-              label="Telefon"
-              value={formatTrPhoneDisplay(values.managerPhone)}
-            />
+            <PreviewRow label="Telefon" value={formatTrPhoneDisplay(values.managerPhone)} />
           )}
-          <PreviewRow
-            label="Şifre"
-            value={
-              <span className="font-mono text-muted-foreground">
-                {values.managerPassword
-                  ? '•'.repeat(values.managerPassword.length)
-                  : '—'}
-              </span>
-            }
-          />
         </PreviewCard>
       </div>
     </div>
   );
 }
 
-function PreviewCard({
-  title,
-  children,
-  className,
-}: {
-  title: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
+function PreviewCard({ title, children, className }: { title: string; children: React.ReactNode; className?: string }) {
   return (
-    <div
-      className={cn(
-        'overflow-hidden rounded-md border border-border bg-background',
-        className,
-      )}
-    >
+    <div className={cn('overflow-hidden rounded-md border border-border bg-background', className)}>
       <header className="border-b border-border px-4 py-2.5">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-          {title}
-        </span>
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{title}</span>
       </header>
       <div className="px-4 py-3">{children}</div>
     </div>
   );
 }
 
-function PreviewRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: React.ReactNode;
-}) {
+function PreviewRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="grid grid-cols-[110px_1fr] gap-3 py-1.5 text-[13px] [&+&]:border-t [&+&]:border-border/60">
-      <span className="text-[11.5px] uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
+      <span className="text-[11.5px] uppercase tracking-wide text-muted-foreground">{label}</span>
       <span className="text-foreground">{value}</span>
     </div>
   );
 }
 
-function FormHeader({
-  step,
-  onJump,
-}: {
-  step: StepNum;
-  onJump: (n: StepNum) => void;
-}) {
+function FormHeader({ step, onJump }: { step: StepNum; onJump: (n: StepNum) => void }) {
   return (
     <header className="space-y-5 border-b border-border pb-6">
-      <Breadcrumb
-        items={[
-          { href: '/associations', label: 'Dernek Sicili' },
-          { label: 'Yeni Kayıt' },
-        ]}
-      />
+      <Breadcrumb items={[{ href: '/associations', label: 'Dernek Sicili' }, { label: 'Yeni Kayıt' }]} />
       <div className="space-y-1.5">
         <span className="eyebrow">Yeni Kayıt</span>
         <h1 className="text-2xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl">
@@ -840,28 +747,16 @@ function FormHeader({
           Adımları sırayla tamamlayın. Önizlemeden sonra kayıt onaylanır.
         </p>
       </div>
-
       <Stepper current={step} onJump={onJump} />
     </header>
   );
 }
 
-function Stepper({
-  current,
-  onJump,
-}: {
-  current: StepNum;
-  onJump: (n: StepNum) => void;
-}) {
+function Stepper({ current, onJump }: { current: StepNum; onJump: (n: StepNum) => void }) {
   return (
     <ol className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-2">
       {STEPS.map((s, i) => {
-        const state =
-          s.n === current
-            ? 'current'
-            : s.n < current
-              ? 'done'
-              : 'upcoming';
+        const state = s.n === current ? 'current' : s.n < current ? 'done' : 'upcoming';
         return (
           <li key={s.n} className="flex flex-1 items-stretch">
             <button
@@ -874,8 +769,8 @@ function Stepper({
                 state === 'current'
                   ? 'border-primary/40 bg-primary/[0.04]'
                   : state === 'done'
-                    ? 'border-border bg-muted/30 hover:border-primary/30 hover:bg-primary/[0.03]'
-                    : 'border-dashed border-border/60 bg-background hover:border-border hover:bg-muted/20',
+                    ? 'border-border bg-muted/30 hover:border-primary/30'
+                    : 'border-dashed border-border/60 bg-background hover:border-border',
               )}
             >
               <span
@@ -892,25 +787,13 @@ function Stepper({
                 {state === 'done' ? '✓' : s.n}
               </span>
               <div className="min-w-0 flex-1">
-                <div
-                  className={cn(
-                    'truncate text-[13px] font-semibold',
-                    state === 'upcoming'
-                      ? 'text-muted-foreground'
-                      : 'text-foreground',
-                  )}
-                >
+                <div className={cn('truncate text-[13px] font-semibold', state === 'upcoming' ? 'text-muted-foreground' : 'text-foreground')}>
                   {s.title}
                 </div>
-                <div className="text-[11px] text-muted-foreground">
-                  {s.hint}
-                </div>
+                <div className="text-[11px] text-muted-foreground">{s.hint}</div>
               </div>
               {i < STEPS.length - 1 && (
-                <ChevronRight
-                  aria-hidden
-                  className="hidden h-4 w-4 text-muted-foreground/40 sm:block"
-                />
+                <ChevronRight aria-hidden className="hidden h-4 w-4 text-muted-foreground/40 sm:block" />
               )}
             </button>
           </li>
@@ -920,11 +803,7 @@ function Stepper({
   );
 }
 
-function Breadcrumb({
-  items,
-}: {
-  items: { href?: string; label: string }[];
-}) {
+function Breadcrumb({ items }: { items: { href?: string; label: string }[] }) {
   return (
     <nav aria-label="Breadcrumb" className="flex items-center gap-1 text-[12px] text-muted-foreground">
       {items.map((item, i) => {
@@ -932,18 +811,13 @@ function Breadcrumb({
         return (
           <div key={i} className="flex items-center gap-1">
             {item.href && !isLast ? (
-              <Link
-                href={item.href}
-                className="font-medium text-muted-foreground transition-colors hover:text-foreground"
-              >
+              <Link href={item.href} className="font-medium text-muted-foreground transition-colors hover:text-foreground">
                 {item.label}
               </Link>
             ) : (
               <span className="font-medium text-foreground">{item.label}</span>
             )}
-            {!isLast && (
-              <ChevronRight className="h-3 w-3 text-muted-foreground/50" />
-            )}
+            {!isLast && <ChevronRight className="h-3 w-3 text-muted-foreground/50" />}
           </div>
         );
       })}
@@ -951,48 +825,20 @@ function Breadcrumb({
   );
 }
 
-function Section({
-  number,
-  title,
-  description,
-  children,
-}: {
-  number: string;
-  title: string;
-  description: string;
-  children: React.ReactNode;
-}) {
+function Section({ number, title, description, children }: { number: string; title: string; description: string; children: React.ReactNode }) {
   return (
     <section className="grid gap-6 px-6 py-7 lg:grid-cols-[220px_1fr]">
       <header className="space-y-1">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-primary">
-          {number}
-        </span>
-        <h2 className="text-[15px] font-semibold tracking-tight text-foreground">
-          {title}
-        </h2>
-        <p className="text-[12.5px] leading-relaxed text-muted-foreground">
-          {description}
-        </p>
+        <span className="text-[11px] font-semibold uppercase tracking-widest text-primary">{number}</span>
+        <h2 className="text-[15px] font-semibold tracking-tight text-foreground">{title}</h2>
+        <p className="text-[12.5px] leading-relaxed text-muted-foreground">{description}</p>
       </header>
       <div>{children}</div>
     </section>
   );
 }
 
-function StickyFooter({
-  step,
-  isPending,
-  onPrev,
-  onNext,
-  onSave,
-}: {
-  step: StepNum;
-  isPending: boolean;
-  onPrev: () => void;
-  onNext: () => void;
-  onSave: () => void;
-}) {
+function StickyFooter({ step, isPending, onPrev, onNext, onSave }: { step: StepNum; isPending: boolean; onPrev: () => void; onNext: () => void; onSave: () => void }) {
   const isFinal = step === 3;
   return (
     <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-background/90 backdrop-blur">
@@ -1015,22 +861,11 @@ function StickyFooter({
             Adım {step} / 3
           </span>
           {isFinal ? (
-            <Button
-              key="save"
-              type="button"
-              onClick={onSave}
-              disabled={isPending}
-            >
+            <Button key="save" type="button" onClick={onSave} disabled={isPending}>
               {isPending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Kaydediliyor…
-                </>
+                <><Loader2 className="h-4 w-4 animate-spin" />Kaydediliyor…</>
               ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  Kaydet ve oluştur
-                </>
+                <><Save className="h-4 w-4" />Kaydet ve oluştur</>
               )}
             </Button>
           ) : (

@@ -21,7 +21,6 @@ const optionalPhoneSchema = z
 const managerSchema = z.object({
   fullName: z.string().min(2, 'En az 2 karakter').max(200),
   email: z.string().email('Geçerli bir e-posta girin').max(200),
-  password: z.string().min(8, 'En az 8 karakter').max(72),
   phone: optionalPhoneSchema,
 });
 export type CreateAssociationManagerInput = z.infer<typeof managerSchema>;

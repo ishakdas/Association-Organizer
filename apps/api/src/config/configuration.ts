@@ -17,5 +17,13 @@ export default () => {
     bot: { token: env.BOT_TOKEN },
     apiUrl: env.API_URL,
     webUrl: env.WEB_URL,
+    smtp: {
+      host: env.SMTP_HOST ?? null,
+      port: env.SMTP_PORT,
+      user: env.SMTP_USER ?? null,
+      pass: env.SMTP_PASS ?? null,
+      from: env.SMTP_FROM ?? null,
+      fromName: env.SMTP_FROM_NAME,
+    },
   };
 };

@@ -15,6 +15,13 @@ export const envSchema = z.object({
   TELEGRAM_BOT_USERNAME: z.string().min(1).default('dernek_organizer_bot'),
   API_URL: z.string().url().default('http://localhost:3000'),
   WEB_URL: z.string().url().default('http://localhost:3001'),
+  // SMTP (opsiyonel — ayarlanmazsa geliştirme ortamında Ethereal kullanılır)
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().email().optional(),
+  SMTP_FROM_NAME: z.string().default('Dernek Yönetim Sistemi'),
 });
 
 export type Env = z.infer<typeof envSchema>;

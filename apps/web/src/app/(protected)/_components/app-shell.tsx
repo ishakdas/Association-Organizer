@@ -2,12 +2,20 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
+  AlertTriangle,
+  BookOpen,
   BookUser,
+  ClipboardList,
+  Crown,
+  Info,
   LogOut,
   Menu,
+  MessageSquare,
   Settings,
+  UserCheck,
+  Users,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -15,32 +23,48 @@ import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import {
-  filterNav,
-  userRoleLabel,
-  type NavItemDef,
-} from '@/lib/permissions';
+import { isSystemAdmin, activeMemberships, userRoleLabel } from '@/lib/permissions';
+import { usePendingRegistrationsCount } from '../admin/pending-registrations/_hooks/use-pending-count';
 
-interface NavMeta {
+interface NavItem {
+  href: string;
   label: string;
   icon: LucideIcon;
-  /** When true, also surfaced in the mobile bottom nav (max 4). */
   primary?: boolean;
+  badge?: number;
+  matchSection?: string;
 }
-type NavItem = NavItemDef<NavMeta>;
 
-const NAV: readonly NavItem[] = [
-  {
-    href: '/associations',
-    access: 'auth',
-    meta: { label: 'Dernek Sicili', icon: BookUser, primary: true },
-  },
-  {
-    href: '/settings',
-    access: 'auth',
-    meta: { label: 'Ayarlar', icon: Settings, primary: true },
-  },
-];
+function buildNav(user: AuthenticatedUser): NavItem[] {
+  if (isSystemAdmin(user)) {
+    return [
+      { href: '/associations', label: 'Dernek Sicili', icon: BookUser, primary: true },
+      { href: '/admin/pending-registrations', label: 'Başvurular', icon: UserCheck, primary: true },
+      { href: '/settings', label: 'Ayarlar', icon: Settings },
+    ];
+  }
+
+  const active = activeMemberships(user);
+  if (active.length === 0) {
+    return [{ href: '/settings', label: 'Ayarlar', icon: Settings }];
+  }
+
+  const assocId = active[0].associationId;
+  const isManager = active[0].role === 'ASSOCIATION_MANAGER';
+  const base = `/associations/${assocId}`;
+
+  return [
+    { href: `${base}?section=genel`, label: 'Genel Bilgiler', icon: Info, primary: true, matchSection: 'genel' },
+    { href: `${base}?section=uyeler`, label: 'Üyeler', icon: Users, primary: true, matchSection: 'uyeler' },
+    { href: `${base}?section=gorevler`, label: 'Görevler', icon: ClipboardList, primary: true, matchSection: 'gorevler' },
+    { href: `${base}?section=toplantilar`, label: 'Toplantılar', icon: BookOpen, matchSection: 'toplantilar' },
+    { href: `${base}?section=telegram`, label: 'Telegram', icon: MessageSquare, matchSection: 'telegram' },
+    ...(isManager
+      ? [{ href: `${base}?section=baskan`, label: 'Başkan', icon: Crown, matchSection: 'baskan' }]
+      : []),
+    { href: '/settings', label: 'Ayarlar', icon: Settings },
+  ];
+}
 
 export function AppShell({
   user,
@@ -50,8 +74,14 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const items = filterNav(NAV, user);
-  const primary = items.filter((i) => i.meta?.primary).slice(0, 4);
+  // Always call the hook (React rules), but skip the network call for non-admins
+  const pendingCount = usePendingRegistrationsCount(isSystemAdmin(user));
+  const items = buildNav(user).map((item) =>
+    item.href === '/admin/pending-registrations' && pendingCount > 0
+      ? { ...item, badge: pendingCount }
+      : item,
+  );
+  const primary = items.filter((i) => i.primary).slice(0, 4);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -64,6 +94,9 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <MobileTopbar onMenu={() => setMobileOpen(true)} />
+        {user.mustChangePassword && user.onboardingCompletedAt && (
+          <TempPasswordBanner />
+        )}
         <main className="flex-1 px-5 pb-24 pt-6 sm:px-8 sm:py-10 lg:pb-10">
           <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>
@@ -85,6 +118,7 @@ function Sidebar({
   onClose: () => void;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   return (
     <>
@@ -126,9 +160,10 @@ function Sidebar({
             <NavLink
               key={item.href}
               href={item.href}
-              label={item.meta!.label}
-              icon={item.meta!.icon}
-              active={isActive(pathname, item.href)}
+              label={item.label}
+              icon={item.icon}
+              badge={item.badge}
+              active={isNavActive(pathname, searchParams, item)}
               onClick={onClose}
             />
           ))}
@@ -163,12 +198,14 @@ function NavLink({
   label,
   icon: Icon,
   active,
+  badge,
   onClick,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
   active: boolean;
+  badge?: number;
   onClick: () => void;
 }) {
   return (
@@ -195,7 +232,12 @@ function NavLink({
           active ? 'text-primary' : 'text-muted-foreground',
         )}
       />
-      <span className="truncate">{label}</span>
+      <span className="truncate flex-1">{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+          {badge}
+        </span>
+      )}
     </Link>
   );
 }
@@ -271,6 +313,7 @@ function MobileTopbar({ onMenu }: { onMenu: () => void }) {
 
 function BottomNav({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   if (items.length === 0) return null;
 
   return (
@@ -280,8 +323,8 @@ function BottomNav({ items }: { items: NavItem[] }) {
       style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
     >
       {items.map((item) => {
-        const Icon = item.meta!.icon;
-        const active = isActive(pathname, item.href);
+        const Icon = item.icon;
+        const active = isNavActive(pathname, searchParams, item);
         return (
           <Link
             key={item.href}
@@ -295,7 +338,7 @@ function BottomNav({ items }: { items: NavItem[] }) {
             )}
           >
             <Icon className="h-5 w-5" />
-            <span className="leading-none">{item.meta!.label}</span>
+            <span className="leading-none">{item.label}</span>
           </Link>
         );
       })}
@@ -303,13 +346,49 @@ function BottomNav({ items }: { items: NavItem[] }) {
   );
 }
 
-function isActive(pathname: string | null, href: string): boolean {
+function isNavActive(
+  pathname: string | null,
+  searchParams: ReturnType<typeof useSearchParams>,
+  item: NavItem,
+): boolean {
   if (!pathname) return false;
-  if (href === '/associations') {
+
+  // Section-based nav items (branch sidebar links)
+  if (item.matchSection) {
+    const section = searchParams.get('section');
+    const itemPathname = item.href.split('?')[0];
+    return pathname === itemPathname && section === item.matchSection;
+  }
+
+  // /associations — exact match or child pages (for admin)
+  if (item.href === '/associations') {
     return pathname === '/associations' || pathname.startsWith('/associations/');
   }
-  if (href === '/settings') {
-    return pathname.startsWith('/settings') || pathname.startsWith('/admin/');
+
+  if (item.href === '/admin/pending-registrations') {
+    return pathname.startsWith('/admin/');
   }
-  return pathname === href;
+
+  if (item.href === '/settings') {
+    return pathname.startsWith('/settings');
+  }
+
+  return pathname === item.href;
+}
+
+function TempPasswordBanner() {
+  return (
+    <div className="flex items-center gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+      <AlertTriangle className="h-4 w-4 shrink-0" />
+      <p className="flex-1 text-[13px] font-medium">
+        Geçici şifrenizle giriş yaptınız. Güvenliğiniz için şifrenizi değiştirmenizi öneririz.
+      </p>
+      <a
+        href="/settings/profile"
+        className="shrink-0 rounded-md bg-amber-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-600"
+      >
+        Şimdi Değiştir
+      </a>
+    </div>
+  );
 }

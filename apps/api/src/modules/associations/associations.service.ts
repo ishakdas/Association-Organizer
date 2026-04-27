@@ -48,7 +48,6 @@ export class AssociationsService {
 
     const managerUser = await this.users.createSupabaseUser({
       email: manager.email,
-      password: manager.password,
       fullName: manager.fullName,
       phone: manager.phone,
     });
@@ -203,6 +202,50 @@ export class AssociationsService {
         pageSize,
         totalPages: Math.max(1, Math.ceil(total / pageSize)),
       },
+    };
+  }
+
+  async getStats(id: string) {
+    const association = await this.prisma.association.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!association) throw new NotFoundException('Dernek bulunamadı');
+
+    const [members, tasks, totalMeetings] = await this.prisma.$transaction([
+      this.prisma.associationMembership.findMany({
+        where: { associationId: id, isActive: true, deletedAt: null },
+        select: { role: true },
+      }),
+      this.prisma.task.findMany({
+        where: { associationId: id, deletedAt: null },
+        select: { status: true },
+      }),
+      this.prisma.meetingNote.count({
+        where: { associationId: id, deletedAt: null },
+      }),
+    ]);
+
+    const membersByRole: Record<string, number> = {};
+    for (const m of members) {
+      membersByRole[m.role] = (membersByRole[m.role] ?? 0) + 1;
+    }
+    const totalMembers = members.length;
+
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter((t) => t.status === 'COMPLETED').length;
+    const pendingTasks = totalTasks - completedTasks;
+    const completionRate =
+      totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+    return {
+      totalMembers,
+      membersByRole,
+      totalTasks,
+      completedTasks,
+      pendingTasks,
+      completionRate,
+      totalMeetings,
     };
   }
 }

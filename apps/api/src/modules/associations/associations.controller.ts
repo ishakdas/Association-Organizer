@@ -52,6 +52,16 @@ export class AssociationsController {
     return this.associationsService.list(query, user);
   }
 
+  @Get(':id/stats')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
+  getStats(@Param('id') id: string) {
+    return this.associationsService.getStats(id);
+  }
+
   @Get(':id')
   @AssociationRoles(
     UserRole.ASSOCIATION_MANAGER,

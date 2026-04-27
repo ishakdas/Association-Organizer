@@ -5,10 +5,16 @@ import {
   Patch,
   Post,
   Body,
+  Param,
   UseGuards,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
+import { UserRole } from '@ticketbot/database';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { SupabaseUserGuard } from '../../common/guards/supabase-user.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, RequestUser } from '../../common/decorators/current-user.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { AuthService } from './auth.service';
@@ -18,6 +24,8 @@ import {
   TelegramLinkRedeemInput,
   updateProfileSchema,
   UpdateProfileInput,
+  RequestBranchRegistrationInput,
+  ApproveBranchRegistrationInput,
 } from '@ticketbot/shared-validation';
 
 @Controller('auth')
@@ -42,6 +50,19 @@ export class AuthController {
     return this.adminService.updateProfile(user.id, body);
   }
 
+  @Post('complete-onboarding')
+  @UseGuards(AuthGuard)
+  completeOnboarding(@CurrentUser() user: RequestUser) {
+    return this.authService.completeOnboarding(user.id);
+  }
+
+  @Post('clear-temp-password-flag')
+  @UseGuards(AuthGuard, SupabaseUserGuard)
+  @HttpCode(HttpStatus.OK)
+  clearTempPasswordFlag(@CurrentUser() user: RequestUser) {
+    return this.authService.clearTempPasswordFlag(user.id);
+  }
+
   @Post('telegram-link')
   @UseGuards(AuthGuard)
   generateLinkToken(@CurrentUser() user: RequestUser) {
@@ -59,5 +80,64 @@ export class AuthController {
     @Body(new ZodValidationPipe(telegramLinkRedeemSchema)) body: TelegramLinkRedeemInput,
   ) {
     return this.authService.redeemLinkToken(body);
+  }
+
+  @Post('check-branch-email')
+  @HttpCode(HttpStatus.OK)
+  checkBranchEmail(@Body() body: { email: string }) {
+    return this.authService.checkBranchEmail(body.email);
+  }
+
+  @Post('request-branch-registration')
+  @HttpCode(HttpStatus.OK)
+  requestBranchRegistration(
+    @Body() body: RequestBranchRegistrationInput,
+  ) {
+    return this.authService.requestBranchRegistration(body);
+  }
+
+  @Get('pending-registrations')
+  @UseGuards(AuthGuard, SupabaseUserGuard, RolesGuard)
+  @Roles(UserRole.SYSTEM_ADMIN)
+  listPendingRegistrations() {
+    return this.authService.listPendingRegistrations();
+  }
+
+  @Get('approved-registrations')
+  @UseGuards(AuthGuard, SupabaseUserGuard, RolesGuard)
+  @Roles(UserRole.SYSTEM_ADMIN)
+  listApprovedRegistrations() {
+    return this.authService.listApprovedRegistrations();
+  }
+
+  @Post('pending-registrations/:id/approve')
+  @UseGuards(AuthGuard, SupabaseUserGuard, RolesGuard)
+  @Roles(UserRole.SYSTEM_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  approveBranchRegistration(
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+    @Body() body: ApproveBranchRegistrationInput,
+  ) {
+    return this.authService.approveBranchRegistration(id, user.id, body);
+  }
+
+  @Post('pending-registrations/:id/reject')
+  @UseGuards(AuthGuard, SupabaseUserGuard, RolesGuard)
+  @Roles(UserRole.SYSTEM_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  rejectBranchRegistration(
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.authService.rejectBranchRegistration(id, user.id);
+  }
+
+  @Post('pending-registrations/:id/resend')
+  @UseGuards(AuthGuard, SupabaseUserGuard, RolesGuard)
+  @Roles(UserRole.SYSTEM_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  resendInvite(@Param('id') id: string) {
+    return this.authService.resendInvite(id);
   }
 }

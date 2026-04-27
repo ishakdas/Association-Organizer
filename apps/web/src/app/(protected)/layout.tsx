@@ -32,6 +32,8 @@ export default async function ProtectedLayout({
       memberships: [],
       systemRole: null,
       telegramAccount: null,
+      onboardingCompletedAt: null,
+      mustChangePassword: false,
     };
   }
 

@@ -20,6 +20,16 @@ export interface AssociationDto {
   updatedAt: string;
 }
 
+export interface AssociationStatsDto {
+  totalMembers: number;
+  membersByRole: Record<string, number>;
+  totalTasks: number;
+  completedTasks: number;
+  pendingTasks: number;
+  completionRate: number;
+  totalMeetings: number;
+}
+
 export interface AssociationListResponse {
   data: AssociationDto[];
   meta: {

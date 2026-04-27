@@ -1,7 +1,8 @@
+import { redirect } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase/server';
 import { listAssociations } from '@/lib/api/associations';
 import { getMe } from '@/lib/api/me';
-import { isSystemAdmin } from '@/lib/permissions';
+import { isSystemAdmin, activeMemberships } from '@/lib/permissions';
 import type { AssociationListResponse } from '@ticketbot/shared-types';
 import { AssociationsList } from './_components/associations-list';
 
@@ -20,20 +21,27 @@ export default async function AssociationsPage() {
   let canCreate = false;
   if (session) {
     try {
+      const me = await getMe(session.access_token);
+      canCreate = isSystemAdmin(me);
+
+      // Non-admin users with a single active membership go directly to that association
+      if (!isSystemAdmin(me)) {
+        const active = activeMemberships(me);
+        if (active.length === 1) {
+          redirect(`/associations/${active[0].associationId}`);
+        }
+      }
+    } catch {
+      canCreate = false;
+    }
+
+    try {
       initialData = await listAssociations(session.access_token, {
         page: 1,
         pageSize: 20,
       });
     } catch {
-      // Auto-provisioning may not have completed yet, or API unreachable.
-      // Client side will refetch via TanStack Query.
       initialData = EMPTY;
-    }
-    try {
-      const me = await getMe(session.access_token);
-      canCreate = isSystemAdmin(me);
-    } catch {
-      canCreate = false;
     }
   }
 

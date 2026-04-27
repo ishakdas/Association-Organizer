@@ -28,6 +28,8 @@ const fakeUser = {
   memberships: [],
   systemRole: null,
   telegramAccount: null,
+  onboardingCompletedAt: null,
+  mustChangePassword: false,
 };
 
 const sampleAssociation = {

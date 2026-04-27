@@ -8,7 +8,7 @@ import { SupabaseAdminService } from '../supabase/supabase-admin.service';
 
 export interface CreateSupabaseUserInput {
   email: string;
-  password: string;
+  password?: string;
   fullName: string;
   phone?: string;
 }
@@ -36,11 +36,15 @@ export class UsersService {
   async createSupabaseUser(input: CreateSupabaseUserInput): Promise<User> {
     const auth = this.supabase.getAuthClient();
 
-    const { data, error } = await auth.createUser({
-      email: input.email,
-      password: input.password,
-      email_confirm: true,
-    });
+    const { data, error } = input.password
+      ? await auth.createUser({
+          email: input.email,
+          password: input.password,
+          email_confirm: true,
+        })
+      : await auth.inviteUserByEmail(input.email, {
+          data: { full_name: input.fullName },
+        });
 
     if (error || !data?.user) {
       throw new ConflictException(

@@ -24,6 +24,8 @@ const SYSTEM_ADMIN_ACTOR: AuthenticatedUser = {
   systemRole: 'SYSTEM_ADMIN',
   memberships: [],
   telegramAccount: null,
+  onboardingCompletedAt: null,
+  mustChangePassword: false,
 };
 
 const MANAGER_ACTOR: AuthenticatedUser = {
@@ -41,6 +43,8 @@ const MANAGER_ACTOR: AuthenticatedUser = {
     },
   ],
   telegramAccount: null,
+  onboardingCompletedAt: null,
+  mustChangePassword: false,
 };
 
 type PrismaMock = DeepMockProxy<PrismaClient>;

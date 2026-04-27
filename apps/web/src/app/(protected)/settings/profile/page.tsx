@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { createClient } from '@/lib/supabase/client';
 import { getMe } from '@/lib/api/me';
 import { updateProfile } from '@/lib/api/admin';
+import { clearTempPasswordFlag } from '@/lib/api/auth';
 import { userRoleLabel } from '@/lib/permissions';
 
 async function getToken(): Promise<string> {
@@ -93,9 +94,20 @@ export default function SettingsProfilePage() {
       const supabase = createClient();
       const { error: err } = await supabase.auth.updateUser({ password: newPwd });
       if (err) throw err;
+
+      // Geçici şifre flag'ini temizle (non-blocking)
+      try {
+        const token = await getToken();
+        await clearTempPasswordFlag(token);
+      } catch {
+        // Hata olsa da şifre değişti, devam et
+      }
+
       setNewPwd('');
       setConfirmPwd('');
       toast.success('Parola güncellendi');
+      // Sunucu tarafını yenile (banner'ın kaybolması için)
+      window.location.reload();
     } catch (err) {
       toast.error((err as Error).message);
     } finally {

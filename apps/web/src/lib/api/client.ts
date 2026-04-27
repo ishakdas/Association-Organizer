@@ -35,5 +35,7 @@ export async function apiClient<T>(path: string, options: FetchOptions = {}): Pr
     throw new Error(error.detail ?? `API error: ${response.status}`);
   }
 
-  return response.json();
+  const text = await response.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }

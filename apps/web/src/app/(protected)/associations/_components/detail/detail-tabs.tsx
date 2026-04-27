@@ -1,5 +1,6 @@
 'use client';
 
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   BookOpen,
   Briefcase,
@@ -54,6 +55,12 @@ export function DetailTabs({
   toplantilar,
   telegram,
 }: DetailTabsProps) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  const section = searchParams.get('section') ?? defaultValue;
+
   const panes: Record<string, React.ReactNode> = {
     genel,
     baskan,
@@ -64,8 +71,14 @@ export function DetailTabs({
     telegram,
   };
 
+  function handleTabChange(value: string) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('section', value);
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  }
+
   return (
-    <Tabs defaultValue={defaultValue} className="gap-5">
+    <Tabs value={section} onValueChange={handleTabChange} className="gap-5">
       <TabsList className="h-auto w-full">
         {TABS.map((t) => {
           const Icon = t.icon;

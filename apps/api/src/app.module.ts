@@ -11,6 +11,7 @@ import { TasksModule } from './modules/tasks/tasks.module';
 import { MeetingsModule } from './modules/meetings/meetings.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { EmailModule } from './modules/email/email.module';
 import { BotModule } from 'bot';
 
 @Module({
@@ -29,6 +30,7 @@ import { BotModule } from 'bot';
     TasksModule,
     MeetingsModule,
     AdminModule,
+    EmailModule,
     BotModule,
   ],
 })

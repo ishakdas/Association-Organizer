@@ -18,13 +18,16 @@ import { RosterSection } from '../_components/detail/roster-section';
 import { TasksSection } from '../_components/detail/tasks-section';
 import { MeetingsSection } from '../_components/detail/meetings-section';
 import { TelegramSection } from '../_components/detail/telegram-section';
+import { StatsPanel } from '../_components/detail/stats-panel';
 
 interface Props {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ section?: string }>;
 }
 
-export default async function AssociationDetailPage({ params }: Props) {
+export default async function AssociationDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
+  const { section } = await searchParams;
   const supabase = await createServerClient();
   const {
     data: { session },
@@ -50,14 +53,17 @@ export default async function AssociationDetailPage({ params }: Props) {
     const canManageManagerCard = isSystemAdmin(me);
     const canCreateWork = canCreateTasksAndMeetings(me, id);
 
+    const showBack = isSystemAdmin(me);
+
     return (
       <div className="pb-10">
-        <DetailHeader
-          name={a.name}
-        />
+        <DetailHeader name={a.name} showBack={showBack} />
+
+        {isSystemAdmin(me) && <div className="mt-6"><StatsPanel associationId={a.id} /></div>}
 
         <div className="mt-8">
           <DetailTabs
+            defaultValue={section ?? 'genel'}
             genel={<GeneralSection a={a} />}
             baskan={
               <RosterSection
@@ -104,30 +110,37 @@ export default async function AssociationDetailPage({ params }: Props) {
   }
 }
 
-function DetailHeader({ name }: { name: string }) {
+function DetailHeader({ name, showBack }: { name: string; showBack: boolean }) {
   return (
     <header className="space-y-5 border-b border-border pb-6">
-      <nav
-        aria-label="Breadcrumb"
-        className="flex items-center gap-1 text-[12px] text-muted-foreground"
-      >
-        <Link
-          href="/associations"
-          className="font-medium text-muted-foreground transition-colors hover:text-foreground"
+      {showBack && (
+        <nav
+          aria-label="Breadcrumb"
+          className="flex items-center gap-1 text-[12px] text-muted-foreground"
         >
-          Dernek Sicili
-        </Link>
-        <ChevronRight className="h-3 w-3 text-muted-foreground/50" />
-        <span className="truncate font-medium text-foreground">{name}</span>
-      </nav>
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" asChild className="-ml-2">
-          <Link href="/associations">
-            <ArrowLeft className="h-3.5 w-3.5" />
-            Tüm derneklere dön
+          <Link
+            href="/associations"
+            className="font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Dernek Sicili
           </Link>
-        </Button>
-      </div>
+          <ChevronRight className="h-3 w-3 text-muted-foreground/50" />
+          <span className="truncate font-medium text-foreground">{name}</span>
+        </nav>
+      )}
+      {showBack && (
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" asChild className="-ml-2">
+            <Link href="/associations">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Tüm derneklere dön
+            </Link>
+          </Button>
+        </div>
+      )}
+      {!showBack && (
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">{name}</h1>
+      )}
     </header>
   );
 }
