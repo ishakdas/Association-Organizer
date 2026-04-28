@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "TaskActivityAction" ADD VALUE 'ASSIGNMENT_ACCEPTED';

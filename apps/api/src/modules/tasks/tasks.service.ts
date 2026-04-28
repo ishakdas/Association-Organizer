@@ -389,6 +389,249 @@ export class TasksService {
     return updated;
   }
 
+  // Sets the task's dueDate to an absolute new instant. Used by the
+  // Telegram snooze submenu and inline-calendar callbacks. Authorization
+  // mirrors extendDueDate (assignee only). The reminder schedule is
+  // re-anchored against the new due date.
+  async snoozeDueDateViaBot(
+    taskId: string,
+    actingUserId: string,
+    newDueDate: Date,
+  ) {
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, deletedAt: null },
+      select: {
+        id: true,
+        status: true,
+        dueDate: true,
+        reminderAt: true,
+        assignedToUserId: true,
+      },
+    });
+    if (!task) throw new NotFoundException('Görev bulunamadı');
+    if (task.assignedToUserId !== actingUserId) {
+      throw new ForbiddenException('Bu görevi erteleyemezsiniz');
+    }
+    if (
+      task.status === TaskStatus.COMPLETED ||
+      task.status === TaskStatus.CANCELLED
+    ) {
+      throw new BadRequestException('Bu görev zaten kapalı');
+    }
+    if (Number.isNaN(newDueDate.getTime())) {
+      throw new BadRequestException('Geçersiz tarih');
+    }
+    if (newDueDate.getTime() <= Date.now()) {
+      throw new BadRequestException('Yeni tarih geçmiş olamaz');
+    }
+
+    const previousDue = task.dueDate;
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.task.update({
+        where: { id: taskId },
+        data: { dueDate: newDueDate },
+        include: {
+          assignedBy: { select: { id: true, fullName: true } },
+          watcher: { select: { id: true, fullName: true } },
+        },
+      });
+
+      await tx.taskActivity.create({
+        data: {
+          taskId,
+          actorId: actingUserId,
+          action: TaskActivityAction.DUE_DATE_CHANGED,
+          payload: {
+            from: previousDue?.toISOString() ?? null,
+            to: newDueDate.toISOString(),
+            via: 'telegram',
+          },
+        },
+      });
+
+      return next;
+    });
+
+    await this.scheduler.rescheduleTask({
+      id: updated.id,
+      dueDate: updated.dueDate,
+      reminderAt: updated.reminderAt,
+    });
+
+    return updated;
+  }
+
+  // Records that the assignee acknowledged ownership of the task from
+  // the assignment DM ("Kabul ediyorum"). Idempotent — re-tapping the
+  // button does not insert a second activity row. Status of the task
+  // itself isn't mutated; PENDING stays PENDING and the reminder
+  // schedule continues unchanged.
+  async acceptViaBot(taskId: string, actingUserId: string) {
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, deletedAt: null },
+      select: {
+        id: true,
+        status: true,
+        assignedToUserId: true,
+        disputed: true,
+      },
+    });
+    if (!task) throw new NotFoundException('Görev bulunamadı');
+    if (task.assignedToUserId !== actingUserId) {
+      throw new ForbiddenException('Bu görevi siz üstlenemezsiniz');
+    }
+    if (
+      task.status === TaskStatus.COMPLETED ||
+      task.status === TaskStatus.CANCELLED
+    ) {
+      throw new BadRequestException('Bu görev zaten kapalı');
+    }
+    if (task.disputed) {
+      throw new BadRequestException(
+        'Bu görev itiraz edilmiş; önce yönetici çözmeli',
+      );
+    }
+
+    const existing = await this.prisma.taskActivity.findFirst({
+      where: { taskId, action: TaskActivityAction.ASSIGNMENT_ACCEPTED },
+      select: { id: true },
+    });
+    if (existing) {
+      return this.prisma.task.findUniqueOrThrow({
+        where: { id: taskId },
+        include: {
+          assignedBy: { select: { id: true, fullName: true } },
+          watcher: { select: { id: true, fullName: true } },
+        },
+      });
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.taskActivity.create({
+        data: {
+          taskId,
+          actorId: actingUserId,
+          action: TaskActivityAction.ASSIGNMENT_ACCEPTED,
+          payload: { via: 'telegram' },
+        },
+      });
+
+      // PENDING → IN_PROGRESS on first acceptance. Mirrors the standard
+      // STATUS_CHANGED audit row used elsewhere; reminder schedule is
+      // not touched (deadline still applies, work is now in progress).
+      if (task.status === TaskStatus.PENDING) {
+        await tx.task.update({
+          where: { id: taskId },
+          data: { status: TaskStatus.IN_PROGRESS },
+        });
+        await tx.taskActivity.create({
+          data: {
+            taskId,
+            actorId: actingUserId,
+            action: TaskActivityAction.STATUS_CHANGED,
+            payload: {
+              from: TaskStatus.PENDING,
+              to: TaskStatus.IN_PROGRESS,
+              via: 'telegram',
+              reason: 'accepted',
+            },
+          },
+        });
+      }
+
+      return tx.task.findUniqueOrThrow({
+        where: { id: taskId },
+        include: {
+          assignedBy: { select: { id: true, fullName: true } },
+          watcher: { select: { id: true, fullName: true } },
+        },
+      });
+    });
+  }
+
+  // Flags a task as disputed by the assignee ("Bana ait değil"). The
+  // assignee stays on the task; the manager resolves the dispute from
+  // the web (reassign or dismiss — handled in Faz D). Reminders are
+  // paused until resolution so we don't badger the wrong person.
+  async disputeViaBot(taskId: string, actingUserId: string) {
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, deletedAt: null },
+      select: {
+        id: true,
+        status: true,
+        assignedToUserId: true,
+        disputed: true,
+      },
+    });
+    if (!task) throw new NotFoundException('Görev bulunamadı');
+    if (task.assignedToUserId !== actingUserId) {
+      throw new ForbiddenException('Bu görevde itiraz hakkınız yok');
+    }
+    if (
+      task.status === TaskStatus.COMPLETED ||
+      task.status === TaskStatus.CANCELLED
+    ) {
+      throw new BadRequestException('Bu görev zaten kapalı');
+    }
+
+    if (task.disputed) {
+      // Idempotent: re-pressing "Bana ait değil" doesn't double-log.
+      return this.prisma.task.findUniqueOrThrow({
+        where: { id: taskId },
+        include: {
+          assignedBy: { select: { id: true, fullName: true } },
+          watcher: { select: { id: true, fullName: true } },
+        },
+      });
+    }
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.task.update({
+        where: { id: taskId },
+        data: { disputed: true, disputedAt: new Date() },
+        include: {
+          assignedBy: { select: { id: true, fullName: true } },
+          watcher: { select: { id: true, fullName: true } },
+        },
+      });
+
+      await tx.taskActivity.create({
+        data: {
+          taskId,
+          actorId: actingUserId,
+          action: TaskActivityAction.REASSIGNMENT_REQUESTED,
+          payload: { via: 'telegram' },
+        },
+      });
+
+      return next;
+    });
+
+    await this.scheduler.cancelTask(taskId);
+
+    return updated;
+  }
+
+  // Returns the minimal context the bot integration needs to re-render
+  // the assignment keyboard when the user taps "Geri" out of the snooze
+  // submenu. Authorizes that the caller is still the assignee — anyone
+  // else interacting with someone else's DM gets a Forbidden.
+  async getAssignmentBotContext(taskId: string, actingUserId: string) {
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, deletedAt: null },
+      select: {
+        id: true,
+        dueDate: true,
+        assignedToUserId: true,
+      },
+    });
+    if (!task) throw new NotFoundException('Görev bulunamadı');
+    if (task.assignedToUserId !== actingUserId) {
+      throw new ForbiddenException('Bu görev size ait değil');
+    }
+    return task;
+  }
+
   async extendDueDate(taskId: string, actingUserId: string, days: number) {
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, deletedAt: null },

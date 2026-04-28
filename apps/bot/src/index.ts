@@ -16,3 +16,7 @@ export {
 } from './keyboards/reminder-actions.keyboard';
 export { assignmentActionsKeyboard } from './keyboards/assignment-actions.keyboard';
 export type { AssignmentKeyboardOptions } from './keyboards/assignment-actions.keyboard';
+export {
+  snoozeSubmenuKeyboard,
+  snoozeCalendarKeyboard,
+} from './keyboards/snooze-actions.keyboard';
