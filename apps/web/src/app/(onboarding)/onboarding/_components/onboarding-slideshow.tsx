@@ -10,6 +10,7 @@ import {
   ChevronRight,
   ClipboardList,
   Crown,
+  MessageSquare,
   Sparkles,
   Users,
 } from 'lucide-react';
@@ -124,6 +125,18 @@ const BRANCH_SLIDES: Slide[] = [
       'Katılımcı listesi ve yoklama takibi',
       'Toplantı notları ve kararlar',
       'Yapay zeka destekli görev çıkarımı',
+    ],
+  },
+  {
+    icon: <MessageSquare className="h-10 w-10" />,
+    eyebrow: 'Telegram Entegrasyonu',
+    title: 'Üyenizi Telegram\'a\nBağlayın',
+    subtitle:
+      'Üyeleriniz Telegram hesaplarını sisteme bağlayarak bildirim alabilir ve bot üzerinden işlem yapabilir.',
+    highlights: [
+      'Ayarlar → Telegram bölümüne gidin',
+      'Bağlantı kodu oluşturun ve kodu @YedimuinBot\'a gönderin',
+      'Bağlantı tamamlandığında üye otomatik tanımlanır',
     ],
   },
 ];

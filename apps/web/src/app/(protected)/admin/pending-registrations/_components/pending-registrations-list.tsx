@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Clock, Phone, MessageSquare, X, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { Clock, Phone, MessageSquare, X, RefreshCw, CheckCircle2, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -35,10 +35,12 @@ export function PendingRegistrationsList({
   const [tab, setTab] = useState<Tab>('pending');
   const [approveTarget, setApproveTarget] = useState<PendingRegistration | null>(null);
 
-  const { data: pendingData } = useQuery({
+  const { data: pendingData, isFetching, refetch } = useQuery({
     queryKey: PENDING_KEY,
     queryFn: async () => listPendingRegistrations(await getToken()),
     initialData,
+    refetchInterval: 30_000,
+    staleTime: 0,
   });
 
   const { data: approvedData } = useQuery({
@@ -63,7 +65,7 @@ export function PendingRegistrationsList({
     try {
       const token = await getToken();
       await resendInvite(token, id);
-      toast.success('Giriş bağlantısı yeniden gönderildi.');
+      toast.success('Davet e-postası yeniden gönderildi.');
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gönderim başarısız.');
     }
@@ -71,6 +73,7 @@ export function PendingRegistrationsList({
 
   return (
     <>
+      <div className="flex items-center justify-between gap-4">
       <div className="flex rounded-lg border border-border bg-muted p-1 w-fit">
         <button
           onClick={() => setTab('pending')}
@@ -97,6 +100,16 @@ export function PendingRegistrationsList({
         >
           Onaylandı
         </button>
+      </div>
+      <button
+        onClick={() => refetch()}
+        disabled={isFetching}
+        className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 transition-colors"
+        title="Yenile"
+      >
+        <RotateCcw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+        Yenile
+      </button>
       </div>
 
       {tab === 'pending' && (

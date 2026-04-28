@@ -14,7 +14,8 @@ export function usePendingRegistrationsCount(enabled = true) {
   const { data } = useQuery({
     queryKey: ['pending-registrations'],
     queryFn: async () => listPendingRegistrations(await getToken()),
-    staleTime: 60_000,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
     enabled,
   });
   return data?.length ?? 0;

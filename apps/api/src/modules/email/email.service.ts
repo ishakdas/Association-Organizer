@@ -41,7 +41,11 @@ export class EmailService implements OnModuleInit {
     }
   }
 
-  async sendTempPassword(to: string, fullName: string, tempPassword: string): Promise<void> {
+  async sendTempPassword(
+    to: string,
+    fullName: string,
+    tempPassword: string,
+  ): Promise<{ previewUrl: string | null }> {
     const info = await this.transporter.sendMail({
       from: this.from,
       to,
@@ -49,13 +53,65 @@ export class EmailService implements OnModuleInit {
       html: this.tempPasswordHtml(fullName, tempPassword),
     });
 
-    const preview = nodemailer.getTestMessageUrl(info);
-    if (preview) {
-      this.logger.log(`[DEV] E-posta önizlemesi: ${preview}`);
+    const previewUrl = nodemailer.getTestMessageUrl(info) || null;
+    if (previewUrl) {
+      this.logger.log(`[DEV] E-posta önizlemesi: ${previewUrl}`);
     }
+    return { previewUrl };
+  }
+
+  async sendBranchInvite(
+    to: string,
+    fullName: string,
+    tempPassword: string,
+    loginUrl: string,
+  ): Promise<{ previewUrl: string | null }> {
+    const info = await this.transporter.sendMail({
+      from: this.from,
+      to,
+      subject: "Yedimuîn'e Hoşgeldiniz",
+      html: this.branchInviteHtml(to, fullName, tempPassword, loginUrl),
+    });
+
+    const previewUrl = nodemailer.getTestMessageUrl(info) || null;
+    if (previewUrl) {
+      this.logger.log(`[DEV] E-posta önizlemesi: ${previewUrl}`);
+    }
+    return { previewUrl };
   }
 
   // ─── HTML Templates ──────────────────────────────────────────────────────────
+
+  private branchInviteHtml(email: string, fullName: string, tempPassword: string, loginUrl: string): string {
+    return this.wrapLayout(`
+      <h1>Yedimuîn'e Hoşgeldiniz!</h1>
+      <p>Merhaba <strong>${this.escape(fullName)}</strong>,</p>
+      <p>
+        Yedimuîn Dernek Yönetim Sistemi'ne davet edildiniz.
+        Aşağıdaki bilgilerle sisteme giriş yapabilir ve şubenizi yönetmeye başlayabilirsiniz.
+      </p>
+      <div style="margin:24px 0;padding:20px;background:#f0f9ff;border-radius:8px;border:1px solid #bae6fd;">
+        <p style="margin:0 0 6px;font-size:13px;color:#0369a1;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">E-posta Adresiniz</p>
+        <p style="margin:0 0 16px;font-size:15px;font-weight:600;color:#0c4a6e;">${this.escape(email)}</p>
+        <p style="margin:0 0 6px;font-size:13px;color:#0369a1;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Geçici Şifreniz</p>
+        <p style="margin:0;font-size:26px;font-weight:700;letter-spacing:0.12em;color:#0c4a6e;font-family:monospace;">${this.escape(tempPassword)}</p>
+      </div>
+      <p style="text-align:center;margin:28px 0;">
+        <a href="${this.escape(loginUrl)}"
+           style="display:inline-block;background:#1e40af;color:#ffffff;font-size:15px;font-weight:600;
+                  text-decoration:none;padding:12px 32px;border-radius:8px;letter-spacing:0.02em;">
+          Sisteme Giriş Yap
+        </a>
+      </p>
+      <p style="font-size:14px;color:#374151;">
+        İlk girişin ardından <strong>Ayarlar → Hesabım</strong> bölümünden şifrenizi değiştirmenizi tavsiye ederiz.
+      </p>
+      <p class="note">
+        Bu daveti beklemiyorsanız lütfen bu e-postayı dikkate almayın.
+        Herhangi bir sorun için sistem yöneticinizle iletişime geçebilirsiniz.
+      </p>
+    `);
+  }
 
   private tempPasswordHtml(fullName: string, tempPassword: string): string {
     return this.wrapLayout(`

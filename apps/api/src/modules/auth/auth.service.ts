@@ -16,7 +16,6 @@ import * as jose from 'jose';
 import { randomBytes } from 'crypto';
 import { BOT_JWT_ISSUER } from './auth.constants';
 import { SupabaseAdminService } from '../supabase/supabase-admin.service';
-import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class AuthService {
@@ -26,7 +25,6 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly supabase: SupabaseAdminService,
-    private readonly email: EmailService,
   ) {}
 
   async generateLinkToken(userId: string) {
@@ -205,29 +203,17 @@ export class AuthService {
       throw new BadRequestException('Bu başvuru onaylanmamış');
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { email: registration.email },
-      select: { supabaseUserId: true },
-    });
-    if (!user?.supabaseUserId) return { sent: false };
-
-    const tempPassword = this.generateTempPassword();
     const auth = this.supabase.getAuthClient();
+    const webUrl = this.config.get<string>('webUrl') ?? 'http://localhost:3001';
 
-    const { error } = await auth.updateUserById(user.supabaseUserId, {
-      password: tempPassword,
+    const { error } = await auth.inviteUserByEmail(registration.email, {
+      data: { full_name: registration.fullName },
+      redirectTo: `${webUrl}/callback-magic?next=/onboarding`,
     });
     if (error) {
-      this.logger.error(`Supabase şifre güncellenemedi (${registration.email}): ${error.message}`);
+      this.logger.error(`Supabase davet gönderilemedi (${registration.email}): ${error.message}`);
       return { sent: false };
     }
-
-    await this.prisma.user.update({
-      where: { email: registration.email },
-      data: { mustChangePassword: true },
-    });
-
-    await this.email.sendTempPassword(registration.email, registration.fullName, tempPassword);
     return { sent: true };
   }
 
@@ -235,7 +221,7 @@ export class AuthService {
     id: string,
     adminUserId: string,
     dto: ApproveBranchRegistrationInput,
-  ): Promise<void> {
+  ): Promise<{}> {
     // --- Pre-checks (before any Supabase call so no email is sent on error) ---
     const registration = await this.prisma.pendingBranchRegistration.findUnique({
       where: { id },
@@ -260,34 +246,21 @@ export class AuthService {
       }
     }
 
-    // --- Generate temp password ---
-    const tempPassword = this.generateTempPassword();
-
-    // --- Get or create confirmed Supabase user ---
+    // --- Send Supabase invite email (creates user + sends magic link) ---
     const auth = this.supabase.getAuthClient();
+    const webUrl = this.config.get<string>('webUrl') ?? 'http://localhost:3001';
 
-    let supabaseUserId: string;
-    const existingDbUser = await this.prisma.user.findFirst({
-      where: { email: registration.email },
-      select: { supabaseUserId: true },
-    });
-
-    if (existingDbUser?.supabaseUserId) {
-      supabaseUserId = existingDbUser.supabaseUserId;
-      // Update password for existing Supabase user
-      await auth.updateUserById(supabaseUserId, { password: tempPassword });
-    } else {
-      const { data: userData, error: createError } = await auth.createUser({
-        email: registration.email,
-        password: tempPassword,
-        email_confirm: true,
-        user_metadata: { full_name: registration.fullName },
-      });
-      if (createError) {
-        throw new BadRequestException(`Kullanıcı oluşturulamadı: ${createError.message}`);
-      }
-      supabaseUserId = userData.user.id;
+    const { data: inviteData, error: inviteError } = await auth.inviteUserByEmail(
+      registration.email,
+      {
+        data: { full_name: registration.fullName },
+        redirectTo: `${webUrl}/callback-magic?next=/onboarding`,
+      },
+    );
+    if (inviteError) {
+      throw new BadRequestException(`Davet gönderilemedi: ${inviteError.message}`);
     }
+    const supabaseUserId = inviteData.user.id;
 
     // --- Persist ---
     try {
@@ -337,8 +310,7 @@ export class AuthService {
       throw err;
     }
 
-    // --- Send temp password email ---
-    await this.email.sendTempPassword(registration.email, registration.fullName, tempPassword);
+    return {};
   }
 
   async rejectBranchRegistration(id: string, adminUserId: string): Promise<void> {
@@ -360,9 +332,4 @@ export class AuthService {
     });
   }
 
-  // ─── Helpers ───────────────────────────────────────────────────────────────
-
-  private generateTempPassword(): string {
-    return randomBytes(8).toString('base64url');
-  }
 }

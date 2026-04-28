@@ -42,10 +42,10 @@ export function listApprovedRegistrations(token: string) {
 }
 
 export function resendInvite(token: string, id: string) {
-  return apiClient<{ sent: boolean }>(`/auth/pending-registrations/${id}/resend`, {
-    token,
-    method: 'POST',
-  });
+  return apiClient<{ sent: boolean }>(
+    `/auth/pending-registrations/${id}/resend`,
+    { token, method: 'POST' },
+  );
 }
 
 export function approveBranchRegistration(
@@ -53,7 +53,7 @@ export function approveBranchRegistration(
   id: string,
   data: { associationId: string; role: string },
 ) {
-  return apiClient<void>(`/auth/pending-registrations/${id}/approve`, {
+  return apiClient<{}>(`/auth/pending-registrations/${id}/approve`, {
     token,
     method: 'POST',
     body: JSON.stringify(data),

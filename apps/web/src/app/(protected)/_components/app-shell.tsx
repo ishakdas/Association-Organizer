@@ -381,7 +381,7 @@ function TempPasswordBanner() {
     <div className="flex items-center gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
       <AlertTriangle className="h-4 w-4 shrink-0" />
       <p className="flex-1 text-[13px] font-medium">
-        Geçici şifrenizle giriş yaptınız. Güvenliğiniz için şifrenizi değiştirmenizi öneririz.
+        Davet bağlantısı ile giriş yaptınız. Güvenliğiniz için kalıcı bir şifre belirlemenizi öneririz.
       </p>
       <a
         href="/settings/profile"

@@ -5,6 +5,8 @@ import { isSystemAdmin } from '@/lib/permissions';
 import { listPendingRegistrations, type PendingRegistration } from '@/lib/api/auth';
 import { PendingRegistrationsList } from './_components/pending-registrations-list';
 
+export const dynamic = 'force-dynamic';
+
 export default async function PendingRegistrationsPage() {
   const supabase = await createServerClient();
   const {
