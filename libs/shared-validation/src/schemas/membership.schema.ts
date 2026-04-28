@@ -103,6 +103,13 @@ export const memberResponseSchema = z.object({
     fullName: z.string(),
     email: z.string().nullable(),
     phone: z.string().nullable(),
+    telegramAccount: z
+      .object({
+        username: z.string().nullable(),
+        linkedAt: z.string(),
+      })
+      .nullable()
+      .optional(),
   }),
   title: z
     .object({

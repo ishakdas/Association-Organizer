@@ -20,6 +20,25 @@ import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
 
+// Single source of truth for the include shape used by every read in
+// this service. We deliberately `select` only the safe fields off
+// telegram_accounts — the BigInt `telegramId` would leak the user's
+// Telegram primary key through the API and is intentionally omitted.
+export const MEMBER_INCLUDE = {
+  user: {
+    include: {
+      telegramAccount: {
+        select: { username: true, createdAt: true },
+      },
+    },
+  },
+  title: true,
+} satisfies Prisma.AssociationMembershipInclude;
+
+type MembershipRow = Prisma.AssociationMembershipGetPayload<{
+  include: typeof MEMBER_INCLUDE;
+}>;
+
 @Injectable()
 export class AssociationMembersService {
   private readonly logger = new Logger(AssociationMembersService.name);
@@ -29,6 +48,22 @@ export class AssociationMembersService {
     private readonly users: UsersService,
     private readonly auth: AuthService,
   ) {}
+
+  // Maps a Prisma row to the API response shape. The only transform is
+  // renaming TelegramAccount.createdAt → user.telegramAccount.linkedAt
+  // (the schema-facing name). Returns the row otherwise unchanged.
+  private mapMember(row: MembershipRow) {
+    const tg = row.user.telegramAccount;
+    return {
+      ...row,
+      user: {
+        ...row.user,
+        telegramAccount: tg
+          ? { username: tg.username, linkedAt: tg.createdAt.toISOString() }
+          : null,
+      },
+    };
+  }
 
   async create(associationId: string, input: AddMemberInput) {
     await this.ensureAssociation(associationId);
@@ -53,7 +88,7 @@ export class AssociationMembersService {
             phone: input.phone,
           });
 
-      return await this.prisma.associationMembership.create({
+      const created = await this.prisma.associationMembership.create({
         data: {
           associationId,
           userId: createdUser.id,
@@ -62,8 +97,9 @@ export class AssociationMembersService {
           customTitle: input.customTitle ?? null,
           isActive: true,
         },
-        include: { user: true, title: true },
+        include: MEMBER_INCLUDE,
       });
+      return this.mapMember(created);
     } catch (e) {
       // Membership insert failed after the user was created — roll the
       // user back so we don't leave orphans (especially in Supabase).
@@ -113,11 +149,12 @@ export class AssociationMembersService {
       where.leftAt = null;
     }
 
-    return this.prisma.associationMembership.findMany({
+    const rows = await this.prisma.associationMembership.findMany({
       where,
-      include: { user: true, title: true },
+      include: MEMBER_INCLUDE,
       orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
     });
+    return rows.map((row) => this.mapMember(row));
   }
 
   async update(
@@ -155,11 +192,12 @@ export class AssociationMembersService {
     }
 
     try {
-      return await this.prisma.associationMembership.update({
+      const updated = await this.prisma.associationMembership.update({
         where: { id: membershipId },
         data,
-        include: { user: true, title: true },
+        include: MEMBER_INCLUDE,
       });
+      return this.mapMember(updated);
     } catch (e) {
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -189,14 +227,15 @@ export class AssociationMembersService {
       );
     }
 
-    return this.prisma.associationMembership.update({
+    const removed = await this.prisma.associationMembership.update({
       where: { id: membershipId },
       data: {
         isActive: false,
         leftAt: new Date(),
       },
-      include: { user: true, title: true },
+      include: MEMBER_INCLUDE,
     });
+    return this.mapMember(removed);
   }
 
   // Admin-issued Telegram link code: a manager (or system admin) generates
