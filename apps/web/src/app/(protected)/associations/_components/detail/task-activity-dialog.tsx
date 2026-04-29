@@ -38,6 +38,10 @@ const ACTION_ICON: Record<TaskActivityActionValue, LucideIcon> = {
   TITLE_CHANGED: History,
   REMINDER_CHANGED: Clock,
   REMINDER_SENT: Bell,
+  ASSIGNED_NOTIFIED: Bell,
+  ASSIGNMENT_ACCEPTED: CheckCircle2,
+  REASSIGNMENT_REQUESTED: RotateCw,
+  REASSIGNMENT_RESOLVED: CheckCircle2,
 };
 
 const STATUS_LABEL: Record<string, string> = {

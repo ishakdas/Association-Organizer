@@ -256,7 +256,26 @@ export function RosterSection({
                         {m.user.phone}
                       </span>
                     )}
-                    {!m.user.email && !m.user.phone && '—'}
+                    {m.user.telegramAccount && (
+                      <Badge
+                        variant="success"
+                        className="mt-1 inline-flex items-center gap-1"
+                        title={
+                          m.user.telegramAccount.linkedAt
+                            ? `Bağlandı: ${new Date(
+                                m.user.telegramAccount.linkedAt,
+                              ).toLocaleDateString('tr-TR')}`
+                            : undefined
+                        }
+                      >
+                        <Send className="h-3 w-3" />
+                        Telegram
+                      </Badge>
+                    )}
+                    {!m.user.email &&
+                      !m.user.phone &&
+                      !m.user.telegramAccount &&
+                      '—'}
                   </TableCell>
                   <TableCell className="text-right text-[12.5px] text-muted-foreground">
                     {new Date(m.joinedAt).toLocaleDateString('tr-TR')}
@@ -349,6 +368,22 @@ function SingleCard({
               <Phone className="h-3.5 w-3.5" />
               {m.user.phone}
             </a>
+          )}
+          {m.user.telegramAccount && (
+            <Badge
+              variant="success"
+              className="inline-flex items-center gap-1"
+              title={
+                m.user.telegramAccount.linkedAt
+                  ? `Bağlandı: ${new Date(
+                      m.user.telegramAccount.linkedAt,
+                    ).toLocaleDateString('tr-TR')}`
+                  : undefined
+              }
+            >
+              <Send className="h-3 w-3" />
+              Telegram
+            </Badge>
           )}
         </div>
         <div className="text-[12px] text-muted-foreground">

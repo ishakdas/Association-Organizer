@@ -31,3 +31,22 @@ export const ReminderFrequency = {
   MONTHLY: 'MONTHLY',
 } as const;
 export type ReminderFrequency = (typeof ReminderFrequency)[keyof typeof ReminderFrequency];
+
+export const EventType = {
+  CONFERENCE: 'CONFERENCE',
+  TALK: 'TALK',
+  SEMINAR: 'SEMINAR',
+  IFTAR: 'IFTAR',
+  KANDIL: 'KANDIL',
+  MEETING: 'MEETING',
+  CUSTOM: 'CUSTOM',
+} as const;
+export type EventType = (typeof EventType)[keyof typeof EventType];
+
+export const RecurrenceType = {
+  NONE: 'NONE',
+  DAILY: 'DAILY',
+  WEEKLY: 'WEEKLY',
+  MONTHLY: 'MONTHLY',
+} as const;
+export type RecurrenceType = (typeof RecurrenceType)[keyof typeof RecurrenceType];

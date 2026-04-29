@@ -12,7 +12,10 @@ import {
 } from '@nestjs/common';
 import { PrismaClient, PrismaService, Prisma } from '@ticketbot/database';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
-import { AssociationMembersService } from './association-members.service';
+import {
+  AssociationMembersService,
+  MEMBER_INCLUDE,
+} from './association-members.service';
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
 
@@ -85,6 +88,7 @@ const sampleMembership = {
     fullName: sampleUser.fullName,
     email: sampleUser.email,
     phone: sampleUser.phone,
+    telegramAccount: null,
   },
   title: null,
 };
@@ -158,7 +162,7 @@ describe('AssociationMembersService', () => {
           role: 'ASSOCIATION_MEMBER',
           isActive: true,
         }),
-        include: { user: true, title: true },
+        include: MEMBER_INCLUDE,
       });
       expect(result).toEqual(sampleMembership);
     });
@@ -245,7 +249,7 @@ describe('AssociationMembersService', () => {
           deletedAt: null,
           leftAt: null,
         },
-        include: { user: true, title: true },
+        include: MEMBER_INCLUDE,
         orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
       });
       expect(result).toEqual([sampleMembership]);
@@ -346,7 +350,7 @@ describe('AssociationMembersService', () => {
       expect(prisma.associationMembership.update).toHaveBeenCalledWith({
         where: { id: sampleMembership.id },
         data: { role: 'ASSOCIATION_SECRETARY' },
-        include: { user: true, title: true },
+        include: MEMBER_INCLUDE,
       });
       expect(result.role).toBe('ASSOCIATION_SECRETARY');
     });

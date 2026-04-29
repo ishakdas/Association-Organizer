@@ -103,6 +103,42 @@ export {
   type ExtractionResultOutput,
 } from './schemas/extracted-action-item.schema';
 
+// Events (Etkinlik & Program Yönetimi)
+export {
+  eventTypeEnum,
+  recurrenceTypeEnum,
+  createEventSchema,
+  updateEventSchema,
+  listEventsQuerySchema,
+  eventAssignmentInputSchema,
+  updateEventAssignmentSchema,
+  eventResponseSchema,
+  eventAssignmentResponseSchema,
+  eventListItemSchema,
+  type EventTypeValue,
+  type RecurrenceTypeValue,
+  type CreateEventInput,
+  type UpdateEventInput,
+  type ListEventsQuery,
+  type EventAssignmentInput,
+  type UpdateEventAssignmentInput,
+  type EventResponse,
+  type EventAssignmentResponse,
+  type EventListItem,
+} from './schemas/event.schema';
+
+// Event Role Definitions (Dernek bazlı sorumluluk rolleri)
+export {
+  createEventRoleSchema,
+  updateEventRoleSchema,
+  listEventRolesQuerySchema,
+  eventRoleResponseSchema,
+  type CreateEventRoleInput,
+  type UpdateEventRoleInput,
+  type ListEventRolesQuery,
+  type EventRoleResponse,
+} from './schemas/event-role.schema';
+
 // Admin (Sistem Yönetimi)
 export {
   updateProfileSchema,

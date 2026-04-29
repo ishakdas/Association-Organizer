@@ -4,6 +4,8 @@ export {
   TaskStatus,
   TaskPriority,
   ReminderFrequency,
+  EventType,
+  RecurrenceType,
 } from './enums';
 
 // Domain DTOs
@@ -26,6 +28,13 @@ export type {
   AuthTelegramAccount,
   AuthenticatedUser,
 } from './domain/auth';
+export type {
+  EventDto,
+  EventListItemDto,
+  EventAssignmentDto,
+  EventAssigneeDto,
+  EventRoleDefinitionDto,
+} from './domain/event';
 
 // Common
 export type { PaginatedResponse, ApiErrorResponse } from './domain/common';

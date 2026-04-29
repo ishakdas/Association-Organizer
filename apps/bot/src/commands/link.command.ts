@@ -94,7 +94,10 @@ export function registerLinkCommand(
       return ctx.reply(
         `Merhaba ${user.fullName}!\n\n` +
           'Hesabınızı bağlamadan önce, kayıtlı telefonunuzla aynı olduğunu ' +
-          'doğrulamak için lütfen telefon numaranızı paylaşın.',
+          'doğrulamak için telefon numaranızı paylaşmanız gerekiyor.\n\n' +
+          '👉 Aşağıdaki "📱 Telefonu paylaş" butonuna dokunun.\n' +
+          '⚠️ Telefonu elle yazmak çalışmaz — güvenlik için Telegram\'ın ' +
+          'paylaşım butonu zorunludur.',
         Markup.keyboard([
           [Markup.button.contactRequest('📱 Telefonu paylaş')],
         ])
@@ -198,6 +201,43 @@ export function registerLinkCommand(
     return ctx.reply(
       'Hesap başarıyla bağlandı! ✅\n\nGörev hatırlatmalarını bu sohbette göndereceğim.',
       removeKeyboard,
+    );
+  });
+
+  // Fallback for the common case where the user types a phone number (or
+  // anything else) instead of tapping the contact-share button. We can't
+  // accept typed text — a leaked link token would otherwise let an
+  // attacker bind their own Telegram by typing the victim's known phone.
+  // Pass slash-commands and unrelated chats through to other middleware.
+  bot.on('text', async (ctx, next) => {
+    const fromId = ctx.from?.id;
+    const text = ctx.message?.text;
+    if (!fromId || !text || text.startsWith('/')) return next();
+
+    const pending = pendingLinks.get(fromId);
+    if (!pending) return next();
+
+    if (pending.expiresAt <= Date.now()) {
+      pendingLinks.delete(fromId);
+      return ctx.reply(
+        'Bağlama oturumunun süresi doldu. Lütfen yeni bir kod alın.',
+        removeKeyboard,
+      );
+    }
+
+    return ctx.reply(
+      '🔒 Telefon numarası elle yazılarak doğrulanamıyor — güvenlik için ' +
+        'Telegram\'ın paylaşım butonu üzerinden onay gerekiyor.\n\n' +
+        'Aşağıdaki "📱 Telefonu paylaş" butonuna dokunduğunuzda Telegram, ' +
+        'numaranızı otomatik olarak bana iletecek.\n\n' +
+        'Butonu göremiyorsanız:\n' +
+        '• Telegram\'ı mobil uygulamada açın (Web/Desktop\'ta kişi paylaşımı bazen çalışmaz).\n' +
+        '• Klavyeyi kapatıp ekranın altındaki yanıt butonunu deneyin.',
+      Markup.keyboard([
+        [Markup.button.contactRequest('📱 Telefonu paylaş')],
+      ])
+        .oneTime()
+        .resize(),
     );
   });
 }

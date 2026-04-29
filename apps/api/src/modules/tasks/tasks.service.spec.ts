@@ -2,8 +2,10 @@ import { Test } from '@nestjs/testing';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaClient, PrismaService } from '@ticketbot/database';
+import { BotService } from 'bot';
 import { TasksService } from './tasks.service';
 import { TaskReminderScheduler } from '../jobs/task-reminder.scheduler';
+import { IcsTokenService } from './ics-token.service';
 
 type PrismaMock = DeepMockProxy<PrismaClient>;
 
@@ -45,6 +47,9 @@ const sampleTask = {
   description: null,
   assignedToUserId: 'mem-1',
   assignedById: 'sec-1',
+  assignedBy: { id: 'sec-1', fullName: 'Sekreter' },
+  watcherUserId: null,
+  watcher: null,
   status: 'PENDING',
   priority: 'MEDIUM',
   dueDate: null,
@@ -84,12 +89,22 @@ describe('TasksService', () => {
       rescheduleTask: jest.fn().mockResolvedValue(undefined),
       scheduleNextReminder: jest.fn().mockResolvedValue(undefined),
     };
+    const botMock = {
+      sendToUser: jest.fn().mockResolvedValue(false),
+    };
+    const icsTokensMock = {
+      signTaskIcsUrl: jest.fn().mockReturnValue('https://example.test/ics'),
+      verifyTaskIcsToken: jest.fn().mockReturnValue(true),
+      uidDomain: jest.fn().mockReturnValue('example.test'),
+    };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         TasksService,
         { provide: PrismaService, useValue: prisma },
         { provide: TaskReminderScheduler, useValue: schedulerMock },
+        { provide: BotService, useValue: botMock },
+        { provide: IcsTokenService, useValue: icsTokensMock },
       ],
     }).compile();
     service = moduleRef.get(TasksService);

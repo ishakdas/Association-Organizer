@@ -9,6 +9,8 @@ import { UsersModule } from './modules/users/users.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { MeetingsModule } from './modules/meetings/meetings.module';
+import { EventsModule } from './modules/events/events.module';
+import { EventRolesModule } from './modules/event-roles/event-roles.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { EmailModule } from './modules/email/email.module';
@@ -29,6 +31,8 @@ import { BotModule } from 'bot';
     JobsModule,
     TasksModule,
     MeetingsModule,
+    EventsModule,
+    EventRolesModule,
     AdminModule,
     EmailModule,
     BotModule,

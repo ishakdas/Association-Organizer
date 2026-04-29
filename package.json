@@ -28,6 +28,9 @@
   "pnpm": {
     "overrides": {
       "fastify": ">=5.8.5"
-    }
+    },
+    "onlyBuiltDependencies": [
+      "puppeteer"
+    ]
   }
 }

@@ -2,11 +2,13 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bullmq';
 import { BotModule } from 'bot';
-import { TASK_REMINDERS_QUEUE } from './jobs.constants';
+import { EVENT_REMINDERS_QUEUE, TASK_REMINDERS_QUEUE } from './jobs.constants';
 import { TaskReminderScheduler } from './task-reminder.scheduler';
 import { TaskReminderProcessor } from './processors/task-reminder.processor';
+import { EventReminderScheduler } from './event-reminder.scheduler';
+import { EventReminderProcessor } from './processors/event-reminder.processor';
 
-export { TASK_REMINDERS_QUEUE };
+export { TASK_REMINDERS_QUEUE, EVENT_REMINDERS_QUEUE };
 
 @Module({
   imports: [
@@ -25,9 +27,15 @@ export { TASK_REMINDERS_QUEUE };
       },
     }),
     BullModule.registerQueue({ name: TASK_REMINDERS_QUEUE }),
+    BullModule.registerQueue({ name: EVENT_REMINDERS_QUEUE }),
     BotModule,
   ],
-  providers: [TaskReminderScheduler, TaskReminderProcessor],
-  exports: [TaskReminderScheduler, BullModule],
+  providers: [
+    TaskReminderScheduler,
+    TaskReminderProcessor,
+    EventReminderScheduler,
+    EventReminderProcessor,
+  ],
+  exports: [TaskReminderScheduler, EventReminderScheduler, BullModule],
 })
 export class JobsModule {}

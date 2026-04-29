@@ -102,6 +102,10 @@ export const taskResponseSchema = z.object({
   notifiedViaTelegram: z.boolean(),
   lastNotifiedAt: z.string().nullable(),
   completedAt: z.string().nullable(),
+  // Dispute flag — present on responses once Faz B writes the column.
+  // Defaulted so older serializers that haven't been updated still parse.
+  disputed: z.boolean().default(false),
+  disputedAt: z.string().nullable().default(null),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -121,6 +125,10 @@ export const taskActivityActionEnum = z.enum([
   'TITLE_CHANGED',
   'REMINDER_CHANGED',
   'REMINDER_SENT',
+  'ASSIGNED_NOTIFIED',
+  'ASSIGNMENT_ACCEPTED',
+  'REASSIGNMENT_REQUESTED',
+  'REASSIGNMENT_RESOLVED',
 ]);
 export type TaskActivityActionValue = z.infer<typeof taskActivityActionEnum>;
 
