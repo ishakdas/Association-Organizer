@@ -9,6 +9,7 @@ import {
   BookUser,
   ClipboardList,
   Crown,
+  Home,
   Info,
   LogOut,
   Menu,
@@ -38,7 +39,8 @@ interface NavItem {
 function buildNav(user: AuthenticatedUser): NavItem[] {
   if (isSystemAdmin(user)) {
     return [
-      { href: '/associations', label: 'Dernek Sicili', icon: BookUser, primary: true },
+      { href: '/dashboard', label: 'Ana Sayfa', icon: Home, primary: true },
+      { href: '/associations', label: 'Şubeler', icon: BookUser, primary: true },
       { href: '/admin/pending-registrations', label: 'Başvurular', icon: UserCheck, primary: true },
       { href: '/settings', label: 'Ayarlar', icon: Settings },
     ];
@@ -81,7 +83,6 @@ export function AppShell({
       ? { ...item, badge: pendingCount }
       : item,
   );
-  const primary = items.filter((i) => i.primary).slice(0, 4);
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -97,10 +98,9 @@ export function AppShell({
         {user.mustChangePassword && user.onboardingCompletedAt && (
           <TempPasswordBanner />
         )}
-        <main className="flex-1 px-5 pb-24 pt-6 sm:px-8 sm:py-10 lg:pb-10">
+        <main className="flex-1 px-5 pb-10 pt-6 sm:px-8 sm:py-10">
           <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>
-        <BottomNav items={primary} />
       </div>
     </div>
   );
@@ -126,14 +126,14 @@ function Sidebar({
         onClick={onClose}
         aria-hidden
         className={cn(
-          'fixed inset-0 z-30 bg-foreground/40 backdrop-blur-sm transition-opacity lg:hidden',
+          'fixed inset-0 z-30 bg-foreground/40 backdrop-blur-sm transition-opacity duration-300 ease-in-out lg:hidden',
           mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
         )}
       />
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col border-r border-border bg-card transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col border-r border-border bg-card shadow-xl transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 lg:shadow-none',
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         )}
       >
@@ -214,22 +214,23 @@ function NavLink({
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'relative flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+        'group relative flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150',
         active
           ? 'bg-accent text-foreground'
-          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground hover:translate-x-0.5',
       )}
     >
-      {active && (
-        <span
-          aria-hidden
-          className="absolute inset-y-1 left-0 w-[2px] rounded-full bg-primary"
-        />
-      )}
+      <span
+        aria-hidden
+        className={cn(
+          'absolute inset-y-1 left-0 w-[2px] rounded-full bg-primary transition-all duration-200',
+          active ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0',
+        )}
+      />
       <Icon
         className={cn(
-          'h-4 w-4 shrink-0',
-          active ? 'text-primary' : 'text-muted-foreground',
+          'h-4 w-4 shrink-0 transition-colors duration-150',
+          active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
         )}
       />
       <span className="truncate flex-1">{label}</span>
@@ -311,40 +312,6 @@ function MobileTopbar({ onMenu }: { onMenu: () => void }) {
   );
 }
 
-function BottomNav({ items }: { items: NavItem[] }) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  if (items.length === 0) return null;
-
-  return (
-    <nav
-      aria-label="Mobil birincil gezinme"
-      className="fixed inset-x-0 bottom-0 z-30 grid border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
-      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
-    >
-      {items.map((item) => {
-        const Icon = item.icon;
-        const active = isNavActive(pathname, searchParams, item);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={active ? 'page' : undefined}
-            className={cn(
-              'flex h-14 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors',
-              active
-                ? 'text-primary'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <Icon className="h-5 w-5" />
-            <span className="leading-none">{item.label}</span>
-          </Link>
-        );
-      })}
-    </nav>
-  );
-}
 
 function isNavActive(
   pathname: string | null,
@@ -360,9 +327,14 @@ function isNavActive(
     return pathname === itemPathname && section === item.matchSection;
   }
 
-  // /associations — exact match or child pages (for admin)
+  // /dashboard — exact match
+  if (item.href === '/dashboard') {
+    return pathname === '/dashboard';
+  }
+
+  // /associations — exact match only for the admin nav item
   if (item.href === '/associations') {
-    return pathname === '/associations' || pathname.startsWith('/associations/');
+    return pathname === '/associations';
   }
 
   if (item.href === '/admin/pending-registrations') {
