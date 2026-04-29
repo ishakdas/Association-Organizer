@@ -39,3 +39,12 @@ export interface AssociationListResponse {
     totalPages: number;
   };
 }
+
+export interface GlobalBranchStatsDto {
+  totalBranches: number;
+  activeBranches: number;
+  inactiveBranches: number;
+  totalMembers: number;
+  pendingRegistrations: number;
+  cityDistribution: { city: string; count: number }[];
+}
