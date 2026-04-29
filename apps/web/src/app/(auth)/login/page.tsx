@@ -8,6 +8,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { getProvinceNames, getDistricts } from '@/lib/turkey-locations';
 
 type ActiveTab = 'admin' | 'branch';
 
@@ -182,9 +190,19 @@ function BranchLoginPanel() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [city, setCity] = useState('');
+  const [district, setDistrict] = useState('');
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const provinces = getProvinceNames();
+  const districts = city ? getDistricts(city) : [];
+
+  function handleCityChange(value: string) {
+    setCity(value);
+    setDistrict('');
+  }
 
   async function handleEmailSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -242,14 +260,21 @@ function BranchLoginPanel() {
 
   async function handleRegisterSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!city || !district) {
+      setError('Lütfen il ve ilçe seçiniz.');
+      return;
+    }
     setLoading(true);
     setError(null);
 
     try {
+      const rawPhone = phone.replace(/\s/g, '');
       await requestBranchRegistration({
         email,
         fullName,
-        phone: phone || undefined,
+        phone: rawPhone ? `+90${rawPhone}` : undefined,
+        city,
+        district,
         message: message || undefined,
       });
       setStep('pending');
@@ -405,18 +430,65 @@ function BranchLoginPanel() {
         </div>
 
         <div className="space-y-1.5">
+          <Label className="text-[13px] font-medium">
+            İl <span className="text-destructive">*</span>
+          </Label>
+          <Select value={city} onValueChange={handleCityChange} disabled={loading}>
+            <SelectTrigger>
+              <SelectValue placeholder="İl seçiniz..." />
+            </SelectTrigger>
+            <SelectContent>
+              {provinces.map((p) => (
+                <SelectItem key={p} value={p}>{p}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label className="text-[13px] font-medium">
+            İlçe <span className="text-destructive">*</span>
+          </Label>
+          <Select value={district} onValueChange={setDistrict} disabled={loading || !city}>
+            <SelectTrigger>
+              <SelectValue placeholder={city ? 'İlçe seçiniz...' : 'Önce il seçiniz'} />
+            </SelectTrigger>
+            <SelectContent>
+              {districts.map((d) => (
+                <SelectItem key={d} value={d}>{d}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
           <Label htmlFor="reg-phone" className="text-[13px] font-medium">
             Telefon <span className="text-muted-foreground">(opsiyonel)</span>
           </Label>
-          <Input
-            id="reg-phone"
-            type="tel"
-            autoComplete="tel"
-            placeholder="+90 555 000 00 00"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            disabled={loading}
-          />
+          <div className="flex items-center rounded-md border border-input bg-background ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+            <span className="shrink-0 border-r border-input bg-muted/60 px-3 py-2 text-sm text-muted-foreground rounded-l-md select-none">
+              +90
+            </span>
+            <input
+              id="reg-phone"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel-national"
+              placeholder="5XX XXX XX XX"
+              value={phone}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+                const formatted = digits
+                  .replace(/^(\d{3})(\d{0,3})/, '$1 $2')
+                  .replace(/^(\d{3} \d{3})(\d{0,2})/, '$1 $2')
+                  .replace(/^(\d{3} \d{3} \d{2})(\d{0,2})/, '$1 $2')
+                  .trim();
+                setPhone(formatted);
+              }}
+              disabled={loading}
+              className="flex-1 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </div>
         </div>
 
         <div className="space-y-1.5">
@@ -442,7 +514,12 @@ function BranchLoginPanel() {
           </div>
         )}
 
-        <Button type="submit" size="lg" disabled={loading || !fullName.trim()} className="w-full">
+        <Button
+          type="submit"
+          size="lg"
+          disabled={loading || !fullName.trim() || !city || !district}
+          className="w-full"
+        >
           {loading ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin" />

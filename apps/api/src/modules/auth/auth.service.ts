@@ -10,7 +10,6 @@ import { PrismaService, UserRole, PendingBranchStatus, Prisma } from '@ticketbot
 import {
   TelegramLinkRedeemInput,
   RequestBranchRegistrationInput,
-  ApproveBranchRegistrationInput,
 } from '@ticketbot/shared-validation';
 import * as jose from 'jose';
 import { randomBytes } from 'crypto';
@@ -159,6 +158,8 @@ export class AuthService {
         data: {
           fullName: dto.fullName,
           phone: dto.phone ?? null,
+          city: dto.city,
+          district: dto.district,
           message: dto.message ?? null,
           status: PendingBranchStatus.PENDING,
           reviewedBy: null,
@@ -171,6 +172,8 @@ export class AuthService {
           email: dto.email,
           fullName: dto.fullName,
           phone: dto.phone ?? null,
+          city: dto.city,
+          district: dto.district,
           message: dto.message ?? null,
         },
       });
@@ -220,7 +223,6 @@ export class AuthService {
   async approveBranchRegistration(
     id: string,
     adminUserId: string,
-    dto: ApproveBranchRegistrationInput,
   ): Promise<{}> {
     // --- Pre-checks (before any Supabase call so no email is sent on error) ---
     const registration = await this.prisma.pendingBranchRegistration.findUnique({
@@ -231,19 +233,19 @@ export class AuthService {
       throw new BadRequestException('Bu başvuru zaten işleme alınmış');
     }
 
-    const association = await this.prisma.association.findFirst({
-      where: { id: dto.associationId, deletedAt: null },
-      select: { id: true },
+    // Check for duplicate branch (same city + district already approved)
+    const duplicateBranch = await this.prisma.association.findFirst({
+      where: {
+        city: registration.city,
+        district: registration.district,
+        deletedAt: null,
+      },
+      select: { id: true, name: true },
     });
-    if (!association) throw new NotFoundException('Dernek bulunamadı');
-
-    if (dto.role === UserRole.ASSOCIATION_MANAGER) {
-      const existingManager = await this.prisma.associationMembership.findFirst({
-        where: { associationId: dto.associationId, role: UserRole.ASSOCIATION_MANAGER, deletedAt: null },
-      });
-      if (existingManager) {
-        throw new ConflictException('Bu dernekte zaten aktif bir Başkan bulunuyor. Lütfen farklı bir rol seçin.');
-      }
+    if (duplicateBranch) {
+      throw new ConflictException(
+        `${registration.city} / ${registration.district} şubesi zaten sistemde kayıtlı.`,
+      );
     }
 
     // --- Send Supabase invite email (creates user + sends magic link) ---
@@ -262,7 +264,7 @@ export class AuthService {
     }
     const supabaseUserId = inviteData.user.id;
 
-    // --- Persist ---
+    // --- Persist: create branch Association + User + Membership ---
     try {
       await this.prisma.$transaction(async (tx) => {
         await tx.pendingBranchRegistration.update({
@@ -287,25 +289,33 @@ export class AuthService {
           },
         });
 
-        const existingMembership = await tx.associationMembership.findFirst({
-          where: { userId: user.id, associationId: dto.associationId, deletedAt: null },
+        // Create a new Association representing this branch
+        const branchName = `${registration.city} - ${registration.district} Şubesi`;
+        const newAssociation = await tx.association.create({
+          data: {
+            name: branchName,
+            city: registration.city,
+            district: registration.district,
+            email: registration.email,
+            foundedAt: new Date(),
+            activityArea: 'Genel',
+            createdById: user.id,
+            isActive: true,
+          },
         });
-        if (!existingMembership) {
-          await tx.associationMembership.create({
-            data: {
-              userId: user.id,
-              associationId: dto.associationId,
-              role: dto.role as UserRole,
-              isActive: true,
-            },
-          });
-        }
+
+        await tx.associationMembership.create({
+          data: {
+            userId: user.id,
+            associationId: newAssociation.id,
+            role: UserRole.ASSOCIATION_MANAGER,
+            isActive: true,
+          },
+        });
       });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        throw new ConflictException(
-          'Bu dernekte zaten aktif bir Başkan bulunuyor. Lütfen farklı bir rol seçin.',
-        );
+        throw new ConflictException('Bu şube için zaten bir kayıt mevcut.');
       }
       throw err;
     }

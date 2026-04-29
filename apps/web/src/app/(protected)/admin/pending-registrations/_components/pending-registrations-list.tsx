@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Clock, Phone, MessageSquare, X, RefreshCw, CheckCircle2, RotateCcw } from 'lucide-react';
+import { Clock, Phone, MessageSquare, MapPin, X, RefreshCw, CheckCircle2, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -166,6 +166,8 @@ export function PendingRegistrationsList({
           registrationId={approveTarget.id}
           fullName={approveTarget.fullName}
           email={approveTarget.email}
+          city={approveTarget.city}
+          district={approveTarget.district}
           open={true}
           onOpenChange={(open) => { if (!open) setApproveTarget(null); }}
           onApproved={() => {
@@ -204,6 +206,12 @@ function RegistrationCard({
           </div>
 
           <div className="flex flex-wrap gap-3 text-[12px] text-muted-foreground">
+            {registration.city && registration.district && (
+              <span className="flex items-center gap-1.5">
+                <MapPin className="h-3.5 w-3.5" />
+                {registration.city} / {registration.district}
+              </span>
+            )}
             {registration.phone && (
               <span className="flex items-center gap-1.5">
                 <Phone className="h-3.5 w-3.5" />
@@ -254,13 +262,10 @@ function ApprovedCard({
       })
     : '';
 
-  async function handleResend() {
+  function handleResend() {
     setLoading(true);
-    try {
-      await onResend();
-    } finally {
-      setLoading(false);
-    }
+    onResend();
+    setLoading(false);
   }
 
   return (

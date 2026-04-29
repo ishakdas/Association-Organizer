@@ -9,6 +9,8 @@ export interface PendingRegistration {
   email: string;
   fullName: string;
   phone: string | null;
+  city: string;
+  district: string;
   message: string | null;
   status: string;
   createdAt: string;
@@ -25,6 +27,8 @@ export function requestBranchRegistration(data: {
   email: string;
   fullName: string;
   phone?: string;
+  city: string;
+  district: string;
   message?: string;
 }) {
   return apiClient<void>('/auth/request-branch-registration', {
@@ -48,15 +52,10 @@ export function resendInvite(token: string, id: string) {
   );
 }
 
-export function approveBranchRegistration(
-  token: string,
-  id: string,
-  data: { associationId: string; role: string },
-) {
+export function approveBranchRegistration(token: string, id: string) {
   return apiClient<{}>(`/auth/pending-registrations/${id}/approve`, {
     token,
     method: 'POST',
-    body: JSON.stringify(data),
   });
 }
 

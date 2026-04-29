@@ -1,5 +1,4 @@
-import Link from 'next/link';
-import { FolderSearch, Inbox, Plus, RotateCcw } from 'lucide-react';
+import { FolderSearch, Inbox, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export function EmptyState({
@@ -35,21 +34,8 @@ export function EmptyState({
       icon={<Inbox className="h-5 w-5" />}
       eyebrow="Başlangıç"
       title="Henüz kayıtlı dernek yok"
-      body={
-        canCreate
-          ? 'Sicile yeni bir dernek ekleyerek başlayın. İlk kayıt 1 dakikadan kısa sürer.'
-          : 'Sicile yeni bir dernek eklemek için sistem yöneticisine başvurun.'
-      }
-      action={
-        canCreate ? (
-          <Button asChild size="sm">
-            <Link href="/associations/new">
-              <Plus className="h-3.5 w-3.5" />
-              Yeni Dernek Ekle
-            </Link>
-          </Button>
-        ) : null
-      }
+      body="Sicile yeni bir dernek eklemek için sistem yöneticisine başvurun."
+      action={null}
     />
   );
 }

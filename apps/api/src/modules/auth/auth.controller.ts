@@ -25,7 +25,6 @@ import {
   updateProfileSchema,
   UpdateProfileInput,
   RequestBranchRegistrationInput,
-  ApproveBranchRegistrationInput,
 } from '@ticketbot/shared-validation';
 
 @Controller('auth')
@@ -117,9 +116,8 @@ export class AuthController {
   approveBranchRegistration(
     @Param('id') id: string,
     @CurrentUser() user: RequestUser,
-    @Body() body: ApproveBranchRegistrationInput,
   ) {
-    return this.authService.approveBranchRegistration(id, user.id, body);
+    return this.authService.approveBranchRegistration(id, user.id);
   }
 
   @Post('pending-registrations/:id/reject')

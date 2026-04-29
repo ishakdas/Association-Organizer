@@ -14,7 +14,8 @@
     "db:generate": "pnpm --filter @ticketbot/database exec prisma generate",
     "db:migrate": "pnpm --filter @ticketbot/database exec prisma migrate dev",
     "db:seed": "pnpm --filter @ticketbot/database exec prisma db seed",
-    "db:studio": "pnpm --filter @ticketbot/database exec prisma studio"
+    "db:studio": "pnpm --filter @ticketbot/database exec prisma studio",
+    "db:dev-reset": "pnpm --filter @ticketbot/database exec tsx prisma/dev-reset.ts"
   },
   "devDependencies": {
     "nx": "^22.6.5",

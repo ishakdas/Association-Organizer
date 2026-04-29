@@ -112,6 +112,8 @@ model PendingBranchRegistration {
   email      String              @unique
   fullName   String
   phone      String?
+  city       String              @default("")
+  district   String              @default("")
   message    String?
   status     PendingBranchStatus @default(PENDING)
   reviewedBy String?
