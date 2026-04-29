@@ -17,13 +17,9 @@ export default async function AssociationsPage() {
     data: { session },
   } = await supabase.auth.getSession();
 
-  let initialData = EMPTY;
-  let canCreate = false;
   if (session) {
     try {
       const me = await getMe(session.access_token);
-      canCreate = isSystemAdmin(me);
-
       // Non-admin users with a single active membership go directly to that association
       if (!isSystemAdmin(me)) {
         const active = activeMemberships(me);
@@ -32,9 +28,12 @@ export default async function AssociationsPage() {
         }
       }
     } catch {
-      canCreate = false;
+      // devam et
     }
+  }
 
+  let initialData = EMPTY;
+  if (session) {
     try {
       initialData = await listAssociations(session.access_token, {
         page: 1,
@@ -45,5 +44,5 @@ export default async function AssociationsPage() {
     }
   }
 
-  return <AssociationsList initialData={initialData} canCreate={canCreate} />;
+  return <AssociationsList initialData={initialData} />;
 }
