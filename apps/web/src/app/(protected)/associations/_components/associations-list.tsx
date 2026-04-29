@@ -98,7 +98,7 @@ export function AssociationsList({
         {isLoading ? (
           <GridSkeleton />
         ) : rows.length === 0 ? (
-          <EmptyState hasFilters={hasFilters} onReset={resetFilters} canCreate={false} />
+          <EmptyState hasFilters={hasFilters} onReset={resetFilters} />
         ) : (
           <>
             <div className="grid gap-4 sm:grid-cols-2">

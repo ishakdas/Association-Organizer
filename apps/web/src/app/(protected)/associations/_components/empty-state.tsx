@@ -4,11 +4,9 @@ import { Button } from '@/components/ui/button';
 export function EmptyState({
   hasFilters,
   onReset,
-  canCreate,
 }: {
   hasFilters: boolean;
   onReset?: () => void;
-  canCreate: boolean;
 }) {
   if (hasFilters) {
     return (
