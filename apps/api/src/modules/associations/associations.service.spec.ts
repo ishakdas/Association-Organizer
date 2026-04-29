@@ -286,4 +286,34 @@ describe('AssociationsService', () => {
       expect(result.meta.totalPages).toBe(1);
     });
   });
+
+  describe('getGlobalStats', () => {
+    it('should return aggregated stats', async () => {
+      const mockResult = [
+        5,    // totalBranches
+        4,    // activeBranches
+        23,   // totalMembers
+        2,    // pendingRegistrations
+        [
+          { city: 'İstanbul', _count: { city: 3 } },
+          { city: 'Ankara', _count: { city: 2 } },
+        ],
+      ];
+      jest.spyOn(prisma, '$transaction').mockResolvedValueOnce(mockResult as any);
+
+      const result = await service.getGlobalStats();
+
+      expect(result).toEqual({
+        totalBranches: 5,
+        activeBranches: 4,
+        inactiveBranches: 1,
+        totalMembers: 23,
+        pendingRegistrations: 2,
+        cityDistribution: [
+          { city: 'İstanbul', count: 3 },
+          { city: 'Ankara', count: 2 },
+        ],
+      });
+    });
+  });
 });
