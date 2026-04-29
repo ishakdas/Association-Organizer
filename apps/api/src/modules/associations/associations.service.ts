@@ -205,6 +205,44 @@ export class AssociationsService {
     };
   }
 
+  async getGlobalStats() {
+    const [
+      totalBranches,
+      activeBranches,
+      totalMembers,
+      pendingRegistrations,
+      cityRaw,
+    ] = await this.prisma.$transaction([
+      this.prisma.association.count({ where: { deletedAt: null } }),
+      this.prisma.association.count({ where: { deletedAt: null, isActive: true } }),
+      this.prisma.associationMembership.count({
+        where: { isActive: true, deletedAt: null },
+      }),
+      this.prisma.pendingBranchRegistration.count({
+        where: { status: 'PENDING' },
+      }),
+      this.prisma.association.groupBy({
+        by: ['city'],
+        where: { deletedAt: null },
+        _count: { city: true },
+        orderBy: { _count: { city: 'desc' } },
+        take: 10,
+      }),
+    ]);
+
+    return {
+      totalBranches,
+      activeBranches,
+      inactiveBranches: totalBranches - activeBranches,
+      totalMembers,
+      pendingRegistrations,
+      cityDistribution: cityRaw.map((r) => ({
+        city: r.city,
+        count: (r._count as { city: number }).city,
+      })),
+    };
+  }
+
   async getStats(id: string) {
     const association = await this.prisma.association.findFirst({
       where: { id, deletedAt: null },

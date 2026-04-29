@@ -52,6 +52,12 @@ export class AssociationsController {
     return this.associationsService.list(query, user);
   }
 
+  @Get('stats')
+  @Roles(UserRole.SYSTEM_ADMIN)
+  getGlobalStats() {
+    return this.associationsService.getGlobalStats();
+  }
+
   @Get(':id/stats')
   @AssociationRoles(
     UserRole.ASSOCIATION_MANAGER,
