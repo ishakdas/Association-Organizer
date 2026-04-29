@@ -13,7 +13,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
 import { useAssociations } from '../_hooks/use-associations';
 import { AssociationCard } from './association-card';
 import { BranchDetailModal } from './branch-detail-modal';
