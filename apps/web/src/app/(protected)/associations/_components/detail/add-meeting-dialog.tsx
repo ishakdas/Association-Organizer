@@ -227,10 +227,11 @@ export function AddMeetingDialog({
                       />
                       <Button
                         type="button"
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
                         onClick={() => fileInputRef.current?.click()}
                         title="Markdown dosyasından yükle"
+                        className="border-primary/40 text-primary hover:bg-primary/5 hover:text-primary"
                       >
                         <FileText className="h-3.5 w-3.5" />
                         Dosyadan yükle
@@ -348,13 +349,17 @@ function AttendeeMultiSelect({
               <span className="px-1 text-muted-foreground">Katılımcı seçin…</span>
             ) : (
               selected.slice(0, 4).map((m) => (
-                <Badge key={m.id} variant="secondary" className="gap-1 text-[11px]">
+                <Badge
+                  key={m.id}
+                  variant="secondary"
+                  className="gap-1 text-[11px] ring-1 ring-transparent transition-colors hover:bg-secondary hover:ring-border"
+                >
                   {m.user.fullName}
                   <span
                     role="button"
                     tabIndex={-1}
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggle(m.user.id); }}
-                    className="opacity-60 hover:opacity-100"
+                    className="-mr-0.5 ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground"
                     aria-label="Çıkar"
                   >
                     <X className="h-3 w-3" />
