@@ -167,8 +167,14 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
   }
 
   async function handleComplete() {
+    // Set the gating cookie FIRST, synchronously. Middleware reads this
+    // on every request — once it's there, /onboarding redirects stop
+    // firing and any subsequent navigation succeeds even if the API
+    // calls below hang or throw.
+    document.cookie = 'onboarding_done=1; path=/; max-age=31536000; SameSite=Lax';
     setLoading(true);
-    let redirectTo = '/associations';
+
+    let redirectTo = '/dashboard';
     try {
       const supabase = createClient();
       const {
@@ -183,10 +189,14 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
         }
       }
     } catch {
-      // Non-blocking — proceed even if API call fails
+      // Non-blocking — the cookie + hard nav below still take the user
+      // out of /onboarding even if these best-effort calls fail.
     }
-    document.cookie = 'onboarding_done=1; path=/; max-age=31536000; SameSite=Lax';
-    router.replace(redirectTo);
+
+    // Hard navigation (vs router.replace): guarantees the new request
+    // hits middleware with the freshly-set cookie and rules out any
+    // App Router caching that could keep the user on /onboarding.
+    window.location.assign(redirectTo);
   }
 
   const slide = slides[current];
