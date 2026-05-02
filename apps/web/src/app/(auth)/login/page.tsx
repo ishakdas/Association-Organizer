@@ -6,6 +6,13 @@ import { ArrowRight, Clock, Loader2, MailQuestion, Sparkles, Users, XCircle } fr
 import { createClient } from '../../../lib/supabase/client';
 import { checkBranchEmail, requestBranchRegistration } from '../../../lib/api/auth';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PhoneInput } from '@/components/ui/phone-input';
@@ -17,14 +24,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Plus } from 'lucide-react';
 import { getProvinceNames, getDistricts } from '@/lib/turkey-locations';
 
-type ActiveTab = 'admin' | 'branch';
-
 export default function LoginPage() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('admin');
   const searchParams = useSearchParams();
   const callbackError = searchParams.get('error');
+  const [branchDialogOpen, setBranchDialogOpen] = useState(false);
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
@@ -41,6 +47,9 @@ export default function LoginPage() {
               <h2 className="text-[28px] font-bold leading-tight tracking-tight text-foreground">
                 Hesabınıza giriş yapın
               </h2>
+              <p className="text-[13px] text-muted-foreground">
+                Genel Başkan, Şube Başkanı ve Sekreter aynı yerden giriş yapar.
+              </p>
             </div>
 
             {callbackError === 'auth_callback_failed' && (
@@ -53,30 +62,27 @@ export default function LoginPage() {
               </div>
             )}
 
-            <div className="flex rounded-lg border border-border bg-muted p-1">
-              <button
-                onClick={() => setActiveTab('admin')}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  activeTab === 'admin'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Genel Başkan
-              </button>
-              <button
-                onClick={() => setActiveTab('branch')}
-                className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  activeTab === 'branch'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Şube
-              </button>
+            <AdminLoginPanel />
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-[11px] uppercase tracking-widest">
+                <span className="bg-background px-3 text-muted-foreground">veya</span>
+              </div>
             </div>
 
-            {activeTab === 'admin' ? <AdminLoginPanel /> : <BranchLoginPanel />}
+            <Button
+              type="button"
+              variant="outline"
+              size="lg"
+              className="w-full"
+              onClick={() => setBranchDialogOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              Yeni Dernek Ekle
+            </Button>
           </div>
         </div>
 
@@ -84,6 +90,20 @@ export default function LoginPage() {
           © {new Date().getFullYear()} Dernek Organizer
         </footer>
       </div>
+
+      <Dialog open={branchDialogOpen} onOpenChange={setBranchDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Yeni Dernek Başvurusu</DialogTitle>
+            <DialogDescription>
+              E-posta adresinizi girin. Sistemde kayıtlı değilse başvuru formu açılır.
+            </DialogDescription>
+          </DialogHeader>
+          {branchDialogOpen && (
+            <BranchLoginPanel onClose={() => setBranchDialogOpen(false)} />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -224,9 +244,16 @@ function AdminLoginPanel() {
   );
 }
 
-type BranchStep = 'email' | 'checking' | 'password' | 'no_password' | 'register' | 'pending' | 'rejected';
+type BranchStep =
+  | 'email'
+  | 'checking'
+  | 'already_registered'
+  | 'no_password'
+  | 'register'
+  | 'pending'
+  | 'rejected';
 
-function BranchLoginPanel() {
+function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
   const [step, setStep] = useState<BranchStep>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -268,7 +295,9 @@ function BranchLoginPanel() {
     try {
       const result = await checkBranchEmail(email);
       if (result.status === 'active') {
-        setStep('password');
+        // The address has an active account — they should sign in from
+        // the main login form, not register a new branch.
+        setStep('already_registered');
       } else if (result.status === 'no_password') {
         setStep('no_password');
       } else if (result.status === 'pending') {
@@ -391,90 +420,34 @@ function BranchLoginPanel() {
     );
   }
 
-  if (step === 'password') {
+  if (step === 'already_registered') {
     return (
-      <form onSubmit={handlePasswordSubmit} className="space-y-4" noValidate>
-        <div className="space-y-1.5">
-          <Label htmlFor="branch-email-ro" className="text-[13px] font-medium">
-            E-posta
-          </Label>
-          <Input
-            id="branch-email-ro"
-            type="email"
-            value={email}
-            readOnly
-            disabled
-            className="bg-muted/40"
-          />
+      <div className="space-y-4 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+          <MailQuestion className="h-7 w-7" />
         </div>
-
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="branch-password" className="text-[13px] font-medium">
-              Şifre
-            </Label>
-            <button
-              type="button"
-              onClick={handleForgotPassword}
-              disabled={resetLoading || resetCooldown > 0}
-              className="flex items-center gap-1 text-[12px] font-medium text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {resetLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-              {resetCooldown > 0 ? `Tekrar gönder (${resetCooldown}s)` : 'Şifremi unuttum'}
-            </button>
-          </div>
-          <Input
-            id="branch-password"
-            type="password"
-            autoComplete="current-password"
-            placeholder="••••••••"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            disabled={loading}
-          />
+        <div className="space-y-1">
+          <h3 className="font-semibold text-foreground">Bu adres zaten kayıtlı</h3>
+          <p className="text-[13px] text-muted-foreground">
+            <strong>{email}</strong> adresine ait aktif bir hesap var. Lütfen ana giriş ekranından
+            şifrenizle giriş yapın.
+          </p>
         </div>
-
-        {resetSent && (
-          <div
-            role="status"
-            className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-[13px] text-green-700"
-          >
-            Şifre sıfırlama bağlantısı <strong>{email}</strong> adresine gönderildi. Gelen kutunuzu kontrol edin.
-          </div>
-        )}
-
-        {error && (
-          <div
-            role="alert"
-            className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-[13px] text-destructive"
-          >
-            {error}
-          </div>
-        )}
-
-        <Button type="submit" size="lg" disabled={loading} className="w-full">
-          {loading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Giriş yapılıyor...
-            </>
-          ) : (
-            <>
-              Giriş yap
-              <ArrowRight className="h-4 w-4" />
-            </>
+        <div className="space-y-2">
+          {onClose && (
+            <Button type="button" size="lg" onClick={onClose} className="w-full">
+              Ana giriş ekranına dön
+            </Button>
           )}
-        </Button>
-
-        <button
-          type="button"
-          onClick={() => { setStep('email'); setPassword(''); setError(null); }}
-          className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground"
-        >
-          ← Farklı e-posta kullan
-        </button>
-      </form>
+          <button
+            type="button"
+            onClick={() => { setStep('email'); setError(null); }}
+            className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground"
+          >
+            ← Farklı e-posta dene
+          </button>
+        </div>
+      </div>
     );
   }
 
