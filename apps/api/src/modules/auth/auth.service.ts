@@ -209,6 +209,14 @@ export class AuthService {
     });
   }
 
+  async listRejectedRegistrations() {
+    return this.prisma.pendingBranchRegistration.findMany({
+      where: { status: PendingBranchStatus.REJECTED },
+      orderBy: { reviewedAt: 'desc' },
+      take: 50,
+    });
+  }
+
   async resendInvite(id: string): Promise<{ sent: boolean }> {
     const registration = await this.prisma.pendingBranchRegistration.findUnique({
       where: { id },
@@ -276,8 +284,10 @@ export class AuthService {
       where: { id },
     });
     if (!registration) throw new NotFoundException('Başvuru bulunamadı');
-    if (registration.status !== PendingBranchStatus.PENDING) {
-      throw new BadRequestException('Bu başvuru zaten işleme alınmış');
+    // Allow re-approving REJECTED registrations (admin reconsidered).
+    // Block APPROVED ones to keep the saga idempotent.
+    if (registration.status === PendingBranchStatus.APPROVED) {
+      throw new BadRequestException('Bu başvuru zaten onaylanmış');
     }
 
     // Check for duplicate branch (same city + district already approved)

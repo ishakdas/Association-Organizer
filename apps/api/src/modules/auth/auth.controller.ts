@@ -116,6 +116,13 @@ export class AuthController {
     return this.authService.listApprovedRegistrations();
   }
 
+  @Get('rejected-registrations')
+  @UseGuards(AuthGuard, SupabaseUserGuard, RolesGuard)
+  @Roles(UserRole.SYSTEM_ADMIN)
+  listRejectedRegistrations() {
+    return this.authService.listRejectedRegistrations();
+  }
+
   @Post('pending-registrations/:id/approve')
   @UseGuards(AuthGuard, SupabaseUserGuard, RolesGuard)
   @Roles(UserRole.SYSTEM_ADMIN)
