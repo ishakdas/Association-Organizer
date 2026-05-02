@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { createClient } from '../../../lib/supabase/client';
 import { clearTempPasswordFlag } from '../../../lib/api/auth';
@@ -9,8 +9,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+// Open-redirect protection: same rules as the auth callbacks. Fallback
+// is caller-provided since this page serves both first-time set
+// (→ /onboarding) and standalone reset (→ /login).
+function safeNext(raw: string | null, fallback: string): string {
+  if (!raw || !raw.startsWith('/')) return fallback;
+  if (raw.startsWith('//') || raw.startsWith('/\\')) return fallback;
+  return raw;
+}
+
 export default function ResetPasswordPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Magic-link first-time set lands with ?next=/onboarding. Standalone
+  // reset (from /login → resetPasswordForEmail) lands with no next, so
+  // we route the user back to /login to sign in with the fresh password.
+  const next = safeNext(searchParams.get('next'), '/login');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [loading, setLoading] = useState(false);
@@ -61,7 +75,7 @@ export default function ResetPasswordPage() {
 
     setDone(true);
     setLoading(false);
-    setTimeout(() => router.replace('/login'), 2500);
+    setTimeout(() => router.replace(next), 2500);
   }
 
   if (!sessionReady) {
