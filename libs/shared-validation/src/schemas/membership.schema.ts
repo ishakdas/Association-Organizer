@@ -109,7 +109,6 @@ export const memberResponseSchema = z.object({
         username: z.string().nullable(),
         firstName: z.string().nullable(),
         createdAt: z.string(),
-        linkedAt: z.string().optional(),
       })
       .nullable()
       .optional(),
