@@ -250,7 +250,12 @@ export class AssociationsService {
     });
     if (!association) throw new NotFoundException('Dernek bulunamadı');
 
-    const [members, tasks, totalMeetings] = await this.prisma.$transaction([
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    sixMonthsAgo.setDate(1);
+    sixMonthsAgo.setHours(0, 0, 0, 0);
+
+    const [members, tasks, meetings, recentTasks] = await this.prisma.$transaction([
       this.prisma.associationMembership.findMany({
         where: { associationId: id, isActive: true, deletedAt: null },
         select: { role: true },
@@ -259,8 +264,14 @@ export class AssociationsService {
         where: { associationId: id, deletedAt: null },
         select: { status: true },
       }),
-      this.prisma.meetingNote.count({
+      this.prisma.meetingNote.findMany({
         where: { associationId: id, deletedAt: null },
+        select: { meetingDate: true },
+        orderBy: { meetingDate: 'desc' },
+      }),
+      this.prisma.task.findMany({
+        where: { associationId: id, deletedAt: null, createdAt: { gte: sixMonthsAgo } },
+        select: { createdAt: true, status: true },
       }),
     ]);
 
@@ -272,18 +283,53 @@ export class AssociationsService {
 
     const totalTasks = tasks.length;
     const completedTasks = tasks.filter((t) => t.status === 'COMPLETED').length;
-    const pendingTasks = totalTasks - completedTasks;
+    const inProgressTasks = tasks.filter((t) => t.status === 'IN_PROGRESS').length;
+    const pendingTasks = tasks.filter((t) => t.status === 'PENDING').length;
     const completionRate =
       totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    const totalMeetings = meetings.length;
+
+    const monthLabels = this.buildLast6Months();
+
+    const tasksByMonth = monthLabels.map(({ key, label }) => ({
+      month: label,
+      count: recentTasks.filter((t) => this.toMonthKey(t.createdAt) === key).length,
+    }));
+
+    const meetingsByMonth = monthLabels.map(({ key, label }) => ({
+      month: label,
+      count: meetings.filter((m) => this.toMonthKey(m.meetingDate) === key).length,
+    }));
 
     return {
       totalMembers,
       membersByRole,
       totalTasks,
       completedTasks,
+      inProgressTasks,
       pendingTasks,
       completionRate,
       totalMeetings,
+      tasksByMonth,
+      meetingsByMonth,
     };
+  }
+
+  private buildLast6Months(): { key: string; label: string }[] {
+    const months = [];
+    const TR_MONTHS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      months.push({
+        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+        label: TR_MONTHS[d.getMonth()] ?? '',
+      });
+    }
+    return months;
+  }
+
+  private toMonthKey(date: Date): string {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
   }
 }

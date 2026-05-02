@@ -251,7 +251,7 @@ function ApprovedCard({
   onResend,
 }: {
   registration: PendingRegistration;
-  onResend: () => void;
+  onResend: () => Promise<void>;
 }) {
   const [loading, setLoading] = useState(false);
   const approvedDate = registration.createdAt
@@ -262,9 +262,9 @@ function ApprovedCard({
       })
     : '';
 
-  function handleResend() {
+  async function handleResend() {
     setLoading(true);
-    onResend();
+    await onResend();
     setLoading(false);
   }
 

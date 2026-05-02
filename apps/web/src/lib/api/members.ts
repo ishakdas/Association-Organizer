@@ -3,6 +3,7 @@ import type {
   AddMemberInput,
   MemberResponse,
   MembershipRole,
+  UpdateMemberInput,
 } from '@ticketbot/shared-validation';
 
 export interface ListMembersParams {
@@ -39,6 +40,22 @@ export function addMember(
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+export function updateMember(
+  token: string,
+  associationId: string,
+  membershipId: string,
+  input: UpdateMemberInput,
+) {
+  return apiClient<MemberResponse>(
+    `/associations/${associationId}/members/${membershipId}`,
+    {
+      token,
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+  );
 }
 
 export function removeMember(

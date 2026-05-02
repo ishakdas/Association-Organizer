@@ -33,7 +33,8 @@ export async function middleware(request: NextRequest) {
   if (
     !user &&
     !pathname.startsWith('/login') &&
-    !pathname.startsWith('/callback')
+    !pathname.startsWith('/callback') &&
+    !pathname.startsWith('/reset-password')
   ) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
@@ -53,7 +54,8 @@ export async function middleware(request: NextRequest) {
     !pathname.startsWith('/onboarding') &&
     !pathname.startsWith('/auth/') &&
     !pathname.startsWith('/callback') &&
-    !pathname.startsWith('/login')
+    !pathname.startsWith('/login') &&
+    !pathname.startsWith('/reset-password')
   ) {
     const done = request.cookies.get('onboarding_done')?.value === '1';
     if (!done) {

@@ -138,4 +138,12 @@ export class AuthController {
   resendInvite(@Param('id') id: string) {
     return this.authService.resendInvite(id);
   }
+
+  @Post('resend-invite-for-user')
+  @UseGuards(AuthGuard, SupabaseUserGuard, RolesGuard)
+  @Roles(UserRole.SYSTEM_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  resendInviteForUser(@Body() body: { userId: string }) {
+    return this.authService.resendInviteForUser(body.userId);
+  }
 }

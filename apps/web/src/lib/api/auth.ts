@@ -1,7 +1,7 @@
 import { apiClient } from './client';
 
 export interface BranchEmailStatus {
-  status: 'unknown' | 'pending' | 'rejected' | 'active';
+  status: 'unknown' | 'pending' | 'rejected' | 'active' | 'no_password';
 }
 
 export interface PendingRegistration {
@@ -70,5 +70,13 @@ export function clearTempPasswordFlag(token: string) {
   return apiClient<void>('/auth/clear-temp-password-flag', {
     token,
     method: 'POST',
+  });
+}
+
+export function resendInviteForUser(token: string, userId: string) {
+  return apiClient<{ sent: boolean }>('/auth/resend-invite-for-user', {
+    token,
+    method: 'POST',
+    body: JSON.stringify({ userId }),
   });
 }

@@ -36,14 +36,10 @@ export const addMemberSchema = z
     fullName: z.string().min(2, 'En az 2 karakter').max(200),
     email: optionalEmail,
     phone: optionalPhoneSchema,
+    address: z.string().max(500).optional(),
     role: userRoleEnum,
     titleId: z.string().cuid('Geçersiz unvan').optional(),
     customTitle: z.string().min(2).max(100).optional(),
-    /**
-     * When provided, the API provisions a Supabase auth user instead of
-     * creating a DB-only row. Required for ASSOCIATION_SECRETARY (which
-     * gets web access); ignored for ASSOCIATION_MEMBER.
-     */
     password: z.string().min(8, 'En az 8 karakter').max(72).optional(),
   })
   .superRefine((v, ctx) => {
@@ -73,6 +69,9 @@ export const updateMemberSchema = z
     customTitle: z.string().min(2).max(100).nullable().optional(),
     isActive: z.boolean().optional(),
     leftAt: z.string().datetime({ offset: true }).nullable().optional(),
+    fullName: z.string().min(2).max(200).optional(),
+    phone: optionalPhoneSchema,
+    address: z.string().max(500).nullable().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, {
     message: 'En az bir alan güncellenmeli',
@@ -103,11 +102,14 @@ export const memberResponseSchema = z.object({
     fullName: z.string(),
     email: z.string().nullable(),
     phone: z.string().nullable(),
+    address: z.string().nullable().optional(),
+    mustChangePassword: z.boolean().optional(),
     telegramAccount: z
       .object({
         username: z.string().nullable(),
         firstName: z.string().nullable(),
         createdAt: z.string(),
+        linkedAt: z.string().optional(),
       })
       .nullable()
       .optional(),

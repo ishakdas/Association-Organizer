@@ -20,12 +20,13 @@ export default async function AssociationsPage() {
   if (session) {
     try {
       const me = await getMe(session.access_token);
+      if (isSystemAdmin(me)) {
+        redirect('/dashboard');
+      }
       // Non-admin users with a single active membership go directly to that association
-      if (!isSystemAdmin(me)) {
-        const active = activeMemberships(me);
-        if (active.length === 1) {
-          redirect(`/associations/${active[0].associationId}`);
-        }
+      const active = activeMemberships(me);
+      if (active.length === 1) {
+        redirect(`/associations/${active[0].associationId}`);
       }
     } catch {
       // devam et

@@ -8,9 +8,8 @@ import {
   BookOpen,
   BookUser,
   ClipboardList,
-  Crown,
   Home,
-  Info,
+  LayoutDashboard,
   LogOut,
   Menu,
   MessageSquare,
@@ -52,18 +51,14 @@ function buildNav(user: AuthenticatedUser): NavItem[] {
   }
 
   const assocId = active[0].associationId;
-  const isManager = active[0].role === 'ASSOCIATION_MANAGER';
   const base = `/associations/${assocId}`;
 
   return [
-    { href: `${base}?section=genel`, label: 'Genel Bilgiler', icon: Info, primary: true, matchSection: 'genel' },
+    { href: `${base}`, label: 'Dashboard', icon: LayoutDashboard, primary: true, matchSection: 'dashboard' },
     { href: `${base}?section=uyeler`, label: 'Üyeler', icon: Users, primary: true, matchSection: 'uyeler' },
     { href: `${base}?section=gorevler`, label: 'Görevler', icon: ClipboardList, primary: true, matchSection: 'gorevler' },
     { href: `${base}?section=toplantilar`, label: 'Toplantılar', icon: BookOpen, matchSection: 'toplantilar' },
     { href: `${base}?section=telegram`, label: 'Telegram', icon: MessageSquare, matchSection: 'telegram' },
-    ...(isManager
-      ? [{ href: `${base}?section=baskan`, label: 'Başkan', icon: Crown, matchSection: 'baskan' }]
-      : []),
     { href: '/settings', label: 'Ayarlar', icon: Settings },
   ];
 }
@@ -120,6 +115,13 @@ function Sidebar({
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  const brandHref = (() => {
+    if (isSystemAdmin(user)) return '/dashboard';
+    const active = activeMemberships(user);
+    if (active.length === 1) return `/associations/${active[0].associationId}`;
+    return '/associations';
+  })();
+
   return (
     <>
       <div
@@ -138,7 +140,7 @@ function Sidebar({
         )}
       >
         <div className="flex items-center justify-between px-5 pb-4 pt-5">
-          <Brand />
+          <Brand homeHref={brandHref} />
           <button
             onClick={onClose}
             className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground lg:hidden"
@@ -175,9 +177,9 @@ function Sidebar({
   );
 }
 
-function Brand() {
+function Brand({ homeHref = '/associations' }: { homeHref?: string }) {
   return (
-    <Link href="/associations" className="group flex items-center gap-2.5">
+    <Link href={homeHref} className="group flex items-center gap-2.5">
       <div className="flex h-8 w-8 items-center justify-center rounded-md bg-foreground text-background">
         <span className="text-[13px] font-extrabold tracking-tight">DO</span>
       </div>
@@ -300,7 +302,7 @@ function UserFooter({ user }: { user: AuthenticatedUser }) {
 function MobileTopbar({ onMenu }: { onMenu: () => void }) {
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur lg:hidden">
-      <Brand />
+      <Brand homeHref="/associations" />
       <button
         onClick={onMenu}
         className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -324,7 +326,12 @@ function isNavActive(
   if (item.matchSection) {
     const section = searchParams.get('section');
     const itemPathname = item.href.split('?')[0];
-    return pathname === itemPathname && section === item.matchSection;
+    if (!pathname || pathname !== itemPathname) return false;
+    // Dashboard is active when no section param or section=dashboard
+    if (item.matchSection === 'dashboard') {
+      return !section || section === 'dashboard';
+    }
+    return section === item.matchSection;
   }
 
   // /dashboard — exact match

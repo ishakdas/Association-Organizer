@@ -3,11 +3,10 @@
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   BookOpen,
-  Briefcase,
   ClipboardList,
-  Crown,
-  Info,
+  LayoutDashboard,
   MessageSquare,
+  Settings,
   Users,
   type LucideIcon,
 } from 'lucide-react';
@@ -20,9 +19,8 @@ import {
 
 interface DetailTabsProps {
   defaultValue?: string;
-  genel: React.ReactNode;
-  baskan: React.ReactNode;
-  sekreterler: React.ReactNode;
+  dashboard: React.ReactNode;
+  ayarlar: React.ReactNode;
   uyeler: React.ReactNode;
   gorevler: React.ReactNode;
   toplantilar: React.ReactNode;
@@ -36,20 +34,18 @@ interface TabDef {
 }
 
 const TABS: readonly TabDef[] = [
-  { value: 'genel', label: 'Genel Bilgiler', icon: Info },
-  { value: 'baskan', label: 'Başkan', icon: Crown },
-  { value: 'sekreterler', label: 'Sekreterler', icon: Briefcase },
+  { value: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { value: 'uyeler', label: 'Üyeler', icon: Users },
   { value: 'gorevler', label: 'Görevler', icon: ClipboardList },
   { value: 'toplantilar', label: 'Toplantılar', icon: BookOpen },
   { value: 'telegram', label: 'Telegram', icon: MessageSquare },
+  { value: 'ayarlar', label: 'Ayarlar', icon: Settings },
 ];
 
 export function DetailTabs({
-  defaultValue = 'genel',
-  genel,
-  baskan,
-  sekreterler,
+  defaultValue = 'dashboard',
+  dashboard,
+  ayarlar,
   uyeler,
   gorevler,
   toplantilar,
@@ -60,11 +56,13 @@ export function DetailTabs({
   const pathname = usePathname();
 
   const section = searchParams.get('section') ?? defaultValue;
+  const activeSection = TABS.find((t) => t.value === section)
+    ? section
+    : (TABS[0]?.value ?? defaultValue);
 
   const panes: Record<string, React.ReactNode> = {
-    genel,
-    baskan,
-    sekreterler,
+    dashboard,
+    ayarlar,
     uyeler,
     gorevler,
     toplantilar,
@@ -78,13 +76,17 @@ export function DetailTabs({
   }
 
   return (
-    <Tabs value={section} onValueChange={handleTabChange} className="gap-5">
+    <Tabs value={activeSection} onValueChange={handleTabChange} className="gap-5">
       <TabsList className="h-auto w-full">
         {TABS.map((t) => {
           const Icon = t.icon;
           return (
-            <TabsTrigger key={t.value} value={t.value} className="gap-1.5">
-              <Icon className="h-3.5 w-3.5" />
+            <TabsTrigger
+              key={t.value}
+              value={t.value}
+              className="gap-1.5 transition-all duration-200 hover:scale-[1.04] hover:-translate-y-px data-[state=inactive]:hover:text-foreground"
+            >
+              <Icon className="h-3.5 w-3.5 transition-transform duration-200 group-hover:scale-110" />
               <span>{t.label}</span>
             </TabsTrigger>
           );

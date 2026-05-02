@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Mail, MapPin, Phone, User, Users, X } from 'lucide-react';
+import { Mail, MapPin, Phone, RefreshCw, User, Users, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { createClient } from '@/lib/supabase/client';
 import { getAssociation } from '@/lib/api/associations';
 import { listMembers } from '@/lib/api/members';
+import { resendInviteForUser } from '@/lib/api/auth';
 import type { AssociationDto } from '@ticketbot/shared-types';
 import type { MemberResponse } from '@ticketbot/shared-validation';
 import Link from 'next/link';
@@ -21,6 +23,7 @@ export function BranchDetailModal({ associationId, onClose }: BranchDetailModalP
   const [manager, setManager] = useState<MemberResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
+  const [resending, setResending] = useState(false);
 
   useEffect(() => {
     if (!associationId) return;
@@ -60,6 +63,22 @@ export function BranchDetailModal({ associationId, onClose }: BranchDetailModalP
     fetchData();
     return () => { cancelled = true; };
   }, [associationId]);
+
+  async function handleResendInvite() {
+    if (!manager) return;
+    setResending(true);
+    try {
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Oturum süresi dolmuş');
+      await resendInviteForUser(session.access_token, manager.user.id);
+      toast.success('Davet e-postası yeniden gönderildi.');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Gönderim başarısız.');
+    } finally {
+      setResending(false);
+    }
+  }
 
   if (!associationId) return null;
 
@@ -174,6 +193,23 @@ export function BranchDetailModal({ associationId, onClose }: BranchDetailModalP
                     <InfoRow icon={<Phone className="h-3.5 w-3.5" />}>
                       {manager.user.phone}
                     </InfoRow>
+                  )}
+                  {manager.user.mustChangePassword && (
+                    <div className="pt-1">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleResendInvite}
+                        disabled={resending}
+                        className="gap-1.5 text-amber-600 border-amber-300 hover:bg-amber-50 hover:text-amber-700"
+                      >
+                        <RefreshCw className={`h-3.5 w-3.5 ${resending ? 'animate-spin' : ''}`} />
+                        {resending ? 'Gönderiliyor…' : 'Link gönder'}
+                      </Button>
+                      <p className="mt-1.5 text-[11.5px] text-muted-foreground">
+                        Şifre henüz belirlenmemiş
+                      </p>
+                    </div>
                   )}
                 </div>
               ) : (

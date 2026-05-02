@@ -20,14 +20,22 @@ export interface AssociationDto {
   updatedAt: string;
 }
 
+export interface MonthStat {
+  month: string;
+  count: number;
+}
+
 export interface AssociationStatsDto {
   totalMembers: number;
   membersByRole: Record<string, number>;
   totalTasks: number;
   completedTasks: number;
+  inProgressTasks: number;
   pendingTasks: number;
   completionRate: number;
   totalMeetings: number;
+  tasksByMonth: MonthStat[];
+  meetingsByMonth: MonthStat[];
 }
 
 export interface AssociationListResponse {

@@ -4,12 +4,9 @@ import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { format } from 'date-fns';
-import { tr } from 'date-fns/locale';
 import {
-  CalendarIcon,
+  AlertTriangle,
   Check,
-  ChevronDown,
   ChevronsUpDown,
   Loader2,
   Plus,
@@ -128,6 +125,7 @@ export function AddTaskDialog({
   triggerLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const { data: members } = useMembers(associationId);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -144,6 +142,11 @@ export function AddTaskDialog({
   });
 
   const reminderFrequency = form.watch('reminderFrequency');
+  const assignedToUserId = form.watch('assignedToUserId');
+
+  const selectedAssignee = members?.find((m) => m.user.id === assignedToUserId);
+  const assigneeHasNoTelegram =
+    !!assignedToUserId && selectedAssignee !== undefined && !selectedAssignee.user.telegramAccount;
 
   const mutation = useCreateTask(associationId, {
     onSuccess: () => {
@@ -259,6 +262,15 @@ export function AddTaskDialog({
                       onChange={field.onChange}
                     />
                   </FormControl>
+                  {assigneeHasNoTelegram && (
+                    <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-800">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        Bu üyenin Telegram hesabı bağlı değil. Görev atayabilmek için üyenin önce
+                        Telegram&apos;ı bağlaması gerekmektedir.
+                      </span>
+                    </div>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -401,7 +413,7 @@ export function AddTaskDialog({
               >
                 Vazgeç
               </Button>
-              <Button type="submit" disabled={mutation.isPending}>
+              <Button type="submit" disabled={mutation.isPending || assigneeHasNoTelegram}>
                 {mutation.isPending ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />

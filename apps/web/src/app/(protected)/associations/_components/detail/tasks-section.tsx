@@ -71,7 +71,7 @@ export function TasksSection({
   canManage: boolean;
 }) {
   const [tab, setTab] = useState<StatusTab>('ALL');
-  const [view, setView] = useState<ViewMode>('list');
+  const [view, setView] = useState<ViewMode>('kanban');
 
   useEffect(() => {
     const saved = window.localStorage.getItem(VIEW_STORAGE_KEY);

@@ -15,7 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { completeOnboarding } from '@/lib/api/me';
+import { completeOnboarding, getMe } from '@/lib/api/me';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
@@ -168,6 +168,7 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
 
   async function handleComplete() {
     setLoading(true);
+    let redirectTo = '/associations';
     try {
       const supabase = createClient();
       const {
@@ -175,12 +176,17 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
       } = await supabase.auth.getSession();
       if (session?.access_token) {
         await completeOnboarding(session.access_token);
+        const me = await getMe(session.access_token);
+        const activeMemberships = me.memberships.filter((m) => m.isActive);
+        if (activeMemberships.length === 1) {
+          redirectTo = `/associations/${activeMemberships[0].associationId}`;
+        }
       }
     } catch {
       // Non-blocking — proceed even if API call fails
     }
     document.cookie = 'onboarding_done=1; path=/; max-age=31536000; SameSite=Lax';
-    router.replace('/associations');
+    router.replace(redirectTo);
   }
 
   const slide = slides[current];

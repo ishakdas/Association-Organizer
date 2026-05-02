@@ -106,6 +106,7 @@ model User {
   email                 String?   @unique
   fullName              String
   phone                 String?
+  address               String?
   isActive              Boolean   @default(true)
   onboardingCompletedAt DateTime?
   mustChangePassword    Boolean   @default(false)

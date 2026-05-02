@@ -11,12 +11,14 @@ export interface CreateSupabaseUserInput {
   password?: string;
   fullName: string;
   phone?: string;
+  address?: string;
 }
 
 export interface CreateDbOnlyUserInput {
   fullName: string;
   phone?: string;
   email?: string;
+  address?: string;
 }
 
 @Injectable()
@@ -61,6 +63,7 @@ export class UsersService {
           email: input.email,
           fullName: input.fullName,
           phone: input.phone ?? null,
+          address: input.address ?? null,
           isActive: true,
         },
       });
@@ -98,6 +101,7 @@ export class UsersService {
           email: input.email ?? null,
           fullName: input.fullName,
           phone: input.phone ?? null,
+          address: input.address ?? null,
           isActive: true,
         },
       });

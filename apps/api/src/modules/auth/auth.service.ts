@@ -112,7 +112,7 @@ export class AuthService {
     const now = new Date();
     await this.prisma.user.update({
       where: { id: userId },
-      data: { onboardingCompletedAt: now },
+      data: { onboardingCompletedAt: now, mustChangePassword: false },
     });
     return { completedAt: now.toISOString() };
   }
@@ -137,9 +137,12 @@ export class AuthService {
 
     const existing = await this.prisma.user.findUnique({
       where: { email },
-      select: { id: true },
+      select: { id: true, mustChangePassword: true },
     });
-    if (existing) return { status: 'active' };
+    if (existing) {
+      if (existing.mustChangePassword) return { status: 'no_password' };
+      return { status: 'active' };
+    }
 
     return { status: 'unknown' };
   }
@@ -206,6 +209,14 @@ export class AuthService {
       throw new BadRequestException('Bu başvuru onaylanmamış');
     }
 
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: registration.email },
+      select: { mustChangePassword: true },
+    });
+    if (existingUser && !existingUser.mustChangePassword) {
+      throw new BadRequestException('Bu kullanıcı zaten şifresini belirlemiş, tekrar davet gönderilemez.');
+    }
+
     const auth = this.supabase.getAuthClient();
     const webUrl = this.config.get<string>('webUrl') ?? 'http://localhost:3001';
 
@@ -215,7 +226,34 @@ export class AuthService {
     });
     if (error) {
       this.logger.error(`Supabase davet gönderilemedi (${registration.email}): ${error.message}`);
-      return { sent: false };
+      if (error.message.toLowerCase().includes('already registered') || error.message.toLowerCase().includes('already been registered')) {
+        throw new BadRequestException('Bu kullanıcı Supabase\'de zaten kayıtlı ve şifresini belirlemiş. Davet gönderilmesine gerek yok.');
+      }
+      throw new BadRequestException(`Davet gönderilemedi: ${error.message}`);
+    }
+    return { sent: true };
+  }
+
+  async resendInviteForUser(userId: string): Promise<{ sent: boolean }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, fullName: true, mustChangePassword: true },
+    });
+    if (!user || !user.email) throw new NotFoundException('Kullanıcı bulunamadı');
+    if (!user.mustChangePassword) {
+      throw new BadRequestException('Kullanıcı zaten şifresini belirlemiş');
+    }
+
+    const auth = this.supabase.getAuthClient();
+    const webUrl = this.config.get<string>('webUrl') ?? 'http://localhost:3001';
+
+    const { error } = await auth.inviteUserByEmail(user.email, {
+      data: { full_name: user.fullName },
+      redirectTo: `${webUrl}/callback-magic?next=/onboarding`,
+    });
+    if (error) {
+      this.logger.error(`Supabase davet gönderilemedi (${user.email}): ${error.message}`);
+      throw new BadRequestException(`Davet gönderilemedi: ${error.message}`);
     }
     return { sent: true };
   }

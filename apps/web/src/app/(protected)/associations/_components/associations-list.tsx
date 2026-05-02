@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import type { AssociationListResponse } from '@ticketbot/shared-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { getProvinceNames } from '@/lib/turkey-locations';
 import { useAssociations } from '../_hooks/use-associations';
 import { AssociationCard } from './association-card';
 import { BranchDetailModal } from './branch-detail-modal';
@@ -36,6 +37,7 @@ export function AssociationsList({
 }) {
   const [searchInput, setSearchInput] = useState('');
   const [status, setStatus] = useState<'all' | 'active' | 'inactive'>('all');
+  const [city, setCity] = useState('');
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -47,13 +49,14 @@ export function AssociationsList({
       search: search.trim() || undefined,
       isActive:
         status === 'active' ? true : status === 'inactive' ? false : undefined,
+      city: city || undefined,
       page,
       pageSize: PAGE_SIZE,
     }),
-    [search, status, page],
+    [search, status, city, page],
   );
 
-  const hasFilters = params.search !== undefined || params.isActive !== undefined;
+  const hasFilters = params.search !== undefined || params.isActive !== undefined || params.city !== undefined;
   const useInitial = !hasFilters && page === 1;
 
   const { data, isLoading, isFetching } = useAssociations(
@@ -67,6 +70,7 @@ export function AssociationsList({
   function resetFilters() {
     setSearchInput('');
     setStatus('all');
+    setCity('');
     setPage(1);
   }
 
@@ -88,9 +92,11 @@ export function AssociationsList({
         <FilterBar
           searchInput={searchInput}
           status={status}
+          city={city}
           hasFilters={hasFilters}
           onSearch={(v) => { setSearchInput(v); setPage(1); }}
           onStatus={(v) => { setStatus(v); setPage(1); }}
+          onCity={(v) => { setCity(v); setPage(1); }}
           onReset={resetFilters}
         />
 
@@ -158,50 +164,122 @@ function PageHeader({
   );
 }
 
+const STATUS_OPTIONS = [
+  { value: 'all', label: 'Tümü' },
+  { value: 'active', label: 'Aktif' },
+  { value: 'inactive', label: 'Pasif' },
+] as const;
+
 function FilterBar({
   searchInput,
   status,
+  city,
   hasFilters,
   onSearch,
   onStatus,
+  onCity,
   onReset,
 }: {
   searchInput: string;
   status: 'all' | 'active' | 'inactive';
+  city: string;
   hasFilters: boolean;
   onSearch: (v: string) => void;
   onStatus: (v: 'all' | 'active' | 'inactive') => void;
+  onCity: (v: string) => void;
   onReset: () => void;
 }) {
+  const provinces = getProvinceNames();
+
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative w-full max-w-sm">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          className="pl-9"
-          placeholder="Ad ile ara…"
-          value={searchInput}
-          onChange={(e) => onSearch(e.target.value)}
-        />
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Arama */}
+        <div className="relative min-w-[200px] flex-1 max-w-xs">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            className="pl-9"
+            placeholder="Şube adı ara…"
+            value={searchInput}
+            onChange={(e) => onSearch(e.target.value)}
+          />
+          {searchInput && (
+            <button
+              onClick={() => onSearch('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Şehir filtresi */}
+        <Select value={city || '_all'} onValueChange={(v) => onCity(v === '_all' ? '' : v)}>
+          <SelectTrigger className="w-44">
+            <SelectValue placeholder="Tüm şehirler" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="_all">Tüm şehirler</SelectItem>
+            {provinces.map((p) => (
+              <SelectItem key={p} value={p}>{p}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        {/* Durum toggle */}
+        <div className="flex rounded-lg border border-border bg-muted p-0.5">
+          {STATUS_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => onStatus(opt.value)}
+              className={`rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${
+                status === opt.value
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+
+        {hasFilters && (
+          <Button variant="ghost" size="sm" onClick={onReset} className="text-muted-foreground">
+            <X className="h-3.5 w-3.5" />
+            Sıfırla
+          </Button>
+        )}
       </div>
-      <Select value={status} onValueChange={onStatus}>
-        <SelectTrigger className="w-40">
-          <SlidersHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Tüm durumlar</SelectItem>
-          <SelectItem value="active">Yalnızca aktif</SelectItem>
-          <SelectItem value="inactive">Yalnızca pasif</SelectItem>
-        </SelectContent>
-      </Select>
+
+      {/* Aktif filtre etiketleri */}
       {hasFilters && (
-        <Button variant="ghost" size="sm" onClick={onReset}>
-          <X className="h-3.5 w-3.5" />
-          Filtreleri sıfırla
-        </Button>
+        <div className="flex flex-wrap gap-1.5">
+          {searchInput && (
+            <FilterChip label={`"${searchInput}"`} onRemove={() => onSearch('')} />
+          )}
+          {city && (
+            <FilterChip label={city} onRemove={() => onCity('')} />
+          )}
+          {status !== 'all' && (
+            <FilterChip
+              label={status === 'active' ? 'Yalnızca aktif' : 'Yalnızca pasif'}
+              onRemove={() => onStatus('all')}
+            />
+          )}
+        </div>
       )}
     </div>
+  );
+}
+
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2.5 py-0.5 text-[12px] font-medium text-foreground">
+      {label}
+      <button onClick={onRemove} className="ml-0.5 rounded-full text-muted-foreground hover:text-foreground">
+        <X className="h-3 w-3" />
+      </button>
+    </span>
   );
 }
 

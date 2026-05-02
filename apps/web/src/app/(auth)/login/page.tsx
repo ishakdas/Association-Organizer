@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { ArrowRight, Clock, Loader2, Sparkles, Users, XCircle } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { ArrowRight, Clock, Loader2, MailQuestion, Sparkles, Users, XCircle } from 'lucide-react';
 import { createClient } from '../../../lib/supabase/client';
 import { checkBranchEmail, requestBranchRegistration } from '../../../lib/api/auth';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,8 @@ type ActiveTab = 'admin' | 'branch';
 
 export default function LoginPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('admin');
+  const searchParams = useSearchParams();
+  const callbackError = searchParams.get('error');
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
@@ -38,6 +41,16 @@ export default function LoginPage() {
                 Hesabınıza giriş yapın
               </h2>
             </div>
+
+            {callbackError === 'auth_callback_failed' && (
+              <div
+                role="alert"
+                className="rounded-md border border-destructive/25 bg-destructive/5 px-3 py-2 text-[13px] text-destructive"
+              >
+                Şifre sıfırlama bağlantısının süresi dolmuş veya geçersiz. Lütfen aşağıdan tekrar
+                isteyin.
+              </div>
+            )}
 
             <div className="flex rounded-lg border border-border bg-muted p-1">
               <button
@@ -79,6 +92,19 @@ function AdminLoginPanel() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetCooldown, setResetCooldown] = useState(0);
+
+  function startCooldown() {
+    setResetCooldown(60);
+    const interval = setInterval(() => {
+      setResetCooldown((prev) => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -105,12 +131,16 @@ function AdminLoginPanel() {
       setError('Şifre sıfırlama için e-posta adresinizi girin.');
       return;
     }
+    if (resetLoading || resetCooldown > 0) return;
+    setResetLoading(true);
+    setError(null);
     const supabase = createClient();
     await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/callback?next=/settings`,
+      redirectTo: `${window.location.origin}/callback?next=/reset-password`,
     });
-    setError(null);
-    alert('Şifre sıfırlama bağlantısı e-postanıza gönderildi.');
+    setResetLoading(false);
+    setResetSent(true);
+    startCooldown();
   }
 
   return (
@@ -139,9 +169,11 @@ function AdminLoginPanel() {
           <button
             type="button"
             onClick={handleResetPassword}
-            className="text-[12px] font-medium text-muted-foreground hover:text-foreground"
+            disabled={resetLoading || resetCooldown > 0}
+            className="flex items-center gap-1 text-[12px] font-medium text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
           >
-            Şifremi unuttum
+            {resetLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+            {resetCooldown > 0 ? `Tekrar gönder (${resetCooldown}s)` : 'Şifremi unuttum'}
           </button>
         </div>
         <Input
@@ -155,6 +187,15 @@ function AdminLoginPanel() {
           disabled={loading}
         />
       </div>
+
+      {resetSent && (
+        <div
+          role="status"
+          className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-[13px] text-green-700"
+        >
+          Şifre sıfırlama bağlantısı <strong>{email}</strong> adresine gönderildi. Gelen kutunuzu kontrol edin.
+        </div>
+      )}
 
       {error && (
         <div
@@ -182,7 +223,7 @@ function AdminLoginPanel() {
   );
 }
 
-type BranchStep = 'email' | 'checking' | 'password' | 'register' | 'pending' | 'rejected';
+type BranchStep = 'email' | 'checking' | 'password' | 'no_password' | 'register' | 'pending' | 'rejected';
 
 function BranchLoginPanel() {
   const [step, setStep] = useState<BranchStep>('email');
@@ -195,8 +236,21 @@ function BranchLoginPanel() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetCooldown, setResetCooldown] = useState(0);
 
   const provinces = getProvinceNames();
+
+  function startResetCooldown() {
+    setResetCooldown(60);
+    const interval = setInterval(() => {
+      setResetCooldown((prev) => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  }
   const districts = city ? getDistricts(city) : [];
 
   function handleCityChange(value: string) {
@@ -214,6 +268,8 @@ function BranchLoginPanel() {
       const result = await checkBranchEmail(email);
       if (result.status === 'active') {
         setStep('password');
+      } else if (result.status === 'no_password') {
+        setStep('no_password');
       } else if (result.status === 'pending') {
         setStep('pending');
       } else if (result.status === 'rejected') {
@@ -250,12 +306,16 @@ function BranchLoginPanel() {
   }
 
   async function handleForgotPassword() {
+    if (resetLoading || resetCooldown > 0) return;
+    setResetLoading(true);
+    setError(null);
     const supabase = createClient();
     await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/callback?next=/settings/profile`,
+      redirectTo: `${window.location.origin}/callback?next=/reset-password`,
     });
-    setError(null);
-    alert('Şifre sıfırlama bağlantısı e-postanıza gönderildi.');
+    setResetLoading(false);
+    setResetSent(true);
+    startResetCooldown();
   }
 
   async function handleRegisterSubmit(e: React.FormEvent) {
@@ -355,9 +415,11 @@ function BranchLoginPanel() {
             <button
               type="button"
               onClick={handleForgotPassword}
-              className="text-[12px] font-medium text-muted-foreground hover:text-foreground"
+              disabled={resetLoading || resetCooldown > 0}
+              className="flex items-center gap-1 text-[12px] font-medium text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Şifremi unuttum
+              {resetLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+              {resetCooldown > 0 ? `Tekrar gönder (${resetCooldown}s)` : 'Şifremi unuttum'}
             </button>
           </div>
           <Input
@@ -371,6 +433,15 @@ function BranchLoginPanel() {
             disabled={loading}
           />
         </div>
+
+        {resetSent && (
+          <div
+            role="status"
+            className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-[13px] text-green-700"
+          >
+            Şifre sıfırlama bağlantısı <strong>{email}</strong> adresine gönderildi. Gelen kutunuzu kontrol edin.
+          </div>
+        )}
 
         {error && (
           <div
@@ -406,16 +477,40 @@ function BranchLoginPanel() {
     );
   }
 
+  if (step === 'no_password') {
+    return (
+      <div className="space-y-4 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 text-blue-600">
+          <MailQuestion className="h-7 w-7" />
+        </div>
+        <div className="space-y-1">
+          <h3 className="font-semibold text-foreground">Şifreniz belirlenmemiş</h3>
+          <p className="text-[13px] text-muted-foreground">
+            Hesabınıza şifre oluşturulmamış. Lütfen Genel Başkan&apos;dan davet linkinin tekrar
+            gönderilmesini isteyin.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => { setStep('email'); setError(null); }}
+          className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground"
+        >
+          ← Farklı e-posta kullan
+        </button>
+      </div>
+    );
+  }
+
   if (step === 'register') {
     return (
       <form onSubmit={handleRegisterSubmit} className="space-y-4" noValidate>
         <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-[13px] text-muted-foreground">
-          Bu e-posta sistemde kayıtlı değil. Başvuru formunu doldurun, Genel Başkan onayladıktan sonra geçici şifreniz e-posta adresinize gönderilecektir.
+          Bu e-posta sistemde kayıtlı değil. Başvuru formunu doldurun, Genel Başkan onayladıktan sonra e-posta adresinize giriş linki gönderilecektir.
         </p>
 
         <div className="space-y-1.5">
           <Label htmlFor="reg-fullname" className="text-[13px] font-medium">
-            Ad Soyad <span className="text-destructive">*</span>
+            Başkan Ad Soyad <span className="text-destructive">*</span>
           </Label>
           <Input
             id="reg-fullname"
@@ -463,7 +558,7 @@ function BranchLoginPanel() {
 
         <div className="space-y-1.5">
           <Label htmlFor="reg-phone" className="text-[13px] font-medium">
-            Telefon <span className="text-muted-foreground">(opsiyonel)</span>
+            İletişim <span className="text-muted-foreground">(opsiyonel)</span>
           </Label>
           <div className="flex items-center rounded-md border border-input bg-background ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
             <span className="shrink-0 border-r border-input bg-muted/60 px-3 py-2 text-sm text-muted-foreground rounded-l-md select-none">
@@ -550,7 +645,7 @@ function BranchLoginPanel() {
         <div className="space-y-1">
           <h3 className="font-semibold text-foreground">Başvurunuz inceleniyor</h3>
           <p className="text-[13px] text-muted-foreground">
-            Genel Başkan onayladıktan sonra geçici şifreniz e-posta adresinize gönderilecektir.
+            Genel Başkan onayladıktan sonra davet linkiniz e-posta adresinize gönderilecektir.
           </p>
         </div>
       </div>

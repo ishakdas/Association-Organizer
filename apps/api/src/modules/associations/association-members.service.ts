@@ -20,9 +20,15 @@ import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
 
-const memberInclude = {
+export const MEMBER_INCLUDE = {
   user: {
-    include: {
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      address: true,
+      mustChangePassword: true,
       telegramAccount: {
         select: { username: true, firstName: true, createdAt: true },
       },
@@ -73,7 +79,7 @@ export class AssociationMembersService {
               customTitle: input.customTitle ?? null,
               isActive: true,
             },
-            include: memberInclude,
+            include: MEMBER_INCLUDE,
           });
         } catch (e) {
           if (
@@ -103,11 +109,13 @@ export class AssociationMembersService {
             password: input.password!,
             fullName: input.fullName,
             phone: input.phone,
+            address: input.address,
           })
         : await this.users.createDbOnlyUser({
             fullName: input.fullName,
             email: input.email,
             phone: input.phone,
+            address: input.address,
           });
 
       return await this.prisma.associationMembership.create({
@@ -119,7 +127,7 @@ export class AssociationMembersService {
           customTitle: input.customTitle ?? null,
           isActive: true,
         },
-        include: memberInclude,
+        include: MEMBER_INCLUDE,
       });
     } catch (e) {
       // Membership insert failed after the user was created — roll the
@@ -172,7 +180,7 @@ export class AssociationMembersService {
 
     return this.prisma.associationMembership.findMany({
       where,
-      include: memberInclude,
+      include: MEMBER_INCLUDE,
       orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
     });
   }
@@ -211,11 +219,22 @@ export class AssociationMembersService {
       data.leftAt = input.leftAt ? new Date(input.leftAt) : null;
     }
 
+    const userData: Prisma.UserUpdateInput = {};
+    if (input.fullName !== undefined) userData.fullName = input.fullName;
+    if (input.phone !== undefined) userData.phone = input.phone ?? null;
+    if (input.address !== undefined) userData.address = input.address;
+
     try {
+      if (Object.keys(userData).length > 0) {
+        await this.prisma.user.update({
+          where: { id: existing.userId },
+          data: userData,
+        });
+      }
       return await this.prisma.associationMembership.update({
         where: { id: membershipId },
         data,
-        include: memberInclude,
+        include: MEMBER_INCLUDE,
       });
     } catch (e) {
       if (
@@ -252,7 +271,7 @@ export class AssociationMembersService {
         isActive: false,
         leftAt: new Date(),
       },
-      include: memberInclude,
+      include: MEMBER_INCLUDE,
     });
   }
 
@@ -299,7 +318,7 @@ export class AssociationMembersService {
   private async ensureMembership(associationId: string, membershipId: string) {
     const found = await this.prisma.associationMembership.findFirst({
       where: { id: membershipId, associationId, deletedAt: null },
-      select: { id: true, role: true },
+      select: { id: true, role: true, userId: true },
     });
     if (!found) throw new NotFoundException('Üyelik bulunamadı');
     return found;
