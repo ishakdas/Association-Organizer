@@ -4,6 +4,15 @@ import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '../../../lib/supabase/client';
 
+// Reject anything that could escape this origin: protocol-relative `//host`,
+// backslash-prefixed `/\host`, or anything not starting with `/` (absolute URLs,
+// `@host` userinfo smuggling, etc). Falls back to /associations.
+function safeNext(raw: string | null): string {
+  if (!raw || !raw.startsWith('/')) return '/associations';
+  if (raw.startsWith('//') || raw.startsWith('/\\')) return '/associations';
+  return raw;
+}
+
 // Handles Supabase implicit-flow invite/magic links where tokens arrive as URL fragments
 // (#access_token=...). Server-side route handlers cannot read fragments, so this client
 // component reads them, calls setSession(), then redirects to ?next= (or /associations).
@@ -30,7 +39,7 @@ export default function MagicLinkCallbackPage() {
       return;
     }
 
-    const next = searchParams.get('next') ?? '/associations';
+    const next = safeNext(searchParams.get('next'));
 
     createClient()
       .auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
