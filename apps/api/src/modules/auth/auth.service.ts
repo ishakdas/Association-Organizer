@@ -30,9 +30,18 @@ export class AuthService {
     const token = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-    await this.prisma.telegramLinkToken.create({
-      data: { token, userId, expiresAt },
-    });
+    // Invalidate any prior unredeemed tokens for this user so only the
+    // latest is valid — minimizes the attack window if an earlier token
+    // leaked (logs, stale UI, copy/paste history, etc).
+    await this.prisma.$transaction([
+      this.prisma.telegramLinkToken.updateMany({
+        where: { userId, usedAt: null },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.telegramLinkToken.create({
+        data: { token, userId, expiresAt },
+      }),
+    ]);
 
     return { token, expiresAt: expiresAt.toISOString() };
   }
