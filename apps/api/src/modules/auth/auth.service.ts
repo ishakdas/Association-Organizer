@@ -303,6 +303,9 @@ export class AuthService {
     const supabaseUserId = inviteData.user.id;
 
     // --- Persist: create branch Association + User + Membership ---
+    // Saga: Supabase user already exists at this point. If the local
+    // transaction fails we MUST delete the Supabase user, otherwise an
+    // orphan auth identity is leaked (CLAUDE.md: provisioning sagas).
     try {
       await this.prisma.$transaction(async (tx) => {
         await tx.pendingBranchRegistration.update({
@@ -352,6 +355,15 @@ export class AuthService {
         });
       });
     } catch (err) {
+      try {
+        await auth.deleteUser(supabaseUserId);
+      } catch (rollbackErr) {
+        this.logger.error(
+          `Supabase rollback failed for ${supabaseUserId}: ${
+            (rollbackErr as Error).message
+          }`,
+        );
+      }
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         throw new ConflictException('Bu şube için zaten bir kayıt mevcut.');
       }
