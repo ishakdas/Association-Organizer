@@ -115,9 +115,10 @@ describe('AssociationsService', () => {
 
       const result = await service.create(validInput, 'admin-1');
 
+      // Manager is provisioned via passwordless invite (Supabase magic link),
+      // not a chosen password — the saga deliberately omits `password`.
       expect(users.createSupabaseUser).toHaveBeenCalledWith({
         email: 'baskan@ornek.test',
-        password: 'super-strong-pass',
         fullName: 'Mehmet Başkan',
         phone: '+905554445566',
       });
