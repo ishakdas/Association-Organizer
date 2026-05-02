@@ -62,8 +62,15 @@ export function AnalyzeMeetingDialog({
 
   const { data: members } = useMembers(associationId);
 
+  const [aiNotice, setAiNotice] = useState<string | null>(null);
+
   const analyzeMutation = useAnalyzeMeeting(associationId, {
     onSuccess: (result) => {
+      setAiNotice(
+        result.aiAvailable
+          ? null
+          : `Yapay zeka şu an yanıt vermedi (${result.error ?? 'bilinmeyen hata'}). Görevleri manuel olarak ekleyebilirsiniz.`,
+      );
       setTasks(
         result.actionItems.map((item, i) => ({
           id: String(i),
@@ -86,6 +93,7 @@ export function AnalyzeMeetingDialog({
       analyzeTriggered.current = false;
       setState('analyzing');
       setTasks([]);
+      setAiNotice(null);
     }
   }, [open]);
 
@@ -182,6 +190,13 @@ export function AnalyzeMeetingDialog({
                   : 'Toplantı notunuzdan görev önerisi çıkarılamadı. Manuel görev ekleyebilirsiniz.'}
               </DialogDescription>
             </DialogHeader>
+
+            {aiNotice && (
+              <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-[12.5px] text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                <p>{aiNotice}</p>
+              </div>
+            )}
 
             <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
               {tasks.length === 0 && (

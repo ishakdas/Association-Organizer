@@ -63,6 +63,8 @@ export interface AnalyzedActionItem {
 
 export interface AnalyzeMeetingResponse {
   actionItems: AnalyzedActionItem[];
+  aiAvailable: boolean;
+  error?: string;
 }
 
 export function analyzeMeeting(

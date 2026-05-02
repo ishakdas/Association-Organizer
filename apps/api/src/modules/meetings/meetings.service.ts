@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
-  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -61,11 +60,21 @@ export class MeetingsService {
             ? (memberMap.get(item.assignedToUserId)?.fullName ?? null)
             : null,
         })),
+        aiAvailable: true as const,
       };
     } catch (err) {
+      // Graceful degradation: when the upstream AI provider is unreachable,
+      // misconfigured, or rate-limited we still want the analyze dialog to
+      // render so the user can manually add tasks. Returning 200 with an
+      // empty list + an `error` string is preferable to a hard 5xx that
+      // kills the dialog entirely.
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(`AI extraction failed: ${message}`, err instanceof Error ? err.stack : undefined);
-      throw new InternalServerErrorException(`AI hatası: ${message}`);
+      return {
+        actionItems: [],
+        aiAvailable: false as const,
+        error: message,
+      };
     }
   }
 
