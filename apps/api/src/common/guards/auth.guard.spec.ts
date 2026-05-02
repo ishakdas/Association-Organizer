@@ -255,4 +255,54 @@ describe('AuthGuard — request.user enrichment', () => {
       UnauthorizedException,
     );
   });
+
+  // --- JWT alg-confusion / cross-secret regression tests ---
+  // These guard against a future refactor accidentally weakening the
+  // multi-mode verifier (drop the issuer check, share secrets across
+  // modes, accept the wrong algorithm).
+
+  it('rejects an HS256 token signed with the BOT secret but missing the bot issuer claim', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const tokenWithoutIssuer = mintHs256({
+      payload: { sub: 'user-x', iat: now, exp: now + 3600, telegramId: '1' },
+      secret: BOT_SECRET,
+    });
+
+    const { ctx } = ctxWith({ authorization: `Bearer ${tokenWithoutIssuer}` });
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects an HS256 token signed with the BOT secret but bearing a foreign issuer', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const tokenWithWrongIssuer = mintHs256({
+      payload: { sub: 'user-x', iss: 'attacker', iat: now, exp: now + 3600 },
+      secret: BOT_SECRET,
+    });
+
+    const { ctx } = ctxWith({ authorization: `Bearer ${tokenWithWrongIssuer}` });
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects a bot-issuer token signed with the SUPABASE secret (cross-secret confusion)', async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const crossSignedToken = mintHs256({
+      payload: {
+        sub: 'user-x',
+        iss: BOT_JWT_ISSUER,
+        iat: now,
+        exp: now + 3600,
+        telegramId: '1',
+      },
+      secret: SUPABASE_JWT_SECRET, // wrong secret for the bot kind
+    });
+
+    const { ctx } = ctxWith({ authorization: `Bearer ${crossSignedToken}` });
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
 });
