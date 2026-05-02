@@ -108,6 +108,14 @@ describe('AssociationMembersService', () => {
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
+    // Run callback transactions against the same mock so existing
+    // `prisma.X.update.mockResolvedValue(...)` setups apply to `tx.X`.
+    (prisma.$transaction as unknown as jest.Mock).mockImplementation(
+      async (arg: unknown) => {
+        if (typeof arg === 'function') return (arg as (tx: PrismaMock) => unknown)(prisma);
+        return Promise.all(arg as unknown[]);
+      },
+    );
     users = {
       createSupabaseUser: jest.fn(),
       createDbOnlyUser: jest.fn(),

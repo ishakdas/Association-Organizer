@@ -224,17 +224,22 @@ export class AssociationMembersService {
     if (input.phone !== undefined) userData.phone = input.phone ?? null;
     if (input.address !== undefined) userData.address = input.address;
 
+    // user fields and membership fields are written atomically: if the
+    // membership update fails (e.g. partial-unique manager index), the
+    // user row must NOT remain half-updated.
     try {
-      if (Object.keys(userData).length > 0) {
-        await this.prisma.user.update({
-          where: { id: existing.userId },
-          data: userData,
+      return await this.prisma.$transaction(async (tx) => {
+        if (Object.keys(userData).length > 0) {
+          await tx.user.update({
+            where: { id: existing.userId },
+            data: userData,
+          });
+        }
+        return tx.associationMembership.update({
+          where: { id: membershipId },
+          data,
+          include: MEMBER_INCLUDE,
         });
-      }
-      return await this.prisma.associationMembership.update({
-        where: { id: membershipId },
-        data,
-        include: MEMBER_INCLUDE,
       });
     } catch (e) {
       if (
