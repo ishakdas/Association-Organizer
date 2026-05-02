@@ -32,3 +32,13 @@ export type RequestBranchRegistrationInput = z.infer<typeof requestBranchRegistr
 
 export const approveBranchRegistrationSchema = z.object({});
 export type ApproveBranchRegistrationInput = z.infer<typeof approveBranchRegistrationSchema>;
+
+export const checkBranchEmailSchema = z.object({
+  email: z.string().email('Geçerli bir e-posta girin').max(200),
+});
+export type CheckBranchEmailInput = z.infer<typeof checkBranchEmailSchema>;
+
+export const resendInviteForUserSchema = z.object({
+  userId: z.string().cuid('Geçersiz kullanıcı'),
+});
+export type ResendInviteForUserInput = z.infer<typeof resendInviteForUserSchema>;
