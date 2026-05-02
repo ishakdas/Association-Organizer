@@ -7,8 +7,8 @@ import type { CookieOptions } from '@supabase/ssr';
 // backslash-prefixed `/\host`, or anything not starting with `/` (absolute URLs,
 // `@host` userinfo smuggling, etc). Falls back to /associations.
 function safeNext(raw: string | null): string {
-  if (!raw || !raw.startsWith('/')) return '/associations';
-  if (raw.startsWith('//') || raw.startsWith('/\\')) return '/associations';
+  if (!raw || !raw.startsWith('/')) return '/dashboard';
+  if (raw.startsWith('//') || raw.startsWith('/\\')) return '/dashboard';
   return raw;
 }
 

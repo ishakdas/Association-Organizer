@@ -8,6 +8,7 @@ import { checkBranchEmail, requestBranchRegistration } from '../../../lib/api/au
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
@@ -122,7 +123,7 @@ function AdminLoginPanel() {
       );
       setLoading(false);
     } else {
-      window.location.href = '/associations';
+      window.location.href = '/dashboard';
     }
   }
 
@@ -301,7 +302,7 @@ function BranchLoginPanel() {
       );
       setLoading(false);
     } else {
-      window.location.href = '/associations';
+      window.location.href = '/dashboard';
     }
   }
 
@@ -560,30 +561,12 @@ function BranchLoginPanel() {
           <Label htmlFor="reg-phone" className="text-[13px] font-medium">
             İletişim <span className="text-muted-foreground">(opsiyonel)</span>
           </Label>
-          <div className="flex items-center rounded-md border border-input bg-background ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-            <span className="shrink-0 border-r border-input bg-muted/60 px-3 py-2 text-sm text-muted-foreground rounded-l-md select-none">
-              +90
-            </span>
-            <input
-              id="reg-phone"
-              type="tel"
-              inputMode="numeric"
-              autoComplete="tel-national"
-              placeholder="5XX XXX XX XX"
-              value={phone}
-              onChange={(e) => {
-                const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
-                const formatted = digits
-                  .replace(/^(\d{3})(\d{0,3})/, '$1 $2')
-                  .replace(/^(\d{3} \d{3})(\d{0,2})/, '$1 $2')
-                  .replace(/^(\d{3} \d{3} \d{2})(\d{0,2})/, '$1 $2')
-                  .trim();
-                setPhone(formatted);
-              }}
-              disabled={loading}
-              className="flex-1 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            />
-          </div>
+          <PhoneInput
+            id="reg-phone"
+            value={phone}
+            onChange={setPhone}
+            disabled={loading}
+          />
         </div>
 
         <div className="space-y-1.5">
