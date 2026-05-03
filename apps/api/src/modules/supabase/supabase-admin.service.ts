@@ -21,12 +21,13 @@ import {
 @Injectable()
 export class SupabaseAdminService {
   private readonly logger = new Logger(SupabaseAdminService.name);
-  private client: SupabaseClient | null = null;
+  private adminClient: SupabaseClient | null = null;
+  private anonClient: SupabaseClient | null = null;
 
   constructor(private readonly config: ConfigService) {}
 
   getClient(): SupabaseClient {
-    if (this.client) return this.client;
+    if (this.adminClient) return this.adminClient;
 
     const url = this.config.get<string>('supabase.url');
     const key = this.config.get<string | null>('supabase.serviceRoleKey');
@@ -43,8 +44,20 @@ export class SupabaseAdminService {
     const options: SupabaseClientOptions<'public'> = {
       auth: { persistSession: false, autoRefreshToken: false },
     };
-    this.client = createClient(url, key, options);
-    return this.client;
+    this.adminClient = createClient(url, key, options);
+    return this.adminClient;
+  }
+
+  /** Anon-key client — kullanıcı tarafı işlemler için (örn. signInWithOtp) */
+  getAnonClient(): SupabaseClient {
+    if (this.anonClient) return this.anonClient;
+
+    const url = this.config.get<string>('supabase.url')!;
+    const anonKey = this.config.get<string>('supabase.anonKey')!;
+    this.anonClient = createClient(url, anonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    return this.anonClient;
   }
 
   getAuthClient() {

@@ -1,6 +1,9 @@
 import {
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Post,
   Param,
   Body,
@@ -49,6 +52,22 @@ export class AssociationsController {
     return this.associationsService.list(query, user);
   }
 
+  @Get('stats')
+  @Roles(UserRole.SYSTEM_ADMIN)
+  getGlobalStats() {
+    return this.associationsService.getGlobalStats();
+  }
+
+  @Get(':id/stats')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
+  getStats(@Param('id') id: string) {
+    return this.associationsService.getStats(id);
+  }
+
   @Get(':id')
   @AssociationRoles(
     UserRole.ASSOCIATION_MANAGER,
@@ -57,5 +76,12 @@ export class AssociationsController {
   )
   findOne(@Param('id') id: string) {
     return this.associationsService.findOne(id);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.SYSTEM_ADMIN)
+  @HttpCode(HttpStatus.OK)
+  delete(@Param('id') id: string) {
+    return this.associationsService.delete(id);
   }
 }

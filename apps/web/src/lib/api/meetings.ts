@@ -53,3 +53,31 @@ export function createMeeting(
 export function getMeeting(token: string, meetingId: string) {
   return apiClient<MeetingNoteResponse>(`/meetings/${meetingId}`, { token });
 }
+
+export interface AnalyzedActionItem {
+  title: string;
+  description?: string | null;
+  assignedToUserId?: string | null;
+  assignedToUserName?: string | null;
+}
+
+export interface AnalyzeMeetingResponse {
+  actionItems: AnalyzedActionItem[];
+  aiAvailable: boolean;
+  error?: string;
+}
+
+export function analyzeMeeting(
+  token: string,
+  associationId: string,
+  content: string,
+) {
+  return apiClient<AnalyzeMeetingResponse>(
+    `/associations/${associationId}/meetings/analyze`,
+    {
+      token,
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    },
+  );
+}

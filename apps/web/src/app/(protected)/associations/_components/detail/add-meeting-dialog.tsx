@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useRef, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -12,10 +12,10 @@ import {
   ChevronDown,
   Eye,
   EyeOff,
+  FileText,
   Loader2,
   Plus,
   Search,
-  Sparkles,
   X,
 } from 'lucide-react';
 import {
@@ -73,6 +73,7 @@ export function AddMeetingDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [showPreview, setShowPreview] = useState(true);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -86,14 +87,9 @@ export function AddMeetingDialog({
 
   const content = form.watch('content');
 
-  const mutation = useCreateMeeting(associationId, {
+  const createMutation = useCreateMeeting(associationId, {
     onSuccess: () => {
-      form.reset({
-        title: '',
-        meetingDate: new Date(),
-        attendeeUserIds: [],
-        content: '',
-      });
+      form.reset({ title: '', meetingDate: new Date(), attendeeUserIds: [], content: '' });
       setOpen(false);
     },
   });
@@ -121,11 +117,33 @@ export function AddMeetingDialog({
       }
       return;
     }
-    mutation.mutate(parsed.data);
+    createMutation.mutate(parsed.data);
+  }
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (!next) {
+      form.reset({ title: '', meetingDate: new Date(), attendeeUserIds: [], content: '' });
+    }
+  }
+
+  function handleFileImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result;
+      if (typeof text === 'string') {
+        form.setValue('content', text, { shouldValidate: true, shouldDirty: true });
+      }
+    };
+    reader.readAsText(file, 'UTF-8');
+    // Reset so the same file can be re-imported
+    e.target.value = '';
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button size="sm">
           <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -153,11 +171,7 @@ export function AddMeetingDialog({
                 <FormItem>
                   <FormLabel>Başlık *</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="Örn. Mart Yönetim Kurulu"
-                      autoFocus
-                      {...field}
-                    />
+                    <Input placeholder="Örn. Mart Yönetim Kurulu" autoFocus {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -171,10 +185,7 @@ export function AddMeetingDialog({
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Tarih *</FormLabel>
-                    <DatePopover
-                      value={field.value}
-                      onChange={(d) => d && field.onChange(d)}
-                    />
+                    <DatePopover value={field.value} onChange={(d) => d && field.onChange(d)} />
                     <FormMessage />
                   </FormItem>
                 )}
@@ -206,31 +217,40 @@ export function AddMeetingDialog({
                 <FormItem>
                   <div className="flex items-center justify-between">
                     <FormLabel>İçerik (Markdown) *</FormLabel>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowPreview((p) => !p)}
-                    >
-                      {showPreview ? (
-                        <>
-                          <EyeOff className="h-3.5 w-3.5" />
-                          Önizlemeyi gizle
-                        </>
-                      ) : (
-                        <>
-                          <Eye className="h-3.5 w-3.5" />
-                          Önizlemeyi göster
-                        </>
-                      )}
-                    </Button>
+                    <div className="flex items-center gap-1">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".md,.markdown,text/markdown,text/plain"
+                        className="hidden"
+                        onChange={handleFileImport}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        title="Markdown dosyasından yükle"
+                        className="border-primary/40 text-primary hover:bg-primary/5 hover:text-primary"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        Dosyadan yükle
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowPreview((p) => !p)}
+                      >
+                        {showPreview ? (
+                          <><EyeOff className="h-3.5 w-3.5" />Önizlemeyi gizle</>
+                        ) : (
+                          <><Eye className="h-3.5 w-3.5" />Önizlemeyi göster</>
+                        )}
+                      </Button>
+                    </div>
                   </div>
-                  <div
-                    className={cn(
-                      'grid gap-3',
-                      showPreview ? 'md:grid-cols-2' : 'grid-cols-1',
-                    )}
-                  >
+                  <div className={cn('grid gap-3', showPreview ? 'md:grid-cols-2' : 'grid-cols-1')}>
                     <FormControl>
                       <Textarea
                         rows={14}
@@ -256,37 +276,18 @@ export function AddMeetingDialog({
               )}
             />
 
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed border-border bg-muted/20 px-3 py-2">
-              <div className="inline-flex items-center gap-2 text-[12px] text-muted-foreground">
-                <Sparkles className="h-3.5 w-3.5" />
-                Notu analiz edip görev önerileri çıkarmak yakında eklenecek.
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled
-                title="Yakında"
-              >
-                Notu analiz et
-              </Button>
-            </div>
-
             <DialogFooter>
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setOpen(false)}
-                disabled={mutation.isPending}
+                onClick={() => handleOpenChange(false)}
+                disabled={createMutation.isPending}
               >
                 Vazgeç
               </Button>
-              <Button type="submit" disabled={mutation.isPending}>
-                {mutation.isPending ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Kaydediliyor…
-                  </>
+              <Button type="submit" disabled={createMutation.isPending}>
+                {createMutation.isPending ? (
+                  <><Loader2 className="h-3.5 w-3.5 animate-spin" />Kaydediliyor…</>
                 ) : (
                   'Notu kaydet'
                 )}
@@ -345,26 +346,20 @@ function AttendeeMultiSelect({
         >
           <span className="flex flex-wrap items-center gap-1">
             {selected.length === 0 ? (
-              <span className="px-1 text-muted-foreground">
-                Katılımcı seçin…
-              </span>
+              <span className="px-1 text-muted-foreground">Katılımcı seçin…</span>
             ) : (
               selected.slice(0, 4).map((m) => (
                 <Badge
                   key={m.id}
                   variant="secondary"
-                  className="gap-1 text-[11px]"
+                  className="gap-1 text-[11px] ring-1 ring-transparent transition-colors hover:bg-secondary hover:ring-border"
                 >
                   {m.user.fullName}
                   <span
                     role="button"
                     tabIndex={-1}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      toggle(m.user.id);
-                    }}
-                    className="opacity-60 hover:opacity-100"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggle(m.user.id); }}
+                    className="-mr-0.5 ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground"
                     aria-label="Çıkar"
                   >
                     <X className="h-3 w-3" />
@@ -373,18 +368,13 @@ function AttendeeMultiSelect({
               ))
             )}
             {selected.length > 4 && (
-              <Badge variant="outline" className="text-[11px]">
-                +{selected.length - 4} kişi
-              </Badge>
+              <Badge variant="outline" className="text-[11px]">+{selected.length - 4} kişi</Badge>
             )}
           </span>
           <ChevronDown className="h-3.5 w-3.5 opacity-60" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        className="w-[var(--radix-popover-trigger-width)] p-0"
-        align="start"
-      >
+      <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
         <div className="border-b border-border px-2.5 py-2">
           <div className="relative">
             <Search className="absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -399,14 +389,10 @@ function AttendeeMultiSelect({
         </div>
         <div className="max-h-[260px] overflow-y-auto py-1">
           {isLoading && (
-            <div className="px-3 py-2 text-[12px] text-muted-foreground">
-              Yükleniyor…
-            </div>
+            <div className="px-3 py-2 text-[12px] text-muted-foreground">Yükleniyor…</div>
           )}
           {!isLoading && filtered.length === 0 && (
-            <div className="px-3 py-3 text-center text-[12px] text-muted-foreground">
-              Kayıt yok
-            </div>
+            <div className="px-3 py-3 text-center text-[12px] text-muted-foreground">Kayıt yok</div>
           )}
           {filtered.map((m) => {
             const checked = selectedSet.has(m.user.id);
@@ -430,11 +416,7 @@ function AttendeeMultiSelect({
                   aria-hidden
                 >
                   {checked && (
-                    <svg
-                      className="h-3 w-3"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
+                    <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
                       <path
                         fillRule="evenodd"
                         d="M16.704 5.29a1 1 0 010 1.42l-7.5 7.5a1 1 0 01-1.42 0l-3.5-3.5a1 1 0 011.42-1.42L8.5 12.08l6.79-6.79a1 1 0 011.414 0z"
@@ -443,9 +425,7 @@ function AttendeeMultiSelect({
                     </svg>
                   )}
                 </span>
-                <span className="min-w-0 flex-1 truncate">
-                  {m.user.fullName}
-                </span>
+                <span className="min-w-0 flex-1 truncate">{m.user.fullName}</span>
               </button>
             );
           })}
@@ -466,11 +446,7 @@ function DatePopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full justify-between font-normal"
-        >
+        <Button type="button" variant="outline" className="w-full justify-between font-normal">
           <span className="inline-flex items-center gap-2">
             <CalendarIcon className="h-3.5 w-3.5 opacity-60" />
             {format(value, 'd MMMM yyyy', { locale: tr })}
@@ -482,10 +458,7 @@ function DatePopover({
         <Calendar
           mode="single"
           selected={value}
-          onSelect={(d) => {
-            onChange(d);
-            if (d) setOpen(false);
-          }}
+          onSelect={(d) => { onChange(d); if (d) setOpen(false); }}
         />
       </PopoverContent>
     </Popover>

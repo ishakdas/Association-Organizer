@@ -1,19 +1,19 @@
 import OpenAI from 'openai';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { AiProvider, GenerateStructuredOptions } from '../ai-provider.interface';
 
 export class OpenAiProvider implements AiProvider {
   private client: OpenAI;
 
   constructor(apiKey: string) {
-    this.client = new OpenAI({ apiKey });
+    this.client = new OpenAI({
+      apiKey,
+      baseURL: 'https://api.groq.com/openai/v1',
+    });
   }
 
   async generateStructured<T>(options: GenerateStructuredOptions<T>): Promise<T> {
-    const { systemPrompt, userPrompt, schema, schemaName } = options;
-    const model = options.model ?? 'gpt-4o-mini';
-
-    const jsonSchema = zodToJsonSchema(schema as any, { name: schemaName, target: 'openApi3' });
+    const { systemPrompt, userPrompt, schema } = options;
+    const model = options.model ?? 'llama-3.3-70b-versatile';
 
     let lastError: Error | undefined;
 
@@ -23,11 +23,10 @@ export class OpenAiProvider implements AiProvider {
         { role: 'user', content: userPrompt },
       ];
 
-      // On retry, include the parse error
       if (attempt > 0 && lastError) {
         messages.push({
           role: 'user',
-          content: `The previous response failed validation: ${lastError.message}\nPlease fix the output to match the required schema.`,
+          content: `Previous response failed validation: ${lastError.message}. Fix the JSON and try again.`,
         });
       }
 
@@ -35,18 +34,11 @@ export class OpenAiProvider implements AiProvider {
         const response = await this.client.chat.completions.create({
           model,
           messages,
-          response_format: {
-            type: 'json_schema',
-            json_schema: {
-              name: schemaName,
-              schema: jsonSchema as Record<string, unknown>,
-              strict: true,
-            },
-          },
+          response_format: { type: 'json_object' },
         });
 
         const content = response.choices[0]?.message?.content;
-        if (!content) throw new Error('Empty response from OpenAI');
+        if (!content) throw new Error('Empty response from Groq');
 
         const parsed = JSON.parse(content);
         return schema.parse(parsed);

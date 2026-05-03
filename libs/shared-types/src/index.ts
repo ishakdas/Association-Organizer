@@ -17,6 +17,9 @@ export type {
 export type {
   AssociationDto,
   AssociationListResponse,
+  AssociationStatsDto,
+  GlobalBranchStatsDto,
+  MonthStat,
 } from './domain/association';
 export type {
   AuthTokenPayload,

@@ -1,5 +1,10 @@
 import { apiClient } from './client';
-import type { AssociationDto, AssociationListResponse } from '@ticketbot/shared-types';
+import type {
+  AssociationDto,
+  AssociationListResponse,
+  AssociationStatsDto,
+  GlobalBranchStatsDto,
+} from '@ticketbot/shared-types';
 import type { CreateAssociationInput } from '@ticketbot/shared-validation';
 
 export interface ListParams {
@@ -37,4 +42,25 @@ export function createAssociation(token: string, input: CreateAssociationInput) 
     method: 'POST',
     body: JSON.stringify(input),
   });
+}
+
+export interface DeleteAssociationResult {
+  associationId: string;
+  membershipsDeleted: number;
+  telegramAccountsUnlinked: number;
+}
+
+export function deleteAssociation(token: string, id: string) {
+  return apiClient<DeleteAssociationResult>(`/associations/${id}`, {
+    token,
+    method: 'DELETE',
+  });
+}
+
+export function getAssociationStats(token: string, id: string) {
+  return apiClient<AssociationStatsDto>(`/associations/${id}/stats`, { token });
+}
+
+export function getGlobalBranchStats(token: string) {
+  return apiClient<GlobalBranchStatsDto>('/associations/stats', { token });
 }

@@ -54,6 +54,8 @@ export class AuthGuard implements CanActivate {
         ? UserRole.SYSTEM_ADMIN
         : null,
       telegramAccount,
+      onboardingCompletedAt: user.onboardingCompletedAt?.toISOString() ?? null,
+      mustChangePassword: user.mustChangePassword,
     };
 
     (request as any).user = authUser;

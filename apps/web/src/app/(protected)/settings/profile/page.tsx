@@ -2,17 +2,17 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ChevronRight, Loader2, Save, ShieldCheck } from 'lucide-react';
+import { Building2, ChevronRight, Loader2, Save, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { PhoneInput } from '@/components/ui/phone-input';
 import { Label } from '@/components/ui/label';
 import { createClient } from '@/lib/supabase/client';
 import { getMe } from '@/lib/api/me';
-import { updateProfile } from '@/lib/api/admin';
-import { userRoleLabel } from '@/lib/permissions';
+import { getAssociation } from '@/lib/api/associations';
+import { clearTempPasswordFlag } from '@/lib/api/auth';
+import { userRoleLabel, activeMemberships } from '@/lib/permissions';
 
 async function getToken(): Promise<string> {
   const supabase = createClient();
@@ -24,11 +24,10 @@ async function getToken(): Promise<string> {
 
 export default function SettingsProfilePage() {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
+  const [associationName, setAssociationName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [savingPwd, setSavingPwd] = useState(false);
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
+  const [oldPwd, setOldPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +38,15 @@ export default function SettingsProfilePage() {
         const token = await getToken();
         const me = await getMe(token);
         setUser(me);
-        setFullName(me.fullName ?? '');
+        const active = activeMemberships(me);
+        if (active.length > 0) {
+          try {
+            const assoc = await getAssociation(token, active[0].associationId);
+            setAssociationName(assoc.name);
+          } catch {
+            // non-blocking
+          }
+        }
       } catch (e) {
         setError((e as Error).message);
       } finally {
@@ -47,36 +54,6 @@ export default function SettingsProfilePage() {
       }
     })();
   }, []);
-
-  async function handleSaveProfile(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      const token = await getToken();
-      const trimmedName = fullName.trim();
-      const trimmedPhone = phone.trim();
-      const payload: { fullName?: string; phone?: string | null } = {};
-      if (trimmedName && trimmedName !== user?.fullName) {
-        payload.fullName = trimmedName;
-      }
-      if (trimmedPhone) payload.phone = trimmedPhone;
-      if (Object.keys(payload).length === 0) {
-        toast.info('Değişiklik yok');
-        return;
-      }
-      await updateProfile(token, payload);
-      const refreshed = await getMe(token);
-      setUser(refreshed);
-      toast.success('Profil güncellendi');
-    } catch (err) {
-      const msg = (err as Error).message;
-      setError(msg);
-      toast.error(msg);
-    } finally {
-      setSaving(false);
-    }
-  }
 
   async function handleChangePassword(e: React.FormEvent) {
     e.preventDefault();
@@ -88,14 +65,39 @@ export default function SettingsProfilePage() {
       toast.error('Parolalar eşleşmiyor');
       return;
     }
+    // If the user already has a real password (i.e. not on the
+    // first-time temp-password flow), require the old password and
+    // verify it via signInWithPassword before issuing the update.
+    const requiresOldPwd = user?.mustChangePassword === false;
+    if (requiresOldPwd && oldPwd.length === 0) {
+      toast.error('Mevcut parolanızı girin');
+      return;
+    }
     setSavingPwd(true);
     try {
       const supabase = createClient();
+      if (requiresOldPwd && user?.email) {
+        const { error: verifyErr } = await supabase.auth.signInWithPassword({
+          email: user.email,
+          password: oldPwd,
+        });
+        if (verifyErr) throw new Error('Mevcut parola hatalı');
+      }
       const { error: err } = await supabase.auth.updateUser({ password: newPwd });
       if (err) throw err;
+
+      try {
+        const token = await getToken();
+        await clearTempPasswordFlag(token);
+      } catch {
+        // Non-blocking
+      }
+
+      setOldPwd('');
       setNewPwd('');
       setConfirmPwd('');
       toast.success('Parola güncellendi');
+      window.location.reload();
     } catch (err) {
       toast.error((err as Error).message);
     } finally {
@@ -112,6 +114,9 @@ export default function SettingsProfilePage() {
     );
   }
 
+  const memberships = activeMemberships(user);
+  const primaryMembership = memberships[0] ?? null;
+
   return (
     <div className="space-y-8 pb-10">
       <header className="space-y-5 border-b border-border pb-6">
@@ -119,10 +124,7 @@ export default function SettingsProfilePage() {
           aria-label="Breadcrumb"
           className="flex items-center gap-1 text-[12px] text-muted-foreground"
         >
-          <Link
-            href="/settings"
-            className="font-medium hover:text-foreground"
-          >
+          <Link href="/settings" className="font-medium hover:text-foreground">
             Ayarlar
           </Link>
           <ChevronRight className="h-3 w-3 text-muted-foreground/50" />
@@ -152,48 +154,52 @@ export default function SettingsProfilePage() {
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {/* Şube Bilgisi — readonly */}
         <section className="rounded-lg border border-border bg-card">
           <header className="border-b border-border px-5 py-3">
-            <h2 className="text-[13.5px] font-semibold tracking-tight text-foreground">
-              Kişisel Bilgiler
-            </h2>
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-[13.5px] font-semibold tracking-tight text-foreground">
+                Şube Bilgisi
+              </h2>
+            </div>
           </header>
-          <form onSubmit={handleSaveProfile} className="space-y-4 px-5 py-5">
+          <div className="space-y-4 px-5 py-5">
             <div className="space-y-1.5">
-              <Label htmlFor="fullName">Ad Soyad</Label>
-              <Input
-                id="fullName"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-                minLength={2}
-                maxLength={120}
-              />
+              <Label className="text-muted-foreground">Ad Soyad</Label>
+              <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[13.5px] text-foreground">
+                {user?.fullName ?? '—'}
+              </div>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="phone">Telefon</Label>
-              <PhoneInput
-                id="phone"
-                value={phone}
-                onChange={(digits) => setPhone(digits)}
-              />
-              <p className="text-[11.5px] text-muted-foreground">
-                E-posta Supabase tarafında yönetilir, buradan değiştirilemez.
-              </p>
+              <Label className="text-muted-foreground">E-posta</Label>
+              <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[13.5px] text-foreground">
+                {user?.email ?? '—'}
+              </div>
             </div>
-            <div className="flex justify-end">
-              <Button type="submit" disabled={saving}>
-                {saving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4" />
-                )}
-                {saving ? 'Kaydediliyor…' : 'Kaydet'}
-              </Button>
-            </div>
-          </form>
+            {primaryMembership && (
+              <>
+                <div className="space-y-1.5">
+                  <Label className="text-muted-foreground">Şube</Label>
+                  <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[13.5px] text-foreground">
+                    {associationName ?? primaryMembership.associationId}
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-muted-foreground">Rol</Label>
+                  <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-[13.5px] text-foreground">
+                    {userRoleLabel(user) ?? '—'}
+                  </div>
+                </div>
+              </>
+            )}
+            <p className="text-[11.5px] text-muted-foreground">
+              Şube bilgileri yalnızca yönetici tarafından değiştirilebilir.
+            </p>
+          </div>
         </section>
 
+        {/* Parola */}
         <section className="rounded-lg border border-border bg-card">
           <header className="border-b border-border px-5 py-3">
             <h2 className="text-[13.5px] font-semibold tracking-tight text-foreground">
@@ -201,6 +207,19 @@ export default function SettingsProfilePage() {
             </h2>
           </header>
           <form onSubmit={handleChangePassword} className="space-y-4 px-5 py-5">
+            {user?.mustChangePassword === false && (
+              <div className="space-y-1.5">
+                <Label htmlFor="oldPwd">Mevcut Parola</Label>
+                <Input
+                  id="oldPwd"
+                  type="password"
+                  value={oldPwd}
+                  onChange={(e) => setOldPwd(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="newPwd">Yeni Parola</Label>
               <Input
@@ -226,7 +245,7 @@ export default function SettingsProfilePage() {
               />
             </div>
             <p className="text-[11.5px] text-muted-foreground">
-              Parolan en az 8 karakter olmalı.
+              Parola en az 8 karakter olmalı.
             </p>
             <div className="flex justify-end">
               <Button type="submit" variant="outline" disabled={savingPwd}>

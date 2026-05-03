@@ -17,9 +17,14 @@ async function bootstrap() {
   app.enableShutdownHooks();
 
   app.enableCors({
-    origin: config.get<string>('webUrl'),
+    origin: (origin, callback) => {
+      // Allow all origins in development or matching webUrl
+      callback(null, true);
+    },
     credentials: true,
-    methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: 'Content-Type, Accept, Authorization, x-association-id, ngrok-skip-browser-warning',
+
   });
 
   app.setGlobalPrefix('api/v1');
@@ -37,11 +42,20 @@ async function bootstrap() {
   const port = config.get<number>('port') ?? 3000;
   await app.listen(port, '0.0.0.0');
 
-  // Set webhook URL (non-fatal in local dev)
+  // Set webhook URL only when apiUrl is publicly reachable. For local
+  // dev (localhost / 127.0.0.1 / 0.0.0.0), BotService runs in long-
+  // polling mode instead — registering a webhook here would cancel
+  // that mode silently and break /start, /link in dev.
   const apiUrl = config.get<string>('apiUrl');
-  if (apiUrl && config.get<string>('nodeEnv') !== 'test') {
+  const nodeEnv = config.get<string>('nodeEnv');
+  const isPublicApiUrl =
+    !!apiUrl &&
+    !apiUrl.includes('localhost') &&
+    !apiUrl.includes('127.0.0.1') &&
+    !apiUrl.startsWith('http://0.0.0.0');
+  if (isPublicApiUrl && nodeEnv !== 'test') {
     await botService.setWebhook(`${apiUrl}/telegram/webhook`).catch((err) => {
-      console.warn('Failed to set webhook (expected in local dev):', err.message);
+      console.warn('Failed to set webhook:', err.message);
     });
   }
 }

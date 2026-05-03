@@ -3,6 +3,7 @@ import type {
   AddMemberInput,
   MemberResponse,
   MembershipRole,
+  UpdateMemberInput,
 } from '@ticketbot/shared-validation';
 
 export interface ListMembersParams {
@@ -41,6 +42,22 @@ export function addMember(
   });
 }
 
+export function updateMember(
+  token: string,
+  associationId: string,
+  membershipId: string,
+  input: UpdateMemberInput,
+) {
+  return apiClient<MemberResponse>(
+    `/associations/${associationId}/members/${membershipId}`,
+    {
+      token,
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
 export function removeMember(
   token: string,
   associationId: string,
@@ -70,6 +87,20 @@ export function generateMemberTelegramLink(
     {
       token,
       method: 'POST',
+    },
+  );
+}
+
+export function unlinkMemberTelegramAccount(
+  token: string,
+  associationId: string,
+  membershipId: string,
+) {
+  return apiClient<{ unlinked: boolean }>(
+    `/associations/${associationId}/members/${membershipId}/telegram-link`,
+    {
+      token,
+      method: 'DELETE',
     },
   );
 }

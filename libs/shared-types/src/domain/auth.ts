@@ -37,4 +37,6 @@ export interface AuthenticatedUser {
   memberships: AuthMembership[];
   systemRole: UserRole | null;
   telegramAccount: AuthTelegramAccount | null;
+  onboardingCompletedAt: string | null;
+  mustChangePassword: boolean;
 }

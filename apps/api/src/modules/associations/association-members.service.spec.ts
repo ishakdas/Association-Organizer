@@ -27,6 +27,8 @@ const SYSTEM_ADMIN_ACTOR: AuthenticatedUser = {
   systemRole: 'SYSTEM_ADMIN',
   memberships: [],
   telegramAccount: null,
+  onboardingCompletedAt: null,
+  mustChangePassword: false,
 };
 
 const MANAGER_ACTOR: AuthenticatedUser = {
@@ -44,6 +46,8 @@ const MANAGER_ACTOR: AuthenticatedUser = {
     },
   ],
   telegramAccount: null,
+  onboardingCompletedAt: null,
+  mustChangePassword: false,
 };
 
 type PrismaMock = DeepMockProxy<PrismaClient>;
@@ -104,6 +108,14 @@ describe('AssociationMembersService', () => {
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
+    // Run callback transactions against the same mock so existing
+    // `prisma.X.update.mockResolvedValue(...)` setups apply to `tx.X`.
+    (prisma.$transaction as unknown as jest.Mock).mockImplementation(
+      async (arg: unknown) => {
+        if (typeof arg === 'function') return (arg as (tx: PrismaMock) => unknown)(prisma);
+        return Promise.all(arg as unknown[]);
+      },
+    );
     users = {
       createSupabaseUser: jest.fn(),
       createDbOnlyUser: jest.fn(),

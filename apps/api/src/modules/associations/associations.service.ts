@@ -13,6 +13,12 @@ import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { AssociationsRepository } from './associations.repository';
 import { UsersService } from '../users/users.service';
 
+export interface DeleteResult {
+  associationId: string;
+  membershipsDeleted: number;
+  telegramAccountsUnlinked: number;
+}
+
 @Injectable()
 export class AssociationsService {
   private readonly logger = new Logger(AssociationsService.name);
@@ -42,7 +48,6 @@ export class AssociationsService {
 
     const managerUser = await this.users.createSupabaseUser({
       email: manager.email,
-      password: manager.password,
       fullName: manager.fullName,
       phone: manager.phone,
     });
@@ -91,6 +96,95 @@ export class AssociationsService {
     return association;
   }
 
+  /**
+   * Deletes exactly what belongs to this association and nothing else:
+   * - Hard-deletes all AssociationMembership rows for this association.
+   * - Unlinks TelegramAccount only for users who have no membership in any
+   *   other association (they would lose all bot access anyway).
+   * - Soft-deletes tasks and meeting notes for this association.
+   * - Soft-deletes the association record itself.
+   *
+   * User records are never touched — they may belong to other associations
+   * or have historical task/meeting references that must stay intact.
+   */
+  async delete(id: string): Promise<DeleteResult> {
+    const association = await this.prisma.association.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!association) throw new NotFoundException('Dernek bulunamadı');
+
+    // Unique user IDs that have any membership row in this association.
+    const memberships = await this.prisma.associationMembership.findMany({
+      where: { associationId: id },
+      select: { userId: true },
+      distinct: ['userId'],
+    });
+    const allUserIds = memberships.map((m) => m.userId);
+
+    // Only unlink Telegram for users who have NO membership elsewhere.
+    // Users still in another association keep their bot access.
+    let telegramUserIds: string[] = [];
+    if (allUserIds.length > 0) {
+      const withElsewhere = await this.prisma.associationMembership.findMany({
+        where: {
+          userId: { in: allUserIds },
+          associationId: { not: id },
+          deletedAt: null,
+        },
+        select: { userId: true },
+        distinct: ['userId'],
+      });
+      const elsewhereSet = new Set(withElsewhere.map((m) => m.userId));
+      telegramUserIds = allUserIds.filter((uid) => !elsewhereSet.has(uid));
+    }
+
+    const now = new Date();
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // 1. Unlink Telegram for members with no other association.
+      const { count: telegramCount } = await tx.telegramAccount.deleteMany({
+        where: { userId: { in: telegramUserIds } },
+      });
+
+      // 2. Hard-delete all membership rows for this association.
+      const { count: membershipCount } = await tx.associationMembership.deleteMany({
+        where: { associationId: id },
+      });
+
+      // 3. Soft-delete tasks and meeting notes.
+      //    (Both have onDelete:Cascade from Association in the schema, but we
+      //     soft-delete rather than hard-delete to preserve audit history.)
+      await tx.task.updateMany({
+        where: { associationId: id, deletedAt: null },
+        data: { deletedAt: now },
+      });
+      await tx.meetingNote.updateMany({
+        where: { associationId: id, deletedAt: null },
+        data: { deletedAt: now },
+      });
+
+      // 4. Soft-delete the association.
+      await tx.association.update({
+        where: { id },
+        data: { deletedAt: now, isActive: false },
+      });
+
+      return {
+        associationId: id,
+        membershipsDeleted: membershipCount,
+        telegramAccountsUnlinked: telegramCount,
+      };
+    });
+
+    this.logger.log(
+      `Association ${id} deleted — ${result.membershipsDeleted} memberships, ` +
+        `${result.telegramAccountsUnlinked} Telegram links unlinked`,
+    );
+
+    return result;
+  }
+
   async list(query: ListAssociationsQuery, user: AuthenticatedUser) {
     const scopedToUserId =
       user.systemRole === UserRole.SYSTEM_ADMIN ? undefined : user.id;
@@ -109,5 +203,133 @@ export class AssociationsService {
         totalPages: Math.max(1, Math.ceil(total / pageSize)),
       },
     };
+  }
+
+  async getGlobalStats() {
+    const [
+      totalBranches,
+      activeBranches,
+      totalMembers,
+      pendingRegistrations,
+      cityRaw,
+    ] = await this.prisma.$transaction([
+      this.prisma.association.count({ where: { deletedAt: null } }),
+      this.prisma.association.count({ where: { deletedAt: null, isActive: true } }),
+      this.prisma.associationMembership.count({
+        where: { isActive: true, deletedAt: null },
+      }),
+      this.prisma.pendingBranchRegistration.count({
+        where: { status: 'PENDING' },
+      }),
+      this.prisma.association.groupBy({
+        by: ['city'],
+        where: { deletedAt: null },
+        _count: { city: true },
+        orderBy: { _count: { city: 'desc' } },
+        take: 10,
+      }),
+    ]);
+
+    return {
+      totalBranches,
+      activeBranches,
+      inactiveBranches: totalBranches - activeBranches,
+      totalMembers,
+      pendingRegistrations,
+      cityDistribution: cityRaw.map((r) => ({
+        city: r.city,
+        count: (r._count as { city: number }).city,
+      })),
+    };
+  }
+
+  async getStats(id: string) {
+    const association = await this.prisma.association.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true },
+    });
+    if (!association) throw new NotFoundException('Dernek bulunamadı');
+
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
+    sixMonthsAgo.setDate(1);
+    sixMonthsAgo.setHours(0, 0, 0, 0);
+
+    const [members, tasks, meetings, recentTasks] = await this.prisma.$transaction([
+      this.prisma.associationMembership.findMany({
+        where: { associationId: id, isActive: true, deletedAt: null },
+        select: { role: true },
+      }),
+      this.prisma.task.findMany({
+        where: { associationId: id, deletedAt: null },
+        select: { status: true },
+      }),
+      this.prisma.meetingNote.findMany({
+        where: { associationId: id, deletedAt: null },
+        select: { meetingDate: true },
+        orderBy: { meetingDate: 'desc' },
+      }),
+      this.prisma.task.findMany({
+        where: { associationId: id, deletedAt: null, createdAt: { gte: sixMonthsAgo } },
+        select: { createdAt: true, status: true },
+      }),
+    ]);
+
+    const membersByRole: Record<string, number> = {};
+    for (const m of members) {
+      membersByRole[m.role] = (membersByRole[m.role] ?? 0) + 1;
+    }
+    const totalMembers = members.length;
+
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter((t) => t.status === 'COMPLETED').length;
+    const inProgressTasks = tasks.filter((t) => t.status === 'IN_PROGRESS').length;
+    const pendingTasks = tasks.filter((t) => t.status === 'PENDING').length;
+    const completionRate =
+      totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+    const totalMeetings = meetings.length;
+
+    const monthLabels = this.buildLast6Months();
+
+    const tasksByMonth = monthLabels.map(({ key, label }) => ({
+      month: label,
+      count: recentTasks.filter((t) => this.toMonthKey(t.createdAt) === key).length,
+    }));
+
+    const meetingsByMonth = monthLabels.map(({ key, label }) => ({
+      month: label,
+      count: meetings.filter((m) => this.toMonthKey(m.meetingDate) === key).length,
+    }));
+
+    return {
+      totalMembers,
+      membersByRole,
+      totalTasks,
+      completedTasks,
+      inProgressTasks,
+      pendingTasks,
+      completionRate,
+      totalMeetings,
+      tasksByMonth,
+      meetingsByMonth,
+    };
+  }
+
+  private buildLast6Months(): { key: string; label: string }[] {
+    const months = [];
+    const TR_MONTHS = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      months.push({
+        key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
+        label: TR_MONTHS[d.getMonth()] ?? '',
+      });
+    }
+    return months;
+  }
+
+  private toMonthKey(date: Date): string {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
   }
 }

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
   Building2,
+  Info,
   KeyRound,
   MessageSquare,
   ShieldCheck,
@@ -12,7 +13,7 @@ import {
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { createServerClient } from '@/lib/supabase/server';
 import { getMe } from '@/lib/api/me';
-import { isSystemAdmin } from '@/lib/permissions';
+import { isSystemAdmin, activeMemberships } from '@/lib/permissions';
 
 export const metadata = { title: 'Ayarlar' };
 
@@ -88,6 +89,10 @@ export default async function SettingsHubPage() {
 
   const visible = CARDS.filter((c) => !c.systemAdminOnly || isSystemAdmin(me));
 
+  const memberAssocId = !isSystemAdmin(me)
+    ? (activeMemberships(me)[0]?.associationId ?? null)
+    : null;
+
   return (
     <div className="space-y-8 pb-10">
       <header className="space-y-1.5 border-b border-border pb-6">
@@ -106,6 +111,16 @@ export default async function SettingsHubPage() {
         {visible.map((card) => (
           <SettingsCardLink key={card.href} card={card} />
         ))}
+        {memberAssocId && (
+          <SettingsCardLink
+            card={{
+              href: `/settings/association-info`,
+              label: 'Şube Bilgileri',
+              description: 'Şubenin genel bilgilerini görüntüle.',
+              icon: Info,
+            }}
+          />
+        )}
       </div>
     </div>
   );

@@ -5,11 +5,13 @@ import { toast } from 'sonner';
 import {
   listMembers,
   addMember,
+  updateMember,
   removeMember,
   generateMemberTelegramLink,
+  unlinkMemberTelegramAccount,
   type ListMembersParams,
 } from '@/lib/api/members';
-import type { AddMemberInput, MemberResponse } from '@ticketbot/shared-validation';
+import type { AddMemberInput, MemberResponse, UpdateMemberInput } from '@ticketbot/shared-validation';
 import { getAccessToken } from './use-associations';
 
 export const membersQueryKey = (associationId: string, params: ListMembersParams) =>
@@ -47,6 +49,22 @@ export function useAddMember(
   });
 }
 
+export function useUpdateMember(associationId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ membershipId, input }: { membershipId: string; input: UpdateMemberInput }) =>
+      updateMember(await getAccessToken(), associationId, membershipId, input),
+    onSuccess: (member) => {
+      toast.success(`${member.user.fullName} güncellendi`);
+      queryClient.invalidateQueries({ queryKey: ['members', associationId] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
+  });
+}
+
 export function useRemoveMember(associationId: string) {
   const queryClient = useQueryClient();
 
@@ -71,6 +89,26 @@ export function useGenerateMemberTelegramLink(associationId: string) {
         associationId,
         membershipId,
       ),
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
+  });
+}
+
+export function useUnlinkMemberTelegram(associationId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (membershipId: string) =>
+      unlinkMemberTelegramAccount(
+        await getAccessToken(),
+        associationId,
+        membershipId,
+      ),
+    onSuccess: () => {
+      toast.success('Telegram bağlantısı kaldırıldı');
+      queryClient.invalidateQueries({ queryKey: ['members', associationId] });
+    },
     onError: (err: Error) => {
       toast.error(err.message);
     },

@@ -8,15 +8,17 @@ import { SupabaseAdminService } from '../supabase/supabase-admin.service';
 
 export interface CreateSupabaseUserInput {
   email: string;
-  password: string;
+  password?: string;
   fullName: string;
   phone?: string;
+  address?: string;
 }
 
 export interface CreateDbOnlyUserInput {
   fullName: string;
   phone?: string;
   email?: string;
+  address?: string;
 }
 
 @Injectable()
@@ -36,11 +38,15 @@ export class UsersService {
   async createSupabaseUser(input: CreateSupabaseUserInput): Promise<User> {
     const auth = this.supabase.getAuthClient();
 
-    const { data, error } = await auth.createUser({
-      email: input.email,
-      password: input.password,
-      email_confirm: true,
-    });
+    const { data, error } = input.password
+      ? await auth.createUser({
+          email: input.email,
+          password: input.password,
+          email_confirm: true,
+        })
+      : await auth.inviteUserByEmail(input.email, {
+          data: { full_name: input.fullName },
+        });
 
     if (error || !data?.user) {
       throw new ConflictException(
@@ -57,6 +63,7 @@ export class UsersService {
           email: input.email,
           fullName: input.fullName,
           phone: input.phone ?? null,
+          address: input.address ?? null,
           isActive: true,
         },
       });
@@ -94,6 +101,7 @@ export class UsersService {
           email: input.email ?? null,
           fullName: input.fullName,
           phone: input.phone ?? null,
+          address: input.address ?? null,
           isActive: true,
         },
       });

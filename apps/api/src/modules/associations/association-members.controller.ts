@@ -85,4 +85,14 @@ export class AssociationMembersController {
   ) {
     return this.service.generateTelegramLink(associationId, membershipId);
   }
+
+  @Delete(':membershipId/telegram-link')
+  @AssociationRoles(UserRole.ASSOCIATION_MANAGER)
+  @HttpCode(HttpStatus.OK)
+  unlinkTelegram(
+    @Param('id') associationId: string,
+    @Param('membershipId') membershipId: string,
+  ) {
+    return this.service.unlinkMemberTelegram(associationId, membershipId);
+  }
 }

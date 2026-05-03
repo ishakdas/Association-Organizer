@@ -120,12 +120,14 @@ Association-scoped  : AuthGuard → SupabaseUserGuard → AssociationRolesGuard 
 | Create association | ✗ (SYSTEM_ADMIN only) | ✗ | ✗ |
 | List / read associations | own only | own only | own only |
 | Manage members (add/update/remove) of own dernek | ✓ | ✓ | ✗ |
-| Create task in own dernek | ✓ | ✓ | ✗ |
+| Create task in own dernek (assignee MUST have a linked Telegram account) | ✓ | ✓ | ✗ |
 | List tasks of own dernek | ✓ | ✓ | ✓ |
 | Update status of own task | ✓ (own) | ✓ (own) | ✓ (own) |
 | Create meeting note | ✓ | ✓ | ✗ |
 | List / read meeting notes of own dernek | ✓ | ✓ | ✓ |
 | Manage `MemberTitleDefinition` catalog | ✗ | ✗ | ✗ |
+
+**Task assignment precondition**: `TasksService.create()` rejects (`BadRequestException`) when the assignee has no `TelegramAccount` row. Reminder/notification delivery happens over Telegram, so a member who has never run the bot's `/link` flow cannot receive tasks. Provision Telegram first (member self-links via `/settings/telegram` or admin generates a link via the member roster).
 
 ### Decorators
 

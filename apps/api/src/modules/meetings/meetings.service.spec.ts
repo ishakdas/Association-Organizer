@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaClient, PrismaService } from '@ticketbot/database';
+import { AiService } from '@ticketbot/ai';
 import { MeetingsService } from './meetings.service';
 
 type PrismaMock = DeepMockProxy<PrismaClient>;
@@ -68,10 +69,15 @@ describe('MeetingsService', () => {
     });
     prisma.meetingNote.count.mockResolvedValue(0 as never);
 
+    const aiMock = {
+      analyzeMeetingContent: jest.fn().mockResolvedValue({ items: [] }),
+    };
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         MeetingsService,
         { provide: PrismaService, useValue: prisma },
+        { provide: AiService, useValue: aiMock },
       ],
     }).compile();
     service = moduleRef.get(MeetingsService);

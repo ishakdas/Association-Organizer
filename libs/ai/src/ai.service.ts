@@ -10,10 +10,10 @@ import {
 export class AiService {
   constructor(@Inject(AI_PROVIDER) private readonly provider: AiProvider) {}
 
-  async extractActionItems(meetingNotes: string): Promise<ExtractionResultOutput> {
+  async extractActionItems(meetingNotes: string, membersContext: string): Promise<ExtractionResultOutput> {
     return this.provider.generateStructured({
       systemPrompt: EXTRACT_ACTION_ITEMS_SYSTEM_PROMPT,
-      userPrompt: buildExtractionUserPrompt(meetingNotes),
+      userPrompt: buildExtractionUserPrompt(meetingNotes, membersContext),
       schema: extractionResultSchema,
       schemaName: 'extractActionItems',
     });

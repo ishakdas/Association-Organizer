@@ -2,14 +2,21 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
+  AlertTriangle,
+  BookOpen,
   BookUser,
-  CalendarDays,
+  Calendar,
   ClipboardList,
+  Home,
+  LayoutDashboard,
   LogOut,
   Menu,
+  MessageSquare,
   Settings,
+  UserCheck,
+  Users,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -17,42 +24,46 @@ import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import {
-  filterNav,
-  userRoleLabel,
-  type NavItemDef,
-} from '@/lib/permissions';
+import { isSystemAdmin, activeMemberships, userRoleLabel } from '@/lib/permissions';
+import { usePendingRegistrationsCount } from '../admin/pending-registrations/_hooks/use-pending-count';
 
-interface NavMeta {
+interface NavItem {
+  href: string;
   label: string;
   icon: LucideIcon;
-  /** When true, also surfaced in the mobile bottom nav (max 4). */
   primary?: boolean;
+  badge?: number;
+  matchSection?: string;
 }
-type NavItem = NavItemDef<NavMeta>;
 
-const NAV: readonly NavItem[] = [
-  {
-    href: '/associations',
-    access: 'auth',
-    meta: { label: 'Dernek Sicili', icon: BookUser, primary: true },
-  },
-  {
-    href: '/tasks',
-    access: 'task_creator',
-    meta: { label: 'Görevler', icon: ClipboardList, primary: true },
-  },
-  {
-    href: '/events',
-    access: 'member',
-    meta: { label: 'Etkinlikler', icon: CalendarDays, primary: true },
-  },
-  {
-    href: '/settings',
-    access: 'auth',
-    meta: { label: 'Ayarlar', icon: Settings, primary: true },
-  },
-];
+function buildNav(user: AuthenticatedUser): NavItem[] {
+  if (isSystemAdmin(user)) {
+    return [
+      { href: '/dashboard', label: 'Ana Sayfa', icon: Home, primary: true },
+      { href: '/associations', label: 'Şubeler', icon: BookUser, primary: true },
+      { href: '/admin/pending-registrations', label: 'Başvurular', icon: UserCheck, primary: true },
+      { href: '/settings', label: 'Ayarlar', icon: Settings },
+    ];
+  }
+
+  const active = activeMemberships(user);
+  if (active.length === 0) {
+    return [{ href: '/settings', label: 'Ayarlar', icon: Settings }];
+  }
+
+  const assocId = active[0].associationId;
+  const base = `/associations/${assocId}`;
+
+  return [
+    { href: `${base}`, label: 'Dashboard', icon: LayoutDashboard, primary: true, matchSection: 'dashboard' },
+    { href: `${base}?section=uyeler`, label: 'Üyeler', icon: Users, primary: true, matchSection: 'uyeler' },
+    { href: `${base}?section=gorevler`, label: 'Görevler', icon: ClipboardList, primary: true, matchSection: 'gorevler' },
+    { href: `${base}?section=toplantilar`, label: 'Toplantılar', icon: BookOpen, matchSection: 'toplantilar' },
+    { href: '/events', label: 'Etkinlikler', icon: Calendar, primary: true },
+    { href: `${base}?section=telegram`, label: 'Telegram', icon: MessageSquare, matchSection: 'telegram' },
+    { href: '/settings', label: 'Ayarlar', icon: Settings },
+  ];
+}
 
 export function AppShell({
   user,
@@ -62,8 +73,13 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const items = filterNav(NAV, user);
-  const primary = items.filter((i) => i.meta?.primary).slice(0, 4);
+  // Always call the hook (React rules), but skip the network call for non-admins
+  const pendingCount = usePendingRegistrationsCount(isSystemAdmin(user));
+  const items = buildNav(user).map((item) =>
+    item.href === '/admin/pending-registrations' && pendingCount > 0
+      ? { ...item, badge: pendingCount }
+      : item,
+  );
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -76,10 +92,12 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <MobileTopbar onMenu={() => setMobileOpen(true)} />
-        <main className="flex-1 px-5 pb-24 pt-6 sm:px-8 sm:py-10 lg:pb-10">
+        {user.mustChangePassword && user.onboardingCompletedAt && (
+          <TempPasswordBanner />
+        )}
+        <main className="flex-1 px-5 pb-10 pt-6 sm:px-8 sm:py-10">
           <div className="mx-auto w-full max-w-6xl">{children}</div>
         </main>
-        <BottomNav items={primary} />
       </div>
     </div>
   );
@@ -97,6 +115,14 @@ function Sidebar({
   onClose: () => void;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const brandHref = (() => {
+    if (isSystemAdmin(user)) return '/dashboard';
+    const active = activeMemberships(user);
+    if (active.length === 1) return `/associations/${active[0].associationId}`;
+    return '/associations';
+  })();
 
   return (
     <>
@@ -104,19 +130,19 @@ function Sidebar({
         onClick={onClose}
         aria-hidden
         className={cn(
-          'fixed inset-0 z-30 bg-foreground/40 backdrop-blur-sm transition-opacity lg:hidden',
+          'fixed inset-0 z-30 bg-foreground/40 backdrop-blur-sm transition-opacity duration-300 ease-in-out lg:hidden',
           mobileOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
         )}
       />
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col border-r border-border bg-card transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col border-r border-border bg-card shadow-xl transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 lg:shadow-none',
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         )}
       >
         <div className="flex items-center justify-between px-5 pb-4 pt-5">
-          <Brand />
+          <Brand homeHref={brandHref} />
           <button
             onClick={onClose}
             className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground lg:hidden"
@@ -138,9 +164,10 @@ function Sidebar({
             <NavLink
               key={item.href}
               href={item.href}
-              label={item.meta!.label}
-              icon={item.meta!.icon}
-              active={isActive(pathname, item.href)}
+              label={item.label}
+              icon={item.icon}
+              badge={item.badge}
+              active={isNavActive(pathname, searchParams, item)}
               onClick={onClose}
             />
           ))}
@@ -152,9 +179,9 @@ function Sidebar({
   );
 }
 
-function Brand() {
+function Brand({ homeHref = '/associations' }: { homeHref?: string }) {
   return (
-    <Link href="/associations" className="group flex items-center gap-2.5">
+    <Link href={homeHref} className="group flex items-center gap-2.5">
       <div className="flex h-8 w-8 items-center justify-center rounded-md bg-foreground text-background">
         <span className="text-[13px] font-extrabold tracking-tight">DO</span>
       </div>
@@ -175,12 +202,14 @@ function NavLink({
   label,
   icon: Icon,
   active,
+  badge,
   onClick,
 }: {
   href: string;
   label: string;
   icon: LucideIcon;
   active: boolean;
+  badge?: number;
   onClick: () => void;
 }) {
   return (
@@ -189,25 +218,31 @@ function NavLink({
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'relative flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+        'group relative flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150',
         active
           ? 'bg-accent text-foreground'
-          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
+          : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground hover:translate-x-0.5',
       )}
     >
-      {active && (
-        <span
-          aria-hidden
-          className="absolute inset-y-1 left-0 w-[2px] rounded-full bg-primary"
-        />
-      )}
-      <Icon
+      <span
+        aria-hidden
         className={cn(
-          'h-4 w-4 shrink-0',
-          active ? 'text-primary' : 'text-muted-foreground',
+          'absolute inset-y-1 left-0 w-[2px] rounded-full bg-primary transition-all duration-200',
+          active ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0',
         )}
       />
-      <span className="truncate">{label}</span>
+      <Icon
+        className={cn(
+          'h-4 w-4 shrink-0 transition-colors duration-150',
+          active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
+        )}
+      />
+      <span className="truncate flex-1">{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+          {badge}
+        </span>
+      )}
     </Link>
   );
 }
@@ -269,7 +304,7 @@ function UserFooter({ user }: { user: AuthenticatedUser }) {
 function MobileTopbar({ onMenu }: { onMenu: () => void }) {
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur lg:hidden">
-      <Brand />
+      <Brand homeHref="/associations" />
       <button
         onClick={onMenu}
         className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -281,53 +316,60 @@ function MobileTopbar({ onMenu }: { onMenu: () => void }) {
   );
 }
 
-function BottomNav({ items }: { items: NavItem[] }) {
-  const pathname = usePathname();
-  if (items.length === 0) return null;
 
-  return (
-    <nav
-      aria-label="Mobil birincil gezinme"
-      className="fixed inset-x-0 bottom-0 z-30 grid border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden"
-      style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
-    >
-      {items.map((item) => {
-        const Icon = item.meta!.icon;
-        const active = isActive(pathname, item.href);
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            aria-current={active ? 'page' : undefined}
-            className={cn(
-              'flex h-14 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors',
-              active
-                ? 'text-primary'
-                : 'text-muted-foreground hover:text-foreground',
-            )}
-          >
-            <Icon className="h-5 w-5" />
-            <span className="leading-none">{item.meta!.label}</span>
-          </Link>
-        );
-      })}
-    </nav>
-  );
+function isNavActive(
+  pathname: string | null,
+  searchParams: ReturnType<typeof useSearchParams>,
+  item: NavItem,
+): boolean {
+  if (!pathname) return false;
+
+  // Section-based nav items (branch sidebar links)
+  if (item.matchSection) {
+    const section = searchParams.get('section');
+    const itemPathname = item.href.split('?')[0];
+    if (!pathname || pathname !== itemPathname) return false;
+    // Dashboard is active when no section param or section=dashboard
+    if (item.matchSection === 'dashboard') {
+      return !section || section === 'dashboard';
+    }
+    return section === item.matchSection;
+  }
+
+  // /dashboard — exact match
+  if (item.href === '/dashboard') {
+    return pathname === '/dashboard';
+  }
+
+  // /associations — exact match only for the admin nav item
+  if (item.href === '/associations') {
+    return pathname === '/associations';
+  }
+
+  if (item.href === '/admin/pending-registrations') {
+    return pathname.startsWith('/admin/');
+  }
+
+  if (item.href === '/settings') {
+    return pathname.startsWith('/settings');
+  }
+
+  return pathname === item.href;
 }
 
-function isActive(pathname: string | null, href: string): boolean {
-  if (!pathname) return false;
-  if (href === '/associations') {
-    return pathname === '/associations' || pathname.startsWith('/associations/');
-  }
-  if (href === '/tasks') {
-    return pathname === '/tasks' || pathname.startsWith('/tasks/');
-  }
-  if (href === '/events') {
-    return pathname === '/events' || pathname.startsWith('/events/');
-  }
-  if (href === '/settings') {
-    return pathname.startsWith('/settings') || pathname.startsWith('/admin/');
-  }
-  return pathname === href;
+function TempPasswordBanner() {
+  return (
+    <div className="flex items-center gap-3 border-b border-amber-200 bg-amber-50 px-5 py-3 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300">
+      <AlertTriangle className="h-4 w-4 shrink-0" />
+      <p className="flex-1 text-[13px] font-medium">
+        Davet bağlantısı ile giriş yaptınız. Güvenliğiniz için kalıcı bir şifre belirlemenizi öneririz.
+      </p>
+      <a
+        href="/settings/profile"
+        className="shrink-0 rounded-md bg-amber-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-amber-700 dark:bg-amber-700 dark:hover:bg-amber-600"
+      >
+        Şimdi Değiştir
+      </a>
+    </div>
+  );
 }

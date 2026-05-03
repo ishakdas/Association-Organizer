@@ -10,6 +10,7 @@ export async function apiClient<T>(path: string, options: FetchOptions = {}): Pr
 
   const headers: Record<string, string> = {
     ...((customHeaders as Record<string, string>) ?? {}),
+    'ngrok-skip-browser-warning': 'true',
   };
 
   if (rest.body !== undefined && rest.body !== null) {
@@ -34,5 +35,7 @@ export async function apiClient<T>(path: string, options: FetchOptions = {}): Pr
     throw new Error(error.detail ?? `API error: ${response.status}`);
   }
 
-  return response.json();
+  const text = await response.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }

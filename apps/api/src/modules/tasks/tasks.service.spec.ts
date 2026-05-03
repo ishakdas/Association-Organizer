@@ -121,9 +121,25 @@ describe('TasksService', () => {
       expect(prisma.task.create).not.toHaveBeenCalled();
     });
 
+    it('rejects with BadRequest when assignee has no linked Telegram account', async () => {
+      prisma.associationMembership.findFirst.mockResolvedValue({
+        id: 'mem-mem',
+      } as never);
+      prisma.telegramAccount.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.create(ASSOC, validInput, SECRETARY_USER),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(prisma.task.create).not.toHaveBeenCalled();
+    });
+
     it('creates the task and stamps assignedById from the authenticated user', async () => {
       prisma.associationMembership.findFirst.mockResolvedValue({
         id: 'mem-mem',
+      } as never);
+      prisma.telegramAccount.findUnique.mockResolvedValue({
+        userId: 'mem-1',
       } as never);
       prisma.task.create.mockResolvedValue(sampleTask as never);
 
@@ -156,6 +172,9 @@ describe('TasksService', () => {
     it('coerces optional dueDate / reminderAt strings to Date', async () => {
       prisma.associationMembership.findFirst.mockResolvedValue({
         id: 'mem-mem',
+      } as never);
+      prisma.telegramAccount.findUnique.mockResolvedValue({
+        userId: 'mem-1',
       } as never);
       prisma.task.create.mockResolvedValue(sampleTask as never);
 

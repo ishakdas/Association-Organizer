@@ -7,8 +7,10 @@ import {
 } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
+  analyzeMeeting,
   createMeeting,
   listMeetings,
+  type AnalyzeMeetingResponse,
   type MeetingsListParams,
 } from '@/lib/api/meetings';
 import type {
@@ -47,5 +49,20 @@ export function useCreateMeeting(
       options?.onSuccess?.(m);
     },
     onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+export function useAnalyzeMeeting(
+  associationId: string,
+  options?: { onSuccess?: (r: AnalyzeMeetingResponse) => void },
+) {
+  return useMutation({
+    mutationFn: async (content: string) =>
+      analyzeMeeting(await getAccessToken(), associationId, content),
+    onSuccess: (r) => options?.onSuccess?.(r),
+    onError: (err: Error) => {
+      console.error('[useAnalyzeMeeting] error:', err);
+      toast.error(`Analiz başarısız: ${err.message}`);
+    },
   });
 }

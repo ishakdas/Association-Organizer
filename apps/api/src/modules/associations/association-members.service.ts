@@ -20,24 +20,22 @@ import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
 
-// Single source of truth for the include shape used by every read in
-// this service. We deliberately `select` only the safe fields off
-// telegram_accounts — the BigInt `telegramId` would leak the user's
-// Telegram primary key through the API and is intentionally omitted.
 export const MEMBER_INCLUDE = {
   user: {
-    include: {
+    select: {
+      id: true,
+      fullName: true,
+      email: true,
+      phone: true,
+      address: true,
+      mustChangePassword: true,
       telegramAccount: {
-        select: { username: true, createdAt: true },
+        select: { username: true, firstName: true, createdAt: true },
       },
     },
   },
   title: true,
-} satisfies Prisma.AssociationMembershipInclude;
-
-type MembershipRow = Prisma.AssociationMembershipGetPayload<{
-  include: typeof MEMBER_INCLUDE;
-}>;
+} as const;
 
 @Injectable()
 export class AssociationMembersService {
@@ -49,25 +47,55 @@ export class AssociationMembersService {
     private readonly auth: AuthService,
   ) {}
 
-  // Maps a Prisma row to the API response shape. The only transform is
-  // renaming TelegramAccount.createdAt → user.telegramAccount.linkedAt
-  // (the schema-facing name). Returns the row otherwise unchanged.
-  private mapMember(row: MembershipRow) {
-    const tg = row.user.telegramAccount;
-    return {
-      ...row,
-      user: {
-        ...row.user,
-        telegramAccount: tg
-          ? { username: tg.username, linkedAt: tg.createdAt.toISOString() }
-          : null,
-      },
-    };
-  }
-
   async create(associationId: string, input: AddMemberInput) {
     await this.ensureAssociation(associationId);
 
+    // --- Re-use existing user if the email is already in our DB ---
+    // This covers the case where a user was a member of an association that
+    // was later deleted: the membership is removed but the User row stays,
+    // so attempting to add the same email again must NOT create a duplicate.
+    if (input.email) {
+      const existing = await this.prisma.user.findUnique({
+        where: { email: input.email },
+        select: { id: true, supabaseUserId: true, isActive: true },
+      });
+
+      if (existing) {
+        // Reactivate if previously deactivated.
+        if (!existing.isActive) {
+          await this.prisma.user.update({
+            where: { id: existing.id },
+            data: { isActive: true },
+          });
+        }
+
+        try {
+          return await this.prisma.associationMembership.create({
+            data: {
+              associationId,
+              userId: existing.id,
+              role: input.role,
+              titleId: input.titleId ?? null,
+              customTitle: input.customTitle ?? null,
+              isActive: true,
+            },
+            include: MEMBER_INCLUDE,
+          });
+        } catch (e) {
+          if (
+            e instanceof Prisma.PrismaClientKnownRequestError &&
+            e.code === 'P2002'
+          ) {
+            throw new ConflictException(
+              'Bu üye bu dernekte zaten kayıtlı',
+            );
+          }
+          throw e;
+        }
+      }
+    }
+
+    // --- No existing user found: original saga path ---
     // Saga path: secretaries get a Supabase auth user (web login).
     // Schema enforces password+email presence for SECRETARY role.
     const provisionsSupabase =
@@ -81,14 +109,16 @@ export class AssociationMembersService {
             password: input.password!,
             fullName: input.fullName,
             phone: input.phone,
+            address: input.address,
           })
         : await this.users.createDbOnlyUser({
             fullName: input.fullName,
             email: input.email,
             phone: input.phone,
+            address: input.address,
           });
 
-      const created = await this.prisma.associationMembership.create({
+      return await this.prisma.associationMembership.create({
         data: {
           associationId,
           userId: createdUser.id,
@@ -99,7 +129,6 @@ export class AssociationMembersService {
         },
         include: MEMBER_INCLUDE,
       });
-      return this.mapMember(created);
     } catch (e) {
       // Membership insert failed after the user was created — roll the
       // user back so we don't leave orphans (especially in Supabase).
@@ -149,12 +178,11 @@ export class AssociationMembersService {
       where.leftAt = null;
     }
 
-    const rows = await this.prisma.associationMembership.findMany({
+    return this.prisma.associationMembership.findMany({
       where,
       include: MEMBER_INCLUDE,
       orderBy: [{ role: 'asc' }, { joinedAt: 'asc' }],
     });
-    return rows.map((row) => this.mapMember(row));
   }
 
   async update(
@@ -191,13 +219,28 @@ export class AssociationMembersService {
       data.leftAt = input.leftAt ? new Date(input.leftAt) : null;
     }
 
+    const userData: Prisma.UserUpdateInput = {};
+    if (input.fullName !== undefined) userData.fullName = input.fullName;
+    if (input.phone !== undefined) userData.phone = input.phone ?? null;
+    if (input.address !== undefined) userData.address = input.address;
+
+    // user fields and membership fields are written atomically: if the
+    // membership update fails (e.g. partial-unique manager index), the
+    // user row must NOT remain half-updated.
     try {
-      const updated = await this.prisma.associationMembership.update({
-        where: { id: membershipId },
-        data,
-        include: MEMBER_INCLUDE,
+      return await this.prisma.$transaction(async (tx) => {
+        if (Object.keys(userData).length > 0) {
+          await tx.user.update({
+            where: { id: existing.userId },
+            data: userData,
+          });
+        }
+        return tx.associationMembership.update({
+          where: { id: membershipId },
+          data,
+          include: MEMBER_INCLUDE,
+        });
       });
-      return this.mapMember(updated);
     } catch (e) {
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -227,7 +270,7 @@ export class AssociationMembersService {
       );
     }
 
-    const removed = await this.prisma.associationMembership.update({
+    return this.prisma.associationMembership.update({
       where: { id: membershipId },
       data: {
         isActive: false,
@@ -235,7 +278,19 @@ export class AssociationMembersService {
       },
       include: MEMBER_INCLUDE,
     });
-    return this.mapMember(removed);
+  }
+
+  async unlinkMemberTelegram(
+    associationId: string,
+    membershipId: string,
+  ): Promise<{ unlinked: boolean }> {
+    const membership = await this.prisma.associationMembership.findFirst({
+      where: { id: membershipId, associationId, deletedAt: null },
+      select: { userId: true },
+    });
+    if (!membership) throw new NotFoundException('Üyelik bulunamadı');
+
+    return this.auth.unlinkTelegram(membership.userId);
   }
 
   // Admin-issued Telegram link code: a manager (or system admin) generates
@@ -268,7 +323,7 @@ export class AssociationMembersService {
   private async ensureMembership(associationId: string, membershipId: string) {
     const found = await this.prisma.associationMembership.findFirst({
       where: { id: membershipId, associationId, deletedAt: null },
-      select: { id: true, role: true },
+      select: { id: true, role: true, userId: true },
     });
     if (!found) throw new NotFoundException('Üyelik bulunamadı');
     return found;

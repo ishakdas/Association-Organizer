@@ -13,6 +13,7 @@ import { EventsModule } from './modules/events/events.module';
 import { EventRolesModule } from './modules/event-roles/event-roles.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { EmailModule } from './modules/email/email.module';
 import { BotModule } from 'bot';
 
 @Module({
@@ -33,6 +34,7 @@ import { BotModule } from 'bot';
     EventsModule,
     EventRolesModule,
     AdminModule,
+    EmailModule,
     BotModule,
   ],
 })

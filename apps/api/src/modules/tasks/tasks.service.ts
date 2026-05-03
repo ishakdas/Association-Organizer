@@ -49,6 +49,16 @@ export class TasksService {
       await this.ensureAssigneeIsMember(associationId, input.watcherUserId);
     }
 
+    const telegram = await this.prisma.telegramAccount.findUnique({
+      where: { userId: input.assignedToUserId },
+      select: { userId: true },
+    });
+    if (!telegram) {
+      throw new BadRequestException(
+        'Atanan üyenin Telegram hesabı bağlı değil. Görev atayabilmek için üyenin önce Telegram\'ı bağlaması gerekmektedir.',
+      );
+    }
+
     const task = await this.prisma.$transaction(async (tx) => {
       const created = await tx.task.create({
         data: {
@@ -86,13 +96,21 @@ export class TasksService {
       return created;
     });
 
-    await this.scheduler.scheduleTask({
-      id: task.id,
-      dueDate: task.dueDate,
-      reminderAt: task.reminderAt,
-    });
+    try {
+      await this.scheduler.scheduleTask({
+        id: task.id,
+        dueDate: task.dueDate,
+        reminderAt: task.reminderAt,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Failed to schedule reminders for task ${task.id}: ${(err as Error).message}`,
+      );
+    }
 
-    await this.notifyAssignment(task);
+    // Fire-and-forget: notification is best-effort and must not block the
+    // HTTP response. Errors are swallowed inside notifyAssignment.
+    void this.notifyAssignment(task);
 
     return task;
   }
@@ -452,11 +470,17 @@ export class TasksService {
       return next;
     });
 
-    await this.scheduler.rescheduleTask({
-      id: updated.id,
-      dueDate: updated.dueDate,
-      reminderAt: updated.reminderAt,
-    });
+    try {
+      await this.scheduler.rescheduleTask({
+        id: updated.id,
+        dueDate: updated.dueDate,
+        reminderAt: updated.reminderAt,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Failed to reschedule task ${updated.id}: ${(err as Error).message}`,
+      );
+    }
 
     return updated;
   }
@@ -686,11 +710,17 @@ export class TasksService {
       return next;
     });
 
-    await this.scheduler.rescheduleTask({
-      id: updated.id,
-      dueDate: updated.dueDate,
-      reminderAt: updated.reminderAt,
-    });
+    try {
+      await this.scheduler.rescheduleTask({
+        id: updated.id,
+        dueDate: updated.dueDate,
+        reminderAt: updated.reminderAt,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Failed to reschedule task ${updated.id}: ${(err as Error).message}`,
+      );
+    }
 
     return updated;
   }
