@@ -10,6 +10,7 @@ import { PrismaService } from '@ticketbot/database';
 import { registerStartCommand } from './commands/start.command';
 import { registerLinkCommand } from './commands/link.command';
 import { registerHelpCommand } from './commands/help.command';
+import { registerMeetingWizard } from './wizards/meeting.wizard';
 
 export interface SendToUserOptions {
   replyMarkup?: unknown;
@@ -34,6 +35,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     registerStartCommand(this.bot, this.config);
     registerLinkCommand(this.bot, this.prisma, this.config);
     registerHelpCommand(this.bot);
+    registerMeetingWizard(this.bot, this.prisma);
 
     this.bot.catch((err: unknown, ctx: Context) => {
       this.logger.error(`Bot error for ${ctx.updateType}`, err);
