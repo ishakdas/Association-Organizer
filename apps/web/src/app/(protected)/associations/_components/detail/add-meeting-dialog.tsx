@@ -21,6 +21,7 @@ import {
 import {
   createMeetingNoteSchema,
   type CreateMeetingNoteInput,
+  type MeetingNoteResponse,
 } from '@ticketbot/shared-validation';
 import { Button } from '@/components/ui/button';
 import {
@@ -51,7 +52,7 @@ import {
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { useMembers } from '../../_hooks/use-members';
-import { useCreateMeeting } from '../../_hooks/use-meetings';
+import { useCreateMeeting, useUpdateMeeting } from '../../_hooks/use-meetings';
 
 const formSchema = z.object({
   title: z.string().min(2, 'En az 2 karakter').max(255),
@@ -67,34 +68,72 @@ type FormValues = z.infer<typeof formSchema>;
 export function AddMeetingDialog({
   associationId,
   triggerLabel = 'Toplantı notu ekle',
+  initialData,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
 }: {
   associationId: string;
   triggerLabel?: string;
+  initialData?: MeetingNoteResponse;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const isEdit = !!initialData;
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const [showPreview, setShowPreview] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      title: '',
-      meetingDate: new Date(),
-      attendeeUserIds: [],
-      content: '',
+      title: initialData?.title ?? '',
+      meetingDate: initialData ? new Date(initialData.meetingDate) : new Date(),
+      attendeeUserIds: initialData?.attendees.map((a) => a.userId) ?? [],
+      content: initialData?.content ?? '',
     },
   });
 
   const content = form.watch('content');
 
+  function handleOpenChange(next: boolean) {
+    if (controlledOnOpenChange) {
+      controlledOnOpenChange(next);
+    } else {
+      setInternalOpen(next);
+    }
+    if (!next && !isEdit) {
+      form.reset({ title: '', meetingDate: new Date(), attendeeUserIds: [], content: '' });
+    }
+  }
+
   const createMutation = useCreateMeeting(associationId, {
     onSuccess: () => {
       form.reset({ title: '', meetingDate: new Date(), attendeeUserIds: [], content: '' });
-      setOpen(false);
+      handleOpenChange(false);
     },
   });
 
+  const updateMutation = useUpdateMeeting(associationId, {
+    onSuccess: () => handleOpenChange(false),
+  });
+
+  const isPending = isEdit ? updateMutation.isPending : createMutation.isPending;
+
   function onSubmit(values: FormValues) {
+    if (isEdit) {
+      updateMutation.mutate({
+        meetingId: initialData.id,
+        input: {
+          title: values.title,
+          content: values.content,
+          meetingDate: values.meetingDate.toISOString(),
+          attendeeUserIds: values.attendeeUserIds,
+        },
+      });
+      return;
+    }
+
     const payload: CreateMeetingNoteInput = {
       title: values.title,
       content: values.content,
@@ -120,13 +159,6 @@ export function AddMeetingDialog({
     createMutation.mutate(parsed.data);
   }
 
-  function handleOpenChange(next: boolean) {
-    setOpen(next);
-    if (!next) {
-      form.reset({ title: '', meetingDate: new Date(), attendeeUserIds: [], content: '' });
-    }
-  }
-
   function handleFileImport(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -144,15 +176,17 @@ export function AddMeetingDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
-          {triggerLabel}
-        </Button>
-      </DialogTrigger>
+      {!isEdit && (
+        <DialogTrigger asChild>
+          <Button size="sm">
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            {triggerLabel}
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="sm:max-w-[760px]">
         <DialogHeader>
-          <DialogTitle>Yeni toplantı notu</DialogTitle>
+          <DialogTitle>{isEdit ? 'Toplantı notunu düzenle' : 'Yeni toplantı notu'}</DialogTitle>
           <DialogDescription>
             Toplantı tarihini, katılımcıları ve markdown formatında notu girin.
             Önizleme yan tarafta canlı güncellenir.
@@ -281,13 +315,15 @@ export function AddMeetingDialog({
                 type="button"
                 variant="outline"
                 onClick={() => handleOpenChange(false)}
-                disabled={createMutation.isPending}
+                disabled={isPending}
               >
                 Vazgeç
               </Button>
-              <Button type="submit" disabled={createMutation.isPending}>
-                {createMutation.isPending ? (
+              <Button type="submit" disabled={isPending}>
+                {isPending ? (
                   <><Loader2 className="h-3.5 w-3.5 animate-spin" />Kaydediliyor…</>
+                ) : isEdit ? (
+                  'Değişiklikleri kaydet'
                 ) : (
                   'Notu kaydet'
                 )}

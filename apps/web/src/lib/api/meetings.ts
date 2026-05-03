@@ -2,6 +2,7 @@ import { apiClient } from './client';
 import type {
   CreateMeetingNoteInput,
   MeetingNoteResponse,
+  UpdateMeetingNoteInput,
 } from '@ticketbot/shared-validation';
 
 export interface MeetingsListParams {
@@ -54,11 +55,28 @@ export function getMeeting(token: string, meetingId: string) {
   return apiClient<MeetingNoteResponse>(`/meetings/${meetingId}`, { token });
 }
 
+export function updateMeeting(
+  token: string,
+  associationId: string,
+  meetingId: string,
+  input: UpdateMeetingNoteInput,
+) {
+  return apiClient<MeetingNoteResponse>(
+    `/associations/${associationId}/meetings/${meetingId}`,
+    {
+      token,
+      method: 'PATCH',
+      body: JSON.stringify(input),
+    },
+  );
+}
+
 export interface AnalyzedActionItem {
   title: string;
   description?: string | null;
   assignedToUserId?: string | null;
   assignedToUserName?: string | null;
+  dueDate?: string | null;
 }
 
 export interface AnalyzeMeetingResponse {

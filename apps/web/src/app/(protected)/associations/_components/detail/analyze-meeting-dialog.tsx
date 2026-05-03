@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
+  CalendarClock,
   CheckCircle2,
   Loader2,
   Plus,
@@ -30,6 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { useMembers } from '../../_hooks/use-members';
 import { useAnalyzeMeeting } from '../../_hooks/use-meetings';
 import { useCreateTask } from '../../_hooks/use-tasks';
@@ -38,11 +40,18 @@ import { createTask } from '@/lib/api/tasks';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
+function oneWeekFromNow(): Date {
+  const d = new Date();
+  d.setDate(d.getDate() + 7);
+  return d;
+}
+
 type ReviewTask = {
   id: string;
   title: string;
   description: string;
   assignedToUserId: string | null;
+  dueDate: Date | undefined;
 };
 
 type DialogState = 'analyzing' | 'review' | 'saving' | 'done';
@@ -77,6 +86,7 @@ export function AnalyzeMeetingDialog({
           title: item.title,
           description: item.description ?? '',
           assignedToUserId: item.assignedToUserId ?? null,
+          dueDate: item.dueDate ? new Date(item.dueDate) : oneWeekFromNow(),
         })),
       );
       setState('review');
@@ -108,7 +118,7 @@ export function AnalyzeMeetingDialog({
   function addTask() {
     setTasks((prev) => [
       ...prev,
-      { id: String(Date.now()), title: '', description: '', assignedToUserId: null },
+      { id: String(Date.now()), title: '', description: '', assignedToUserId: null, dueDate: oneWeekFromNow() },
     ]);
   }
 
@@ -132,6 +142,7 @@ export function AnalyzeMeetingDialog({
             assignedToUserId: t.assignedToUserId!,
             priority: 'MEDIUM',
             reminderFrequency: 'NONE',
+            dueDate: t.dueDate ? t.dueDate.toISOString() : undefined,
           }),
         ),
       );
@@ -239,6 +250,18 @@ export function AnalyzeMeetingDialog({
                           rows={2}
                           className="text-[12px] leading-relaxed"
                         />
+                        <div className="flex items-center gap-2">
+                          <span className="shrink-0 text-[11px] text-muted-foreground">
+                            <CalendarClock className="inline h-3 w-3 mr-0.5" />
+                            Bitiş:
+                          </span>
+                          <DateTimePicker
+                            value={task.dueDate}
+                            onChange={(d) => updateTask(task.id, { dueDate: d })}
+                            disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
+                            placeholder="Tarih seç"
+                          />
+                        </div>
                         <div className="flex items-center gap-2">
                           <span className="shrink-0 text-[11px] text-muted-foreground">
                             Atanan kişi:

@@ -16,6 +16,6 @@ export class AiService {
       userPrompt: buildExtractionUserPrompt(meetingNotes, membersContext),
       schema: extractionResultSchema,
       schemaName: 'extractActionItems',
-    });
+    }) as Promise<ExtractionResultOutput>;
   }
 }

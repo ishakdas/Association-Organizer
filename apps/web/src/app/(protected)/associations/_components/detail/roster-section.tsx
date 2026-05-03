@@ -14,6 +14,19 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { PhoneInput } from '@/components/ui/phone-input';
 import {
   Table,
   TableBody,
@@ -26,8 +39,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
-import { PhoneInput } from '@/components/ui/phone-input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -394,6 +405,31 @@ function ManagerCard({
   );
 }
 
+const EDIT_NO_TITLE = '__none__';
+const EDIT_CUSTOM_TITLE = '__custom__';
+
+const editMemberFormSchema = z
+  .object({
+    fullName: z.string().min(2, 'En az 2 karakter').max(200),
+    phone: z.string().optional(),
+    address: z.string().max(500).optional(),
+    titleId: z.string().optional(),
+    customTitle: z.string().optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.titleId === EDIT_CUSTOM_TITLE) {
+      if (!v.customTitle || v.customTitle.trim().length < 2) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['customTitle'],
+          message: 'Unvanı yazın (en az 2 karakter)',
+        });
+      }
+    }
+  });
+
+type EditMemberFormValues = z.infer<typeof editMemberFormSchema>;
+
 function EditMemberDialog({
   associationId,
   member,
@@ -406,81 +442,174 @@ function EditMemberDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const mutation = useUpdateMember(associationId);
-  const [fullName, setFullName] = useState(member.user.fullName);
-  const [phone, setPhone] = useState(member.user.phone ?? '');
-  const [address, setAddress] = useState(member.user.address ?? '');
+  const { data: titles } = useTitles();
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  const currentTitleId = member.title
+    ? member.title.id
+    : member.customTitle
+      ? EDIT_CUSTOM_TITLE
+      : EDIT_NO_TITLE;
+
+  const form = useForm<EditMemberFormValues>({
+    resolver: zodResolver(editMemberFormSchema),
+    defaultValues: {
+      fullName: member.user.fullName,
+      phone: member.user.phone ?? '',
+      address: member.user.address ?? '',
+      titleId: currentTitleId,
+      customTitle: member.customTitle ?? '',
+    },
+  });
+
+  const titleId = form.watch('titleId');
+
+  function handleSubmit(values: EditMemberFormValues) {
+    const useCustom = values.titleId === EDIT_CUSTOM_TITLE;
+    const titleIdValue =
+      values.titleId && values.titleId !== EDIT_NO_TITLE && values.titleId !== EDIT_CUSTOM_TITLE
+        ? values.titleId
+        : null;
+
     mutation.mutate(
       {
         membershipId: member.id,
         input: {
-          fullName: fullName.trim() || undefined,
-          phone: phone.trim() || undefined,
-          address: address.trim() || null,
+          fullName: values.fullName.trim(),
+          phone: values.phone?.trim() || undefined,
+          address: values.address?.trim() || null,
+          titleId: titleIdValue,
+          customTitle: useCustom ? values.customTitle?.trim() || null : null,
         },
       },
       { onSuccess: () => onOpenChange(false) },
     );
   }
 
+  const isManager = member.role === 'ASSOCIATION_MANAGER';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[420px]">
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle>Üye Bilgilerini Düzenle</DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-fullName">Ad Soyad</Label>
-            <Input
-              id="edit-fullName"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required
-              minLength={2}
-              maxLength={200}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-phone">Telefon</Label>
-            <PhoneInput
-              id="edit-phone"
-              value={phone}
-              onChange={(digits) => setPhone(digits)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="edit-address">Adres</Label>
-            <Input
-              id="edit-address"
-              value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="İl, ilçe, mahalle…"
-              maxLength={500}
-            />
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={mutation.isPending}
-            >
-              <X className="h-3.5 w-3.5" />
-              Vazgeç
-            </Button>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Save className="h-3.5 w-3.5" />
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="fullName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Ad Soyad *</FormLabel>
+                  <FormControl>
+                    <Input autoFocus {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-              Kaydet
-            </Button>
-          </DialogFooter>
-        </form>
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Telefon</FormLabel>
+                    <FormControl>
+                      <PhoneInput
+                        name={field.name}
+                        onBlur={field.onBlur}
+                        value={field.value}
+                        onChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Adres</FormLabel>
+                    <FormControl>
+                      <Input placeholder="İl, ilçe, mahalle…" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            {!isManager && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="titleId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Unvan</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value ?? EDIT_NO_TITLE}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Unvan seç (opsiyonel)" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value={EDIT_NO_TITLE}>— Yok —</SelectItem>
+                          {titles?.map((t) => (
+                            <SelectItem key={t.id} value={t.id}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                          <SelectItem value={EDIT_CUSTOM_TITLE}>Diğer (yaz)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Önce kayıtlı unvanlardan seçin; yoksa &ldquo;Diğer&rdquo; ile özel unvan yazın.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                {titleId === EDIT_CUSTOM_TITLE && (
+                  <FormField
+                    control={form.control}
+                    name="customTitle"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Özel Unvan *</FormLabel>
+                        <FormControl>
+                          <Input placeholder="Örn. Onur Üyesi" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={mutation.isPending}
+              >
+                <X className="h-3.5 w-3.5" />
+                Vazgeç
+              </Button>
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
+                Kaydet
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

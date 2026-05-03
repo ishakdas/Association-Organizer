@@ -8,6 +8,7 @@ export const preApprovedTaskSchema = z.object({
   title: z.string().min(1).max(255),
   description: z.string().max(2000).nullable().optional(),
   assignedToUserId: z.string().nullable().optional(),
+  dueDate: isoDateTime.nullable().optional(),
 });
 export type PreApprovedTask = z.infer<typeof preApprovedTaskSchema>;
 
@@ -32,6 +33,11 @@ export const updateMeetingNoteSchema = z.object({
   title: z.string().min(2).max(255).optional(),
   content: z.string().min(1).max(50000).optional(),
   meetingDate: isoDateTime.optional(),
+  attendeeUserIds: z
+    .array(z.string().cuid('Geçersiz kullanıcı'))
+    .min(1, 'En az bir katılımcı gerekli')
+    .max(500)
+    .optional(),
 });
 export type UpdateMeetingNoteInput = z.infer<typeof updateMeetingNoteSchema>;
 

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -20,6 +21,7 @@ import {
 } from '../../common/decorators/current-user.decorator';
 import { MeetingsService } from './meetings.service';
 import { CreateMeetingNoteDto } from './dto/create-meeting-note.dto';
+import { UpdateMeetingNoteDto } from './dto/update-meeting-note.dto';
 import { AnalyzeMeetingContentDto } from './dto/analyze-meeting-content.dto';
 import { ListMeetingNotesQueryDto } from './dto/list-meeting-notes-query.dto';
 
@@ -57,6 +59,20 @@ export class MeetingsController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.service.create(associationId, body, user);
+  }
+
+  @Patch(':meetingId')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+  )
+  update(
+    @Param('associationId') associationId: string,
+    @Param('meetingId') meetingId: string,
+    @Body() body: UpdateMeetingNoteDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.update(associationId, meetingId, body, user);
   }
 
   @Get()
