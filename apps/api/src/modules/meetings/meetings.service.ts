@@ -35,15 +35,28 @@ export class MeetingsService {
       where: { associationId, isActive: true, deletedAt: null },
       include: {
         user: { select: { id: true, fullName: true } },
-        title: { select: { name: true } },
+        title: { select: { name: true, description: true } },
       },
     });
 
+    const ROLE_LABEL: Record<string, string> = {
+      ASSOCIATION_MANAGER: 'MANAGER (Başkan)',
+      ASSOCIATION_SECRETARY: 'SECRETARY (Sekreter)',
+      ASSOCIATION_MEMBER: 'MEMBER (Üye)',
+      SYSTEM_ADMIN: 'MANAGER (Başkan)',
+    };
+
     const membersContext = members
-      .map(
-        (m) =>
-          `- User ID: ${m.user.id}, Name: ${m.user.fullName}, Title: ${m.title?.name ?? 'Unassigned'}`,
-      )
+      .map((m) => {
+        const roleLabel = ROLE_LABEL[m.role] ?? m.role;
+        const titlePart = m.title
+          ? m.title.description
+            ? `${m.title.name} — ${m.title.description}`
+            : m.title.name
+          : 'Atanmamış';
+        const customPart = m.customTitle ? `\n  Özel Unvan: ${m.customTitle}` : '';
+        return `- User ID: ${m.user.id}\n  İsim: ${m.user.fullName}\n  Sistem Rolü: ${roleLabel}\n  Unvan: ${titlePart}${customPart}`;
+      })
       .join('\n');
 
     try {
