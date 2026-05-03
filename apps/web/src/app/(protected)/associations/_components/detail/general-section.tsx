@@ -235,7 +235,6 @@ function HeroCard({
       <div className="flex items-start gap-5">
         <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/40">
           {logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={logoUrl} alt="" className="h-full w-full object-contain" />
           ) : (
             <span className="text-[15px] font-bold tracking-tight text-muted-foreground">

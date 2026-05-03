@@ -15,7 +15,6 @@ export function LogoUploader({ value, onChange, id }: Props) {
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
       <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border border-dashed border-border bg-muted/30">
         {value ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={value}
             alt="Logo önizleme"

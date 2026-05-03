@@ -1,5 +1,29 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { type AuthenticatedUser } from '@ticketbot/shared-types';
+
+async function getRedirectPath(
+  supabase: ReturnType<typeof createServerClient>,
+): Promise<string> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (!session?.user) return '/login';
+
+  try {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!res.ok) return '/associations';
+    const user: AuthenticatedUser = await res.json();
+    if (user.systemRole === 'SYSTEM_ADMIN') return '/dashboard';
+    const active = user.memberships.filter((m) => m.isActive);
+    if (active.length > 0) return `/associations/${active[0].associationId}`;
+    return '/settings';
+  } catch {
+    return '/associations';
+  }
+}
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -29,7 +53,6 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Redirect unauthenticated users to login
   if (
     !user &&
     !pathname.startsWith('/login') &&
@@ -41,10 +64,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redirect authenticated users away from login
   if (user && pathname.startsWith('/login')) {
+    const dest = await getRedirectPath(supabase);
     const url = request.nextUrl.clone();
-    url.pathname = '/dashboard';
+    url.pathname = dest;
     return NextResponse.redirect(url);
   }
 

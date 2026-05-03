@@ -321,7 +321,7 @@ function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
     setError(null);
 
     const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+    const { data: { session }, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
     if (signInError) {
       setError(
@@ -331,7 +331,7 @@ function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
       );
       setLoading(false);
     } else {
-      window.location.href = '/dashboard';
+      window.location.href = '/associations';
     }
   }
 

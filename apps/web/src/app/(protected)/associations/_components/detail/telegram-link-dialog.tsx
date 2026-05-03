@@ -55,7 +55,6 @@ export function TelegramLinkDialog({
         });
       },
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, member]);
 
   useEffect(() => {

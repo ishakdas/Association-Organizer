@@ -57,7 +57,7 @@ export function resendInvite(token: string, id: string) {
 }
 
 export function approveBranchRegistration(token: string, id: string) {
-  return apiClient<{}>(`/auth/pending-registrations/${id}/approve`, {
+  return apiClient<object>(`/auth/pending-registrations/${id}/approve`, {
     token,
     method: 'POST',
   });
