@@ -18,6 +18,7 @@ export class TitlesService {
         id: true,
         name: true,
         slug: true,
+        description: true,
         sortOrder: true,
         isActive: true,
       },
@@ -30,6 +31,7 @@ export class TitlesService {
       data: {
         name: input.name,
         slug,
+        description: input.description ?? null,
         sortOrder: input.sortOrder,
         isActive: input.isActive,
       },
@@ -41,6 +43,7 @@ export class TitlesService {
 
     const data: Record<string, unknown> = {};
     if (input.name !== undefined) data.name = input.name;
+    if (input.description !== undefined) data.description = input.description;
     if (input.sortOrder !== undefined) data.sortOrder = input.sortOrder;
     if (input.isActive !== undefined) data.isActive = input.isActive;
 
@@ -66,11 +69,6 @@ export class TitlesService {
     if (!exists) throw new NotFoundException('Unvan bulunamadı');
   }
 
-  /**
-   * Walk the suffix counter (base, -2, -3, …) until a free slug is
-   * found. Bounded at 100 to avoid pathological loops; the @unique
-   * constraint on `slug` is the ultimate safety net.
-   */
   private async uniqueSlug(base: string): Promise<string> {
     let candidate = base;
     let n = 1;

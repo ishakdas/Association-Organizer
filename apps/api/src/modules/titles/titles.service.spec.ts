@@ -10,6 +10,7 @@ const sample = {
   id: 'title-1',
   name: 'Teşkilat Başkanı',
   slug: 'teskilat-baskani',
+  description: 'Üye kazanımı, koordinasyon, teşkilatlanma',
   sortOrder: 0,
   isActive: true,
   createdAt: new Date('2026-04-24'),
@@ -44,6 +45,7 @@ describe('TitlesService', () => {
           id: true,
           name: true,
           slug: true,
+          description: true,
           sortOrder: true,
           isActive: true,
         },
@@ -66,11 +68,24 @@ describe('TitlesService', () => {
           id: true,
           name: true,
           slug: true,
+          description: true,
           sortOrder: true,
           isActive: true,
         },
       });
       expect(result).toHaveLength(2);
+    });
+
+    it('includes description in the select clause', async () => {
+      prisma.memberTitleDefinition.findMany.mockResolvedValue([sample] as never);
+
+      await service.list();
+
+      expect(prisma.memberTitleDefinition.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          select: expect.objectContaining({ description: true }),
+        }),
+      );
     });
   });
 
@@ -93,11 +108,30 @@ describe('TitlesService', () => {
         data: {
           name: 'Teşkilat Başkanı',
           slug: 'teskilat-baskani',
+          description: null,
           sortOrder: 0,
           isActive: true,
         },
       });
       expect(result).toEqual(sample);
+    });
+
+    it('persists description when provided', async () => {
+      prisma.memberTitleDefinition.findUnique.mockResolvedValue(null);
+      prisma.memberTitleDefinition.create.mockResolvedValue(sample as never);
+
+      await service.create({
+        name: 'Teşkilat Başkanı',
+        description: 'Üye kazanımı, koordinasyon, teşkilatlanma',
+        sortOrder: 0,
+        isActive: true,
+      });
+
+      expect(prisma.memberTitleDefinition.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          description: 'Üye kazanımı, koordinasyon, teşkilatlanma',
+        }),
+      });
     });
 
     it('appends a -2 suffix when the base slug is taken', async () => {
@@ -168,6 +202,38 @@ describe('TitlesService', () => {
         data: { sortOrder: 5 },
       });
       expect(result.sortOrder).toBe(5);
+    });
+
+    it('updates description when provided', async () => {
+      prisma.memberTitleDefinition.findUnique.mockResolvedValue(sample as never);
+      prisma.memberTitleDefinition.update.mockResolvedValue({
+        ...sample,
+        description: 'Güncel açıklama',
+      } as never);
+
+      const result = await service.update(sample.id, { description: 'Güncel açıklama' });
+
+      expect(prisma.memberTitleDefinition.update).toHaveBeenCalledWith({
+        where: { id: sample.id },
+        data: { description: 'Güncel açıklama' },
+      });
+      expect(result.description).toBe('Güncel açıklama');
+    });
+
+    it('clears description when null is passed', async () => {
+      prisma.memberTitleDefinition.findUnique.mockResolvedValue(sample as never);
+      prisma.memberTitleDefinition.update.mockResolvedValue({
+        ...sample,
+        description: null,
+      } as never);
+
+      const result = await service.update(sample.id, { description: null });
+
+      expect(prisma.memberTitleDefinition.update).toHaveBeenCalledWith({
+        where: { id: sample.id },
+        data: { description: null },
+      });
+      expect(result.description).toBeNull();
     });
 
     it('honors explicit isActive=false (deactivate via PATCH)', async () => {
