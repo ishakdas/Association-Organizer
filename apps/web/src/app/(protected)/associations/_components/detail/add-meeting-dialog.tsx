@@ -342,9 +342,9 @@ function AttendeeMultiSelect({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="min-h-9 w-full flex-wrap justify-between gap-1.5 px-2 py-1.5 font-normal"
+          className="flex h-auto min-h-9 w-full items-start justify-between gap-1.5 px-2 py-1.5 font-normal"
         >
-          <span className="flex flex-wrap items-center gap-1">
+          <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
             {selected.length === 0 ? (
               <span className="px-1 text-muted-foreground">Katılımcı seçin…</span>
             ) : (
@@ -352,14 +352,15 @@ function AttendeeMultiSelect({
                 <Badge
                   key={m.id}
                   variant="secondary"
-                  className="gap-1 text-[11px] ring-1 ring-transparent transition-colors hover:bg-secondary hover:ring-border"
+                  title={m.user.fullName}
+                  className="inline-flex max-w-[160px] items-center gap-1 text-[11px] ring-1 ring-transparent transition-colors hover:bg-secondary hover:ring-border"
                 >
-                  {m.user.fullName}
+                  <span className="truncate">{m.user.fullName}</span>
                   <span
                     role="button"
                     tabIndex={-1}
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggle(m.user.id); }}
-                    className="-mr-0.5 ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground"
+                    className="-mr-0.5 ml-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive hover:text-destructive-foreground"
                     aria-label="Çıkar"
                   >
                     <X className="h-3 w-3" />
@@ -368,10 +369,10 @@ function AttendeeMultiSelect({
               ))
             )}
             {selected.length > 4 && (
-              <Badge variant="outline" className="text-[11px]">+{selected.length - 4} kişi</Badge>
+              <Badge variant="outline" className="shrink-0 text-[11px]">+{selected.length - 4} kişi</Badge>
             )}
           </span>
-          <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+          <ChevronDown className="mt-1 h-3.5 w-3.5 shrink-0 opacity-60" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">

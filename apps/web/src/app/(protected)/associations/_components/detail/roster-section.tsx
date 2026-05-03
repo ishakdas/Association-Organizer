@@ -26,6 +26,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
+import { PhoneInput } from '@/components/ui/phone-input';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -444,11 +445,10 @@ function EditMemberDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="edit-phone">Telefon</Label>
-            <Input
+            <PhoneInput
               id="edit-phone"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+905xxxxxxxxx"
+              onChange={(digits) => setPhone(digits)}
             />
           </div>
           <div className="space-y-1.5">
