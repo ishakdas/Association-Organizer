@@ -24,6 +24,8 @@ import { CreateTaskDto } from './dto/create-task.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
 import { ListMyTasksQueryDto } from './dto/list-my-tasks-query.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
+import { UpdateTaskDto } from './dto/update-task.dto';
+import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
 
 /**
  * Per-association task endpoints. AssociationRolesGuard enforces that
@@ -96,6 +98,24 @@ export class TaskStatusController {
     @CurrentUser() user: RequestUser,
   ) {
     return this.service.updateStatus(taskId, body, user);
+  }
+
+  @Patch(':taskId')
+  update(
+    @Param('taskId') taskId: string,
+    @Body() body: UpdateTaskDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.update(taskId, body, user);
+  }
+
+  @Post(':taskId/resolve-dispute')
+  resolveDispute(
+    @Param('taskId') taskId: string,
+    @Body() body: ResolveDisputeDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.resolveDispute(taskId, body, user);
   }
 }
 

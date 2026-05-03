@@ -60,6 +60,47 @@ export const updateTaskStatusSchema = z.object({
 });
 export type UpdateTaskStatusInput = z.infer<typeof updateTaskStatusSchema>;
 
+export const updateTaskSchema = z
+  .object({
+    title: z.string().min(2, 'En az 2 karakter').max(200).optional(),
+    description: z.string().max(2000).nullable().optional(),
+    assignedToUserId: z.string().cuid('Geçersiz kullanıcı').optional(),
+    watcherUserId: z.string().cuid('Geçersiz kullanıcı').nullable().optional(),
+    priority: taskPriorityEnum.optional(),
+    dueDate: isoDateTime.nullable().optional(),
+    reminderAt: isoDateTime.nullable().optional(),
+    reminderFrequency: reminderFrequencyEnum.optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, {
+    message: 'En az bir alan güncellenmeli',
+  })
+  .superRefine((v, ctx) => {
+    if (v.reminderAt && v.dueDate && v.reminderAt > v.dueDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reminderAt'],
+        message: 'Hatırlatma tarihi bitiş tarihinden önce olmalı',
+      });
+    }
+    if (
+      v.reminderFrequency &&
+      v.reminderFrequency !== 'NONE' &&
+      v.reminderAt === null
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reminderAt'],
+        message: 'Hatırlatma için tarih girin',
+      });
+    }
+  });
+export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
+
+export const resolveDisputeSchema = z.object({
+  assignedToUserId: z.string().cuid('Geçersiz kullanıcı'),
+});
+export type ResolveDisputeInput = z.infer<typeof resolveDisputeSchema>;
+
 export const listTasksQuerySchema = z.object({
   status: taskStatusEnum.optional(),
   assignedToUserId: z.string().cuid().optional(),

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -8,17 +8,16 @@ import {
   AlertTriangle,
   Check,
   ChevronsUpDown,
-  Info,
   Loader2,
-  Plus,
   Search,
   Send,
 } from 'lucide-react';
 import {
-  createTaskSchema,
-  type CreateTaskInput,
+  reminderFrequencyEnum,
   type ReminderFrequencyValue,
   type TaskPriorityValue,
+  type TaskResponse,
+  type UpdateTaskInput,
 } from '@ticketbot/shared-validation';
 import { Button } from '@/components/ui/button';
 import {
@@ -28,7 +27,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog';
 import {
   Form,
@@ -56,12 +54,9 @@ import {
 import { DateTimePicker } from '@/components/ui/date-time-picker';
 import { cn } from '@/lib/utils';
 import { useMembers } from '../../_hooks/use-members';
-import { useCreateTask } from '../../_hooks/use-tasks';
+import { useUpdateTask } from '../../_hooks/use-tasks';
 
-const PRIORITY_OPTIONS: {
-  value: TaskPriorityValue;
-  label: string;
-}[] = [
+const PRIORITY_OPTIONS: { value: TaskPriorityValue; label: string }[] = [
   { value: 'LOW', label: 'Düşük' },
   { value: 'MEDIUM', label: 'Orta' },
   { value: 'HIGH', label: 'Yüksek' },
@@ -83,32 +78,15 @@ const formSchema = z
     watcherUserId: z.string().optional(),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH']),
     dueDate: z.date().optional(),
-    reminderFrequency: z.enum(['NONE', 'ONCE', 'DAILY', 'WEEKLY', 'MONTHLY']),
+    reminderFrequency: reminderFrequencyEnum,
     reminderAt: z.date().optional(),
   })
   .superRefine((v, ctx) => {
-    // "Today" kabul edilir; sadece bugünden geçmiş günler reddedilir.
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
     if (v.reminderFrequency !== 'NONE' && !v.reminderAt) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['reminderAt'],
         message: 'Hatırlatma için tarih girin',
-      });
-    }
-    if (v.dueDate && v.dueDate < startOfToday) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['dueDate'],
-        message: 'Bitiş tarihi geçmişte olamaz',
-      });
-    }
-    if (v.reminderAt && v.reminderAt < startOfToday) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['reminderAt'],
-        message: 'Hatırlatma tarihi geçmişte olamaz',
       });
     }
     if (v.reminderAt && v.dueDate && v.reminderAt > v.dueDate) {
@@ -121,94 +99,90 @@ const formSchema = z
   });
 type FormValues = z.infer<typeof formSchema>;
 
-export function AddTaskDialog({
+export function EditTaskDialog({
   associationId,
-  triggerLabel = 'Görev ekle',
+  task,
+  open,
+  onOpenChange,
 }: {
   associationId: string;
-  triggerLabel?: string;
+  task: TaskResponse;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
   const { data: members } = useMembers(associationId);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      title: '',
-      description: '',
-      assignedToUserId: '',
-      watcherUserId: '',
-      priority: 'MEDIUM',
-      dueDate: undefined,
-      reminderFrequency: 'NONE',
-      reminderAt: undefined,
+      title: task.title,
+      description: task.description ?? '',
+      assignedToUserId: task.assignedToUserId,
+      watcherUserId: task.watcherUserId ?? '',
+      priority: task.priority,
+      dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
+      reminderFrequency: task.reminderFrequency,
+      reminderAt: task.reminderAt ? new Date(task.reminderAt) : undefined,
     },
   });
+
+  // Görev nesnesi yer değiştirebilir (yeniden açma); defaultValues yalnızca
+  // mount'ta okunduğu için açıldığında reset'lemek gerekir.
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        title: task.title,
+        description: task.description ?? '',
+        assignedToUserId: task.assignedToUserId,
+        watcherUserId: task.watcherUserId ?? '',
+        priority: task.priority,
+        dueDate: task.dueDate ? new Date(task.dueDate) : undefined,
+        reminderFrequency: task.reminderFrequency,
+        reminderAt: task.reminderAt ? new Date(task.reminderAt) : undefined,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, task.id]);
 
   const reminderFrequency = form.watch('reminderFrequency');
   const assignedToUserId = form.watch('assignedToUserId');
-
   const selectedAssignee = members?.find((m) => m.user.id === assignedToUserId);
-  const assigneeHasNoTelegram =
-    !!assignedToUserId && selectedAssignee !== undefined && !selectedAssignee.user.telegramAccount;
+  const assigneeWillNotBeNotified =
+    !!assignedToUserId &&
+    selectedAssignee !== undefined &&
+    !selectedAssignee.user.telegramAccount &&
+    assignedToUserId !== task.assignedToUserId;
 
-  const mutation = useCreateTask(associationId, {
-    onSuccess: () => {
-      form.reset();
-      setOpen(false);
-    },
+  const mutation = useUpdateTask(associationId, {
+    onSuccess: () => onOpenChange(false),
   });
 
   function onSubmit(values: FormValues) {
-    const payload: CreateTaskInput = {
+    const payload: UpdateTaskInput = {
       title: values.title,
-      description: values.description || undefined,
+      description: values.description?.trim() ? values.description : null,
       assignedToUserId: values.assignedToUserId,
-      watcherUserId: values.watcherUserId || undefined,
+      watcherUserId: values.watcherUserId?.trim() ? values.watcherUserId : null,
       priority: values.priority,
-      dueDate: values.dueDate ? values.dueDate.toISOString() : undefined,
+      dueDate: values.dueDate ? values.dueDate.toISOString() : null,
       reminderFrequency: values.reminderFrequency,
-      reminderAt: values.reminderAt ? values.reminderAt.toISOString() : undefined,
+      reminderAt:
+        values.reminderFrequency === 'NONE'
+          ? null
+          : values.reminderAt
+            ? values.reminderAt.toISOString()
+            : null,
     };
-
-    const parsed = createTaskSchema.safeParse(payload);
-    if (!parsed.success) {
-      for (const issue of parsed.error.issues) {
-        const path = issue.path[0];
-        const map: Record<string, keyof FormValues> = {
-          title: 'title',
-          description: 'description',
-          assignedToUserId: 'assignedToUserId',
-          watcherUserId: 'watcherUserId',
-          priority: 'priority',
-          dueDate: 'dueDate',
-          reminderAt: 'reminderAt',
-          reminderFrequency: 'reminderFrequency',
-        };
-        if (typeof path === 'string' && map[path]) {
-          form.setError(map[path], { message: issue.message });
-        }
-      }
-      return;
-    }
-
-    mutation.mutate(parsed.data);
+    mutation.mutate({ taskId: task.id, input: payload });
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm">
-          <Plus className="mr-1.5 h-3.5 w-3.5" />
-          {triggerLabel}
-        </Button>
-      </DialogTrigger>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
-          <DialogTitle>Yeni görev</DialogTitle>
+          <DialogTitle>Görevi düzenle</DialogTitle>
           <DialogDescription>
-            Görevi dernek üyelerinden birine atayın. Hatırlatma seçerseniz
-            sistem ileride bildirim gönderecek.
+            Atanan kişiyi, son tarihi ve hatırlatmayı buradan değiştirebilirsiniz.
           </DialogDescription>
         </DialogHeader>
 
@@ -224,11 +198,7 @@ export function AddTaskDialog({
                 <FormItem>
                   <FormLabel>Başlık *</FormLabel>
                   <FormControl>
-                    <Input
-                      placeholder="Örn. Yıllık raporu hazırla"
-                      autoFocus
-                      {...field}
-                    />
+                    <Input autoFocus {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -242,11 +212,7 @@ export function AddTaskDialog({
                 <FormItem>
                   <FormLabel>Açıklama</FormLabel>
                   <FormControl>
-                    <Textarea
-                      rows={3}
-                      placeholder="Detay, kabul kriteri, link…"
-                      {...field}
-                    />
+                    <Textarea rows={3} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -260,15 +226,15 @@ export function AddTaskDialog({
                 <FormItem className="flex flex-col">
                   <FormLabel>Atanan kişi *</FormLabel>
                   <FormControl>
-                    <AssigneeCombobox
+                    <AssigneePicker
                       associationId={associationId}
                       value={field.value}
                       onChange={field.onChange}
                     />
                   </FormControl>
-                  {assigneeHasNoTelegram && (
-                    <div className="flex items-start gap-2 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-[12.5px] text-sky-900 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-100">
-                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  {assigneeWillNotBeNotified && (
+                    <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                       <span>
                         Bu üyenin Telegram hesabı bağlı değil. Görev yine
                         kaydedilecek; ancak Telegram bildirimi gitmeyecek.
@@ -287,7 +253,7 @@ export function AddTaskDialog({
                 <FormItem className="flex flex-col">
                   <FormLabel>Takipçi</FormLabel>
                   <FormControl>
-                    <AssigneeCombobox
+                    <AssigneePicker
                       associationId={associationId}
                       value={field.value ?? ''}
                       onChange={field.onChange}
@@ -296,8 +262,8 @@ export function AddTaskDialog({
                     />
                   </FormControl>
                   <FormDescription className="text-[11.5px]">
-                    Görev güncellemelerinde bildirim alacak kişi. Boş
-                    bırakırsanız atayan kişi takipçi sayılır.
+                    Görev itiraz edildiğinde bildirim alacak kişi. Boş
+                    bırakırsanız görevi oluşturan kişi takipçi olur.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -336,9 +302,10 @@ export function AddTaskDialog({
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Bitiş tarihi</FormLabel>
-                    <DatePopover
+                    <DateTimePicker
                       value={field.value}
                       onChange={field.onChange}
+                      placeholder="Tarih ve saat seç"
                     />
                     <FormMessage />
                   </FormItem>
@@ -350,7 +317,6 @@ export function AddTaskDialog({
               <legend className="px-1 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
                 Hatırlatma
               </legend>
-
               <div className="grid gap-3 sm:grid-cols-2">
                 <FormField
                   control={form.control}
@@ -391,15 +357,11 @@ export function AddTaskDialog({
                             ? 'Tarih'
                             : 'İlk hatırlatma'}
                         </FormLabel>
-                        <DatePopover
+                        <DateTimePicker
                           value={field.value}
                           onChange={field.onChange}
+                          placeholder="Tarih ve saat seç"
                         />
-                        <FormDescription className="text-[11.5px]">
-                          {reminderFrequency === 'ONCE'
-                            ? 'Bitiş tarihinden önce olmalı.'
-                            : 'Bu tarihten itibaren tekrar eder.'}
-                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -412,7 +374,7 @@ export function AddTaskDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setOpen(false)}
+                onClick={() => onOpenChange(false)}
                 disabled={mutation.isPending}
               >
                 Vazgeç
@@ -421,10 +383,10 @@ export function AddTaskDialog({
                 {mutation.isPending ? (
                   <>
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Ekleniyor…
+                    Kaydediliyor…
                   </>
                 ) : (
-                  'Görev oluştur'
+                  'Kaydet'
                 )}
               </Button>
             </DialogFooter>
@@ -435,7 +397,8 @@ export function AddTaskDialog({
   );
 }
 
-function AssigneeCombobox({
+// Combobox with Telegram-status indicator.
+function AssigneePicker({
   associationId,
   value,
   onChange,
@@ -554,14 +517,14 @@ function AssigneeCombobox({
                   {hasTelegram ? (
                     <span
                       title="Telegram bağlı — bildirim alır"
-                      className="inline-flex items-center text-emerald-700 dark:text-emerald-400"
+                      className="inline-flex items-center gap-1 text-[10.5px] text-emerald-700 dark:text-emerald-400"
                     >
                       <Send className="h-3 w-3" />
                     </span>
                   ) : (
                     <span
                       title="Telegram bağlı değil — bildirim almaz"
-                      className="inline-flex items-center text-amber-700 dark:text-amber-400"
+                      className="inline-flex items-center gap-1 text-[10.5px] text-amber-700 dark:text-amber-400"
                     >
                       <AlertTriangle className="h-3 w-3" />
                     </span>
@@ -574,22 +537,5 @@ function AssigneeCombobox({
         </div>
       </PopoverContent>
     </Popover>
-  );
-}
-
-function DatePopover({
-  value,
-  onChange,
-}: {
-  value: Date | undefined;
-  onChange: (next: Date | undefined) => void;
-}) {
-  return (
-    <DateTimePicker
-      value={value}
-      onChange={onChange}
-      disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
-      placeholder="Tarih ve saat seç"
-    />
   );
 }

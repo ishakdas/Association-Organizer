@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import {
   AlertTriangle,
+  Bell,
   ChevronDown,
   ClipboardList,
   Clock,
@@ -13,6 +14,8 @@ import {
   LayoutGrid,
   List,
   Loader2,
+  Pencil,
+  ShieldAlert,
   UserPlus,
 } from 'lucide-react';
 import type {
@@ -21,6 +24,7 @@ import type {
   TaskStatusValue,
 } from '@ticketbot/shared-validation';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Tabs,
@@ -48,6 +52,8 @@ import { TasksKanban } from '@/app/(protected)/tasks/_components/tasks-kanban';
 import { useMembers } from '../../_hooks/use-members';
 import { useTasks, useUpdateTaskStatus } from '../../_hooks/use-tasks';
 import { AddTaskDialog } from './add-task-dialog';
+import { EditTaskDialog } from './edit-task-dialog';
+import { ResolveDisputeDialog } from './resolve-dispute-dialog';
 import { TaskActivityDialog } from './task-activity-dialog';
 
 type StatusTab = 'ALL' | TaskStatusValue;
@@ -66,9 +72,11 @@ const STATUS_TABS: { value: StatusTab; label: string }[] = [
 export function TasksSection({
   associationId,
   canManage,
+  currentUserId,
 }: {
   associationId: string;
   canManage: boolean;
+  currentUserId?: string;
 }) {
   const [tab, setTab] = useState<StatusTab>('ALL');
   const [view, setView] = useState<ViewMode>('kanban');
@@ -158,6 +166,7 @@ export function TasksSection({
                 status={t.value === 'ALL' ? undefined : t.value}
                 canManage={canManage}
                 userById={userById}
+                currentUserId={currentUserId}
               />
             </TabsContent>
           ))}
@@ -217,11 +226,13 @@ function TasksList({
   status,
   canManage,
   userById,
+  currentUserId,
 }: {
   associationId: string;
   status: TaskStatusValue | undefined;
   canManage: boolean;
   userById: Map<string, { fullName: string; email: string | null }>;
+  currentUserId?: string;
 }) {
   const { data, isLoading, isError, error } = useTasks(associationId, {
     status,
@@ -266,6 +277,7 @@ function TasksList({
           assignee={userById.get(task.assignedToUserId)}
           associationId={associationId}
           canManage={canManage}
+          currentUserId={currentUserId}
           onStatusChange={(s) =>
             updateStatus.mutate({ taskId: task.id, status: s })
           }
@@ -283,6 +295,7 @@ function TaskCard({
   assignee,
   associationId,
   canManage,
+  currentUserId,
   onStatusChange,
   isUpdating,
 }: {
@@ -290,6 +303,7 @@ function TaskCard({
   assignee: { fullName: string; email: string | null } | undefined;
   associationId: string;
   canManage: boolean;
+  currentUserId?: string;
   onStatusChange: (s: TaskStatusValue) => void;
   isUpdating: boolean;
 }) {
@@ -306,6 +320,19 @@ function TaskCard({
     .join('')
     .slice(0, 2)
     .toUpperCase();
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [disputeOpen, setDisputeOpen] = useState(false);
+
+  // Backend ayrıca üyenin kendi görevinin durumunu değiştirmesine izin
+  // veriyor (member-only dernekte). UI'yı buna hizalıyoruz: assignee veya
+  // canManage olan kişi statüyü güncelleyebilir.
+  const isAssignee = !!currentUserId && currentUserId === task.assignedToUserId;
+  const canChangeStatus = canManage || isAssignee;
+  const isClosed = task.status === 'COMPLETED' || task.status === 'CANCELLED';
+  const reminderActive =
+    task.reminderFrequency !== 'NONE' && !isClosed && !!task.reminderAt;
+  const reminderLabel = REMINDER_FREQ_LABEL[task.reminderFrequency];
 
   return (
     <li className="rounded-lg border border-border bg-card transition-colors hover:border-foreground/20">
@@ -335,6 +362,15 @@ function TaskCard({
                 Gecikmiş
               </Badge>
             )}
+            {task.disputed && (
+              <Badge
+                variant="outline"
+                className="gap-1 border-amber-300 bg-amber-50 text-[11px] text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100"
+              >
+                <ShieldAlert className="h-3 w-3" />
+                İtiraz edildi
+              </Badge>
+            )}
           </div>
 
           <h3 className="text-[14px] font-semibold leading-snug tracking-tight text-foreground">
@@ -345,6 +381,24 @@ function TaskCard({
             <p className="line-clamp-2 text-[12.5px] leading-relaxed text-muted-foreground">
               {task.description}
             </p>
+          )}
+
+          {task.disputed && canManage && (
+            <div className="flex flex-wrap items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
+              <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1">
+                <span className="font-semibold">{assignee?.fullName ?? 'Atanan kişi'}</span>{' '}
+                bu görevin kendisine ait olmadığını söyledi. Yeni atayanı seçin.
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 shrink-0 text-[11px]"
+                onClick={() => setDisputeOpen(true)}
+              >
+                İtirazı çöz
+              </Button>
+            </div>
           )}
 
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-1 text-[12px] text-muted-foreground">
@@ -379,6 +433,20 @@ function TaskCard({
                 {format(due, 'd MMM yyyy', { locale: tr })}
               </span>
             )}
+            {reminderActive && task.reminderAt && (
+              <span className="inline-flex items-center gap-1.5" title={`Sıklık: ${reminderLabel}`}>
+                <Bell className="h-3 w-3" />
+                <span>
+                  Hatırlatma:{' '}
+                  <span className="text-foreground">
+                    {format(new Date(task.reminderAt), 'd MMM HH:mm', { locale: tr })}
+                  </span>
+                  {task.reminderFrequency !== 'ONCE' && (
+                    <span className="text-muted-foreground"> · {reminderLabel}</span>
+                  )}
+                </span>
+              </span>
+            )}
             <span className="inline-flex items-center gap-1.5">
               <UserPlus className="h-3 w-3" />
               <span>
@@ -394,8 +462,8 @@ function TaskCard({
           </div>
         </div>
 
-        {canManage && (
-          <div className="shrink-0">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 sm:flex-col sm:items-end">
+          {canChangeStatus && (
             <Select
               value={task.status}
               onValueChange={(v) => onStatusChange(v as TaskStatusValue)}
@@ -417,9 +485,48 @@ function TaskCard({
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        )}
+          )}
+          {canManage && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 gap-1.5 text-[11px]"
+              onClick={() => setEditOpen(true)}
+            >
+              <Pencil className="h-3 w-3" />
+              Düzenle
+            </Button>
+          )}
+        </div>
       </div>
+
+      {canManage && (
+        <>
+          <EditTaskDialog
+            associationId={associationId}
+            task={task}
+            open={editOpen}
+            onOpenChange={setEditOpen}
+          />
+          {task.disputed && (
+            <ResolveDisputeDialog
+              associationId={associationId}
+              task={task}
+              currentAssigneeName={assignee?.fullName}
+              open={disputeOpen}
+              onOpenChange={setDisputeOpen}
+            />
+          )}
+        </>
+      )}
     </li>
   );
 }
+
+const REMINDER_FREQ_LABEL: Record<TaskResponse['reminderFrequency'], string> = {
+  NONE: 'Yok',
+  ONCE: 'Bir kez',
+  DAILY: 'Günlük',
+  WEEKLY: 'Haftalık',
+  MONTHLY: 'Aylık',
+};

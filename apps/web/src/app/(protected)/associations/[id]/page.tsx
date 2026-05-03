@@ -64,7 +64,7 @@ export default async function AssociationDetailPage({ params, searchParams }: Pr
                   canManageManager={canManageManagerCard}
                 />
               }
-              gorevler={<TasksSection associationId={a.id} canManage={canCreateWork} />}
+              gorevler={<TasksSection associationId={a.id} canManage={canCreateWork} currentUserId={me?.id} />}
               toplantilar={<MeetingsSection associationId={a.id} canManage={canCreateWork} />}
               telegram={<TelegramSection associationId={a.id} canManage={canManageRoster} />}
             />
@@ -91,7 +91,7 @@ export default async function AssociationDetailPage({ params, searchParams }: Pr
             />
           )}
           {activeSection === 'gorevler' && (
-            <TasksSection associationId={a.id} canManage={canCreateWork} />
+            <TasksSection associationId={a.id} canManage={canCreateWork} currentUserId={me?.id} />
           )}
           {activeSection === 'toplantilar' && (
             <MeetingsSection associationId={a.id} canManage={canCreateWork} />

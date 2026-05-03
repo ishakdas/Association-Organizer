@@ -10,13 +10,17 @@ import {
   createTask,
   listTaskActivities,
   listTasks,
+  resolveTaskDispute,
+  updateTask,
   updateTaskStatus,
   type TasksListParams,
 } from '@/lib/api/tasks';
 import type {
   CreateTaskInput,
+  ResolveDisputeInput,
   TaskResponse,
   TaskStatusValue,
+  UpdateTaskInput,
 } from '@ticketbot/shared-validation';
 import { getAccessToken } from './use-associations';
 
@@ -60,9 +64,52 @@ export function useUpdateTaskStatus(associationId: string) {
       updateTaskStatus(await getAccessToken(), input.taskId, input.status),
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ['tasks', associationId] });
+      queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
       queryClient.invalidateQueries({
         queryKey: taskActivitiesQueryKey(associationId, vars.taskId),
       });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+export function useUpdateTask(
+  associationId: string,
+  options?: { onSuccess?: (task: TaskResponse) => void },
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { taskId: string; input: UpdateTaskInput }) =>
+      updateTask(await getAccessToken(), input.taskId, input.input),
+    onSuccess: (task) => {
+      toast.success(`"${task.title}" güncellendi`);
+      queryClient.invalidateQueries({ queryKey: ['tasks', associationId] });
+      queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
+      queryClient.invalidateQueries({
+        queryKey: taskActivitiesQueryKey(associationId, task.id),
+      });
+      options?.onSuccess?.(task);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+export function useResolveTaskDispute(
+  associationId: string,
+  options?: { onSuccess?: (task: TaskResponse) => void },
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { taskId: string; input: ResolveDisputeInput }) =>
+      resolveTaskDispute(await getAccessToken(), input.taskId, input.input),
+    onSuccess: (task) => {
+      toast.success('İtiraz çözüldü, görev yeniden atandı');
+      queryClient.invalidateQueries({ queryKey: ['tasks', associationId] });
+      queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
+      queryClient.invalidateQueries({
+        queryKey: taskActivitiesQueryKey(associationId, task.id),
+      });
+      options?.onSuccess?.(task);
     },
     onError: (err: Error) => toast.error(err.message),
   });
