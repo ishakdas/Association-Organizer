@@ -6,7 +6,6 @@ import {
 const validManager = {
   fullName: 'Mehmet Başkan',
   email: 'baskan@ornek.test',
-  password: 'super-strong-pass',
   phone: '0555 444 55 66',
 };
 
@@ -344,14 +343,6 @@ describe('createAssociationSchema', () => {
       const r = createAssociationSchema.safeParse({
         ...validInput,
         manager: { ...validManager, email: 'not-an-email' },
-      });
-      expect(r.success).toBe(false);
-    });
-
-    it('rejects when manager.password is shorter than 8 chars', () => {
-      const r = createAssociationSchema.safeParse({
-        ...validInput,
-        manager: { ...validManager, password: 'short' },
       });
       expect(r.success).toBe(false);
     });

@@ -23,21 +23,34 @@ describe('AiService', () => {
   it('should extract action items from meeting notes', async () => {
     fakeProvider.setResponse('extractActionItems', {
       actionItems: [
-        { content: 'Review PR #123 for authentication changes', assigneeName: 'John' },
-        { content: 'Update API documentation for new endpoints', assigneeName: 'Jane' },
-        { content: 'Schedule load testing for next sprint', assigneeName: null },
+        {
+          title: 'Review PR #123 for authentication changes',
+          description: null,
+          assignedToUserId: 'user-john',
+        },
+        {
+          title: 'Update API documentation for new endpoints',
+          description: null,
+          assignedToUserId: 'user-jane',
+        },
+        {
+          title: 'Schedule load testing for next sprint',
+          description: null,
+          assignedToUserId: null,
+        },
       ],
     });
 
     const result = await service.extractActionItems(
       'Meeting notes: John will review PR #123. Jane needs to update the API docs. We should schedule load testing next sprint.',
+      'John (id=user-john), Jane (id=user-jane)',
     );
 
     expect(result.actionItems).toHaveLength(3);
-    expect(result.actionItems[0].content).toBe('Review PR #123 for authentication changes');
-    expect(result.actionItems[0].assigneeName).toBe('John');
-    expect(result.actionItems[1].assigneeName).toBe('Jane');
-    expect(result.actionItems[2].assigneeName).toBeNull();
+    expect(result.actionItems[0].title).toBe('Review PR #123 for authentication changes');
+    expect(result.actionItems[0].assignedToUserId).toBe('user-john');
+    expect(result.actionItems[1].assignedToUserId).toBe('user-jane');
+    expect(result.actionItems[2].assignedToUserId).toBeNull();
   });
 
   it('should handle empty action items', async () => {
@@ -45,13 +58,16 @@ describe('AiService', () => {
       actionItems: [],
     });
 
-    const result = await service.extractActionItems('Just a casual chat, no action items.');
+    const result = await service.extractActionItems(
+      'Just a casual chat, no action items.',
+      '',
+    );
     expect(result.actionItems).toHaveLength(0);
   });
 
   it('should throw when no response is configured', async () => {
     // Don't configure a response — should throw
-    await expect(service.extractActionItems('Some notes')).rejects.toThrow(
+    await expect(service.extractActionItems('Some notes', '')).rejects.toThrow(
       'FakeAiProvider: no response configured',
     );
   });
