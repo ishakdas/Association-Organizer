@@ -55,7 +55,7 @@ function buildNav(user: AuthenticatedUser): NavItem[] {
   const base = `/associations/${assocId}`;
 
   return [
-    { href: `${base}`, label: 'Dashboard', icon: LayoutDashboard, primary: true, matchSection: 'dashboard' },
+    { href: `${base}?section=dashboard`, label: 'Dashboard', icon: LayoutDashboard, primary: true, matchSection: 'dashboard' },
     { href: `${base}?section=uyeler`, label: 'Üyeler', icon: Users, primary: true, matchSection: 'uyeler' },
     { href: `${base}?section=gorevler`, label: 'Görevler', icon: ClipboardList, primary: true, matchSection: 'gorevler' },
     { href: `${base}?section=toplantilar`, label: 'Toplantılar', icon: BookOpen, matchSection: 'toplantilar' },
