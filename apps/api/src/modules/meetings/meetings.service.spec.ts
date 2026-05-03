@@ -72,6 +72,10 @@ describe('MeetingsService', () => {
     prisma.meetingNote.count.mockResolvedValue(0 as never);
     fakeAiService.extractActionItems.mockResolvedValue({ actionItems: [] });
 
+    const aiMock = {
+      analyzeMeetingContent: jest.fn().mockResolvedValue({ items: [] }),
+    };
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         MeetingsService,

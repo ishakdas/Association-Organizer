@@ -24,7 +24,12 @@ import {
   TelegramLinkRedeemInput,
   updateProfileSchema,
   UpdateProfileInput,
+  requestBranchRegistrationSchema,
   RequestBranchRegistrationInput,
+  checkBranchEmailSchema,
+  CheckBranchEmailInput,
+  resendInviteForUserSchema,
+  ResendInviteForUserInput,
 } from '@ticketbot/shared-validation';
 
 @Controller('auth')
@@ -83,14 +88,16 @@ export class AuthController {
 
   @Post('check-branch-email')
   @HttpCode(HttpStatus.OK)
-  checkBranchEmail(@Body() body: { email: string }) {
+  checkBranchEmail(
+    @Body(new ZodValidationPipe(checkBranchEmailSchema)) body: CheckBranchEmailInput,
+  ) {
     return this.authService.checkBranchEmail(body.email);
   }
 
   @Post('request-branch-registration')
   @HttpCode(HttpStatus.OK)
   requestBranchRegistration(
-    @Body() body: RequestBranchRegistrationInput,
+    @Body(new ZodValidationPipe(requestBranchRegistrationSchema)) body: RequestBranchRegistrationInput,
   ) {
     return this.authService.requestBranchRegistration(body);
   }
@@ -107,6 +114,13 @@ export class AuthController {
   @Roles(UserRole.SYSTEM_ADMIN)
   listApprovedRegistrations() {
     return this.authService.listApprovedRegistrations();
+  }
+
+  @Get('rejected-registrations')
+  @UseGuards(AuthGuard, SupabaseUserGuard, RolesGuard)
+  @Roles(UserRole.SYSTEM_ADMIN)
+  listRejectedRegistrations() {
+    return this.authService.listRejectedRegistrations();
   }
 
   @Post('pending-registrations/:id/approve')
@@ -143,7 +157,9 @@ export class AuthController {
   @UseGuards(AuthGuard, SupabaseUserGuard, RolesGuard)
   @Roles(UserRole.SYSTEM_ADMIN)
   @HttpCode(HttpStatus.OK)
-  resendInviteForUser(@Body() body: { userId: string }) {
+  resendInviteForUser(
+    @Body(new ZodValidationPipe(resendInviteForUserSchema)) body: ResendInviteForUserInput,
+  ) {
     return this.authService.resendInviteForUser(body.userId);
   }
 }

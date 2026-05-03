@@ -45,6 +45,10 @@ export function listApprovedRegistrations(token: string) {
   return apiClient<PendingRegistration[]>('/auth/approved-registrations', { token });
 }
 
+export function listRejectedRegistrations(token: string) {
+  return apiClient<PendingRegistration[]>('/auth/rejected-registrations', { token });
+}
+
 export function resendInvite(token: string, id: string) {
   return apiClient<{ sent: boolean }>(
     `/auth/pending-registrations/${id}/resend`,

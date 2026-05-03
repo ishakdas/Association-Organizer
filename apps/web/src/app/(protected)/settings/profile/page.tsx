@@ -27,6 +27,7 @@ export default function SettingsProfilePage() {
   const [associationName, setAssociationName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [savingPwd, setSavingPwd] = useState(false);
+  const [oldPwd, setOldPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -64,9 +65,24 @@ export default function SettingsProfilePage() {
       toast.error('Parolalar eşleşmiyor');
       return;
     }
+    // If the user already has a real password (i.e. not on the
+    // first-time temp-password flow), require the old password and
+    // verify it via signInWithPassword before issuing the update.
+    const requiresOldPwd = user?.mustChangePassword === false;
+    if (requiresOldPwd && oldPwd.length === 0) {
+      toast.error('Mevcut parolanızı girin');
+      return;
+    }
     setSavingPwd(true);
     try {
       const supabase = createClient();
+      if (requiresOldPwd && user?.email) {
+        const { error: verifyErr } = await supabase.auth.signInWithPassword({
+          email: user.email,
+          password: oldPwd,
+        });
+        if (verifyErr) throw new Error('Mevcut parola hatalı');
+      }
       const { error: err } = await supabase.auth.updateUser({ password: newPwd });
       if (err) throw err;
 
@@ -77,6 +93,7 @@ export default function SettingsProfilePage() {
         // Non-blocking
       }
 
+      setOldPwd('');
       setNewPwd('');
       setConfirmPwd('');
       toast.success('Parola güncellendi');
@@ -190,6 +207,19 @@ export default function SettingsProfilePage() {
             </h2>
           </header>
           <form onSubmit={handleChangePassword} className="space-y-4 px-5 py-5">
+            {user?.mustChangePassword === false && (
+              <div className="space-y-1.5">
+                <Label htmlFor="oldPwd">Mevcut Parola</Label>
+                <Input
+                  id="oldPwd"
+                  type="password"
+                  value={oldPwd}
+                  onChange={(e) => setOldPwd(e.target.value)}
+                  required
+                  autoComplete="current-password"
+                />
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="newPwd">Yeni Parola</Label>
               <Input

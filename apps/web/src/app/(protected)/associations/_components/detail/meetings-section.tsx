@@ -150,7 +150,14 @@ function MeetingCard({
             </Badge>
           ))}
           {m.attendees.length > 6 && (
-            <Badge variant="outline" className="text-[11px] font-normal">
+            <Badge
+              variant="outline"
+              className="cursor-default text-[11px] font-normal"
+              title={m.attendees
+                .slice(6)
+                .map((a) => a.user.fullName)
+                .join(', ')}
+            >
               +{m.attendees.length - 6}
             </Badge>
           )}

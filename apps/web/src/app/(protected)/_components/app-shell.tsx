@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   BookOpen,
   BookUser,
+  Calendar,
   ClipboardList,
   Home,
   LayoutDashboard,
@@ -58,6 +59,7 @@ function buildNav(user: AuthenticatedUser): NavItem[] {
     { href: `${base}?section=uyeler`, label: 'Üyeler', icon: Users, primary: true, matchSection: 'uyeler' },
     { href: `${base}?section=gorevler`, label: 'Görevler', icon: ClipboardList, primary: true, matchSection: 'gorevler' },
     { href: `${base}?section=toplantilar`, label: 'Toplantılar', icon: BookOpen, matchSection: 'toplantilar' },
+    { href: '/events', label: 'Etkinlikler', icon: Calendar, primary: true },
     { href: `${base}?section=telegram`, label: 'Telegram', icon: MessageSquare, matchSection: 'telegram' },
     { href: '/settings', label: 'Ayarlar', icon: Settings },
   ];

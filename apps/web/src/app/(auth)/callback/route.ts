@@ -3,12 +3,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { EmailOtpType } from '@supabase/supabase-js';
 import type { CookieOptions } from '@supabase/ssr';
 
+// Reject anything that could escape this origin: protocol-relative `//host`,
+// backslash-prefixed `/\host`, or anything not starting with `/` (absolute URLs,
+// `@host` userinfo smuggling, etc). Falls back to /associations.
+function safeNext(raw: string | null): string {
+  if (!raw || !raw.startsWith('/')) return '/dashboard';
+  if (raw.startsWith('//') || raw.startsWith('/\\')) return '/dashboard';
+  return raw;
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
   const token_hash = searchParams.get('token_hash');
   const type = searchParams.get('type') as EmailOtpType | null;
-  const next = searchParams.get('next') ?? '/associations';
+  const next = safeNext(searchParams.get('next'));
 
   // Build the success redirect first so the Supabase client can write
   // session cookies directly onto it. Using next/headers cookies() here

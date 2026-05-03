@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Telegraf, Context } from 'telegraf';
 import { PrismaService } from '@ticketbot/database';
@@ -12,9 +17,10 @@ export interface SendToUserOptions {
 }
 
 @Injectable()
-export class BotService implements OnModuleInit {
+export class BotService implements OnModuleInit, OnModuleDestroy {
   private bot: Telegraf;
   private readonly logger = new Logger(BotService.name);
+  private polling = false;
 
   constructor(
     private readonly config: ConfigService,
@@ -34,6 +40,48 @@ export class BotService implements OnModuleInit {
     });
 
     this.logger.log('Bot commands registered');
+
+    // Local-dev fallback: when API_URL is missing or points at localhost,
+    // Telegram cannot deliver webhooks back to us. Switch to long polling
+    // so /start, /link, /help still work via `pnpm dev`. In production
+    // (apiUrl is a public URL), main.ts wires the webhook instead.
+    const apiUrl = this.config.get<string>('apiUrl') ?? '';
+    const nodeEnv = this.config.get<string>('nodeEnv');
+    const isLocal =
+      !apiUrl ||
+      apiUrl.includes('localhost') ||
+      apiUrl.includes('127.0.0.1') ||
+      apiUrl.startsWith('http://0.0.0.0');
+    if (nodeEnv !== 'test' && isLocal) {
+      // Drop any leftover webhook before polling — Telegram refuses both
+      // at once and silently returns 409 conflicts otherwise.
+      this.bot.telegram
+        .deleteWebhook({ drop_pending_updates: false })
+        .catch((err) =>
+          this.logger.warn(
+            `deleteWebhook before polling failed: ${(err as Error).message}`,
+          ),
+        )
+        .then(() => {
+          this.polling = true;
+          // Telegraf's launch() resolves only when the bot stops, so we
+          // intentionally do not await it here.
+          this.bot
+            .launch()
+            .catch((err) =>
+              this.logger.error(
+                `Long polling failed: ${(err as Error).message}`,
+              ),
+            );
+          this.logger.log('Bot started in long-polling mode (local dev)');
+        });
+    }
+  }
+
+  async onModuleDestroy() {
+    if (this.polling) {
+      this.bot.stop('SIGTERM');
+    }
   }
 
   async handleUpdate(update: unknown) {
