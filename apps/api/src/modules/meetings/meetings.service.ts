@@ -10,9 +10,11 @@ import { PrismaService, UserRole } from '@ticketbot/database';
 import {
   CreateMeetingNoteInput,
   ListMeetingNotesQuery,
+  UpdateMeetingNoteInput,
 } from '@ticketbot/shared-validation';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { AiService } from '@ticketbot/ai';
+import { parseTurkishDateText } from './turkish-date-parser';
 
 const ATTENDEE_INCLUDE = {
   attendees: {
@@ -67,13 +69,23 @@ export class MeetingsService {
         members.map((m) => [m.user.id, { fullName: m.user.fullName, title: m.title?.name ?? null }]),
       );
 
+      const now = new Date();
+
       return {
-        actionItems: result.actionItems.map((item) => ({
-          ...item,
-          assignedToUserName: item.assignedToUserId
-            ? (memberMap.get(item.assignedToUserId)?.fullName ?? null)
-            : null,
-        })),
+        actionItems: result.actionItems.map((item) => {
+          const parsedDate = item.dueDateText
+            ? parseTurkishDateText(item.dueDateText, now)
+            : null;
+          return {
+            title: item.title,
+            description: item.description,
+            assignedToUserId: item.assignedToUserId,
+            assignedToUserName: item.assignedToUserId
+              ? (memberMap.get(item.assignedToUserId)?.fullName ?? null)
+              : null,
+            dueDate: parsedDate ? parsedDate.toISOString() : null,
+          };
+        }),
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -97,6 +109,7 @@ export class MeetingsService {
       assignedToUserId: string;
       assignedById: string;
       sourceMeetingNoteId: string;
+      dueDate: Date | null;
     }[] = [];
 
     if (input.preApprovedTasks && input.preApprovedTasks.length > 0) {
@@ -118,6 +131,7 @@ export class MeetingsService {
           assignedToUserId: assigneeId,
           assignedById: user.id,
           sourceMeetingNoteId: '',
+          dueDate: t.dueDate ? new Date(t.dueDate) : null,
         };
       });
     }
@@ -174,6 +188,57 @@ export class MeetingsService {
         totalPages: Math.max(1, Math.ceil(total / pageSize)),
       },
     };
+  }
+
+  async update(
+    associationId: string,
+    meetingId: string,
+    input: UpdateMeetingNoteInput,
+    user: AuthenticatedUser,
+  ) {
+    const meeting = await this.prisma.meetingNote.findFirst({
+      where: { id: meetingId, associationId, deletedAt: null },
+    });
+    if (!meeting) throw new NotFoundException('Toplantı bulunamadı');
+
+    if (
+      user.systemRole !== UserRole.SYSTEM_ADMIN &&
+      !user.memberships.some(
+        (m) =>
+          m.isActive &&
+          m.associationId === associationId &&
+          (m.role === UserRole.ASSOCIATION_MANAGER ||
+            m.role === UserRole.ASSOCIATION_SECRETARY),
+      )
+    ) {
+      throw new ForbiddenException('Bu toplantıyı düzenleme yetkiniz yok');
+    }
+
+    if (input.attendeeUserIds) {
+      await this.ensureAllAreMembers(associationId, Array.from(new Set(input.attendeeUserIds)));
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      if (input.attendeeUserIds !== undefined) {
+        await tx.meetingAttendee.deleteMany({ where: { meetingNoteId: meetingId } });
+        await tx.meetingAttendee.createMany({
+          data: Array.from(new Set(input.attendeeUserIds)).map((userId) => ({
+            meetingNoteId: meetingId,
+            userId,
+          })),
+        });
+      }
+
+      return tx.meetingNote.update({
+        where: { id: meetingId },
+        data: {
+          ...(input.title !== undefined && { title: input.title }),
+          ...(input.content !== undefined && { content: input.content }),
+          ...(input.meetingDate !== undefined && { meetingDate: new Date(input.meetingDate) }),
+        },
+        include: ATTENDEE_INCLUDE,
+      });
+    });
   }
 
   async findOne(meetingId: string, user: AuthenticatedUser) {

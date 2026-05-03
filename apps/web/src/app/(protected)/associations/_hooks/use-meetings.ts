@@ -10,12 +10,14 @@ import {
   analyzeMeeting,
   createMeeting,
   listMeetings,
+  updateMeeting,
   type AnalyzeMeetingResponse,
   type MeetingsListParams,
 } from '@/lib/api/meetings';
 import type {
   CreateMeetingNoteInput,
   MeetingNoteResponse,
+  UpdateMeetingNoteInput,
 } from '@ticketbot/shared-validation';
 import { getAccessToken } from './use-associations';
 
@@ -45,6 +47,23 @@ export function useCreateMeeting(
       createMeeting(await getAccessToken(), associationId, input),
     onSuccess: (m) => {
       toast.success(`"${m.title}" toplantı notu kaydedildi`);
+      queryClient.invalidateQueries({ queryKey: ['meetings', associationId] });
+      options?.onSuccess?.(m);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+export function useUpdateMeeting(
+  associationId: string,
+  options?: { onSuccess?: (m: MeetingNoteResponse) => void },
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ meetingId, input }: { meetingId: string; input: UpdateMeetingNoteInput }) =>
+      updateMeeting(await getAccessToken(), associationId, meetingId, input),
+    onSuccess: (m) => {
+      toast.success(`"${m.title}" güncellendi`);
       queryClient.invalidateQueries({ queryKey: ['meetings', associationId] });
       options?.onSuccess?.(m);
     },

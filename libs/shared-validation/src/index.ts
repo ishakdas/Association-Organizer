@@ -101,6 +101,7 @@ export {
   extractionResultSchema,
   type ExtractedActionItemOutput,
   type ExtractionResultOutput,
+  type EnrichedActionItem,
 } from './schemas/extracted-action-item.schema';
 
 // Events (Etkinlik & Program Yönetimi)

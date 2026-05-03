@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { format } from 'date-fns';
 import { tr } from 'date-fns/locale';
-import { BookOpen, Users } from 'lucide-react';
+import { BookOpen, Pencil, Users } from 'lucide-react';
 import type { MeetingNoteResponse } from '@ticketbot/shared-validation';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useMeetings } from '../../_hooks/use-meetings';
 import { AddMeetingDialog } from './add-meeting-dialog';
@@ -88,6 +89,7 @@ function MeetingCard({
 }) {
   const date = useMemo(() => new Date(m.meetingDate), [m.meetingDate]);
   const preview = m.content.slice(0, 220);
+  const [editOpen, setEditOpen] = useState(false);
 
   return (
     <li className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-foreground/20">
@@ -108,7 +110,24 @@ function MeetingCard({
         </div>
 
         {canManage && (
-          <AnalyzeMeetingDialog meeting={m} associationId={associationId} />
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1.5 text-[11px]"
+              onClick={() => setEditOpen(true)}
+            >
+              <Pencil className="h-3 w-3" />
+              Düzenle
+            </Button>
+            <AnalyzeMeetingDialog meeting={m} associationId={associationId} />
+            <AddMeetingDialog
+              associationId={associationId}
+              initialData={m}
+              open={editOpen}
+              onOpenChange={setEditOpen}
+            />
+          </div>
         )}
       </div>
 

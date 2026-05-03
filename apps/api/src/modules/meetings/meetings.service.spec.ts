@@ -237,7 +237,7 @@ describe('MeetingsService', () => {
       expect(membersContext).toContain('MEMBER (Üye)');
     });
 
-    it('returns actionItems with assignedToUserName resolved from member map', async () => {
+    it('returns actionItems with assignedToUserName and dueDate parsed from dueDateText', async () => {
       prisma.associationMembership.findMany.mockResolvedValue([
         {
           user: { id: 'u1', fullName: 'Ali Veli' },
@@ -248,12 +248,40 @@ describe('MeetingsService', () => {
       ] as never);
 
       fakeAiService.extractActionItems.mockResolvedValueOnce({
-        actionItems: [{ title: 'Toplantı düzenle', description: null, assignedToUserId: 'u1' }],
+        actionItems: [
+          { title: 'Toplantı düzenle', description: null, assignedToUserId: 'u1', dueDateText: '15 Mayıs 2026' },
+          { title: 'Rapor yaz', description: null, assignedToUserId: null, dueDateText: null },
+          { title: 'Bütçe gönder', description: null, assignedToUserId: 'u1', dueDateText: 'gelecek hafta' },
+        ],
       });
 
       const result = await service.analyzeContent(ASSOC, 'Notlar');
 
       expect(result.actionItems[0].assignedToUserName).toBe('Ali Veli');
+      expect(result.actionItems[0].dueDate).toMatch(/^2026-05-15/);
+      expect(result.actionItems[1].assignedToUserName).toBeNull();
+      expect(result.actionItems[1].dueDate).toBeNull();
+      expect(result.actionItems[2].dueDate).not.toBeNull();
+    });
+
+    it('returns null dueDate when dueDateText is unrecognized', async () => {
+      prisma.associationMembership.findMany.mockResolvedValue([
+        {
+          user: { id: 'u1', fullName: 'Ali Veli' },
+          role: 'ASSOCIATION_MANAGER',
+          customTitle: null,
+          title: null,
+        },
+      ] as never);
+
+      fakeAiService.extractActionItems.mockResolvedValueOnce({
+        actionItems: [
+          { title: 'Bir şey yap', description: null, assignedToUserId: 'u1', dueDateText: 'aslında değil' },
+        ],
+      });
+
+      const result = await service.analyzeContent(ASSOC, 'Notlar');
+      expect(result.actionItems[0].dueDate).toBeNull();
     });
   });
 });
