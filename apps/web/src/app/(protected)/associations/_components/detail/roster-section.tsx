@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import {
+  Briefcase,
   Crown,
   Loader2,
   Mail,
@@ -69,6 +70,7 @@ interface RosterSectionProps {
 
 export function RosterSection({ associationId, canManage, canManageManager = false }: RosterSectionProps) {
   const { data: managers, isLoading: loadingManagers } = useMembers(associationId, { role: 'ASSOCIATION_MANAGER' });
+  const { data: secretaries, isLoading: loadingSecretaries } = useMembers(associationId, { role: 'ASSOCIATION_SECRETARY' });
   const { data: members, isLoading: loadingMembers, isError, error } = useMembers(associationId, { role: 'ASSOCIATION_MEMBER' });
   const removeMutation = useRemoveMember(associationId);
   const { data: titles } = useTitles();
@@ -141,6 +143,123 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
             />
           )}
         </div>
+      </section>
+
+      {/* Sekreterler */}
+      <section className="rounded-lg border border-border bg-card">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-3.5">
+          <div className="flex items-center gap-2">
+            <Briefcase className="h-4 w-4 text-muted-foreground" />
+            <h2 className="text-[14px] font-semibold tracking-tight">
+              Sekreterler
+              {secretaries && secretaries.length > 0 && (
+                <span className="ml-2 text-[12px] font-normal text-muted-foreground">
+                  ({secretaries.length})
+                </span>
+              )}
+            </h2>
+          </div>
+          {canManage && (
+            <AddMemberDialog
+              associationId={associationId}
+              defaultRole="ASSOCIATION_SECRETARY"
+              triggerLabel="Sekreter ekle"
+            />
+          )}
+        </header>
+
+        {loadingSecretaries && (
+          <div className="space-y-2 p-5">
+            <Skeleton className="h-8 w-full" />
+            <Skeleton className="h-8 w-full" />
+          </div>
+        )}
+
+        {!loadingSecretaries && (!secretaries || secretaries.length === 0) && (
+          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
+            Bu derneğin aktif sekreteri yok.
+          </p>
+        )}
+
+        {secretaries && secretaries.length > 0 && (
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>İsim</TableHead>
+                <TableHead>İletişim</TableHead>
+                <TableHead className="text-right">Katılım</TableHead>
+                {canManage && <TableHead className="w-[1%]" aria-label="Eylemler" />}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {secretaries.map((m) => {
+                const isRemoving =
+                  removeMutation.isPending && removeMutation.variables === m.id;
+                return (
+                  <TableRow key={m.id}>
+                    <TableCell className="font-medium">{m.user.fullName}</TableCell>
+                    <TableCell className="text-[13px] text-muted-foreground">
+                      {m.user.email && <span className="block">{m.user.email}</span>}
+                      {m.user.phone && (
+                        <span className="block font-mono text-[12px]">{m.user.phone}</span>
+                      )}
+                      {m.user.telegramAccount && (
+                        <Badge
+                          variant="success"
+                          className="mt-1 inline-flex items-center gap-1"
+                        >
+                          <Send className="h-3 w-3" />
+                          Telegram
+                        </Badge>
+                      )}
+                      {!m.user.email && !m.user.phone && !m.user.telegramAccount && '—'}
+                    </TableCell>
+                    <TableCell className="text-right text-[12.5px] text-muted-foreground">
+                      {new Date(m.joinedAt).toLocaleDateString('tr-TR')}
+                    </TableCell>
+                    {canManage && (
+                      <TableCell className="text-right">
+                        <div className="inline-flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setEditingMember(m)}
+                            aria-label={`${m.user.fullName} bilgilerini düzenle`}
+                            title="Bilgileri düzenle"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setTelegramFor(m)}
+                            aria-label={`${m.user.fullName} için Telegram kodu üret`}
+                            title="Telegram bağlantı kodu üret"
+                          >
+                            <Send className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleRemove(m)}
+                            disabled={isRemoving}
+                            aria-label={`${m.user.fullName} adlı kişiyi çıkar`}
+                          >
+                            {isRemoving ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <UserMinus className="h-3.5 w-3.5" />
+                            )}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    )}
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        )}
       </section>
 
       {/* Üyeler Table */}
