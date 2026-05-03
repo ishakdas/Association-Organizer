@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaClient, PrismaService } from '@ticketbot/database';
+import { AiService } from '@ticketbot/ai';
 import { MeetingsService } from './meetings.service';
 
 type PrismaMock = DeepMockProxy<PrismaClient>;
@@ -56,6 +57,8 @@ const validInput = {
   attendeeUserIds: ['mem-1', 'mem-2'],
 };
 
+const fakeAiService = { extractActionItems: jest.fn().mockResolvedValue({ actionItems: [] }) };
+
 describe('MeetingsService', () => {
   let service: MeetingsService;
   let prisma: PrismaMock;
@@ -67,11 +70,13 @@ describe('MeetingsService', () => {
       return input(prisma);
     });
     prisma.meetingNote.count.mockResolvedValue(0 as never);
+    fakeAiService.extractActionItems.mockResolvedValue({ actionItems: [] });
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         MeetingsService,
         { provide: PrismaService, useValue: prisma },
+        { provide: AiService, useValue: fakeAiService },
       ],
     }).compile();
     service = moduleRef.get(MeetingsService);
@@ -203,6 +208,52 @@ describe('MeetingsService', () => {
       await expect(
         service.findOne(sampleMeeting.id, ADMIN_USER),
       ).resolves.toBeDefined();
+    });
+  });
+
+  describe('analyzeContent — member context', () => {
+    it('passes role label, title description and customTitle to AI service', async () => {
+      prisma.associationMembership.findMany.mockResolvedValue([
+        {
+          user: { id: 'u1', fullName: 'Ali Veli' },
+          role: 'ASSOCIATION_MANAGER',
+          customTitle: null,
+          title: { name: 'Teşkilat Başkanı', description: 'Üye kazanımı, koordinasyon' },
+        },
+        {
+          user: { id: 'u2', fullName: 'Ayşe Demir' },
+          role: 'ASSOCIATION_MEMBER',
+          customTitle: 'Bölge Temsilcisi',
+          title: null,
+        },
+      ] as never);
+
+      await service.analyzeContent(ASSOC, 'Toplantı notları');
+
+      const [, membersContext] = fakeAiService.extractActionItems.mock.calls[0];
+      expect(membersContext).toContain('MANAGER (Başkan)');
+      expect(membersContext).toContain('Üye kazanımı, koordinasyon');
+      expect(membersContext).toContain('Bölge Temsilcisi');
+      expect(membersContext).toContain('MEMBER (Üye)');
+    });
+
+    it('returns actionItems with assignedToUserName resolved from member map', async () => {
+      prisma.associationMembership.findMany.mockResolvedValue([
+        {
+          user: { id: 'u1', fullName: 'Ali Veli' },
+          role: 'ASSOCIATION_MANAGER',
+          customTitle: null,
+          title: null,
+        },
+      ] as never);
+
+      fakeAiService.extractActionItems.mockResolvedValueOnce({
+        actionItems: [{ title: 'Toplantı düzenle', description: null, assignedToUserId: 'u1' }],
+      });
+
+      const result = await service.analyzeContent(ASSOC, 'Notlar');
+
+      expect(result.actionItems[0].assignedToUserName).toBe('Ali Veli');
     });
   });
 });
