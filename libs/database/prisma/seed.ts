@@ -3,16 +3,48 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 // Admin-managed assignable titles. Order matters for UI sortOrder.
-const TITLES = [
-  'Teşkilat Başkanı',
-  'Lise Başkanı',
-  'Orta Okul Başkanı',
-  'Kadın Kolları Başkanı',
-  'Kültür-Sanat Sorumlusu',
-  'Gençlik Kolu Sorumlusu',
-  'Medya Sorumlusu',
-  'Mali İşler Sorumlusu',
-] as const;
+const TITLES: { name: string; description: string }[] = [
+  {
+    name: 'Teşkilat Başkanı',
+    description:
+      'Üye kazanımı, üye kaydı, üye takibi, teşkilatlanma, koordinasyon, üye listeleri, iletişim ağı, ziyaret organizasyonu, üye bilgilendirme, katılım artırma, gönüllü yönetimi',
+  },
+  {
+    name: 'Lise Başkanı',
+    description:
+      'Lise öğrencileri, okul ziyaretleri, lise etkinlikleri, genç üye kazanımı, okul koordinatörleri, lise tanıtımı, öğrenci bilgilendirme, lise temsilcisi',
+  },
+  {
+    name: 'Orta Okul Başkanı',
+    description:
+      'Ortaokul öğrencileri, ortaokul ziyaretleri, ortaokul etkinlikleri, öğrenci ailesi iletişimi, ortaokul koordinasyonu, tanıtım faaliyetleri',
+  },
+  {
+    name: 'Kadın Kolları Başkanı',
+    description:
+      'Kadın üyeler, kadın etkinlikleri, hanım toplantıları, kadın dayanışması, kadın kolları organizasyonu, hanımlara yönelik faaliyetler',
+  },
+  {
+    name: 'Kültür-Sanat Sorumlusu',
+    description:
+      'Kültürel etkinlik, sanat organizasyonu, konser, sergi, tiyatro, şiir gecesi, panel, konferans, kültür programı, sanatsal faaliyet',
+  },
+  {
+    name: 'Gençlik Kolu Sorumlusu',
+    description:
+      'Gençlik faaliyetleri, genç üyeler, spor etkinlikleri, gezi, kampanya, gençlik buluşması, yaz programı, genç koordinasyon',
+  },
+  {
+    name: 'Medya Sorumlusu',
+    description:
+      'Sosyal medya, paylaşım, Instagram, Facebook, Twitter, basın açıklaması, haber, fotoğraf, video, dijital içerik, duyuru, tanıtım, web sitesi',
+  },
+  {
+    name: 'Mali İşler Sorumlusu',
+    description:
+      'Aidat, bütçe, gelir-gider, fatura, muhasebe, mali rapor, ödeme, tahsilat, harcama, finansal planlama, kasa',
+  },
+];
 
 const TURKISH_TR_MAP: Record<string, string> = {
   ç: 'c', Ç: 'c',
@@ -36,12 +68,12 @@ function slugify(input: string): string {
 async function main() {
   // Reference data — assignable member titles
   for (let i = 0; i < TITLES.length; i++) {
-    const name = TITLES[i];
+    const { name, description } = TITLES[i];
     const slug = slugify(name);
     await prisma.memberTitleDefinition.upsert({
       where: { slug },
-      update: { name, sortOrder: i, isActive: true },
-      create: { name, slug, sortOrder: i, isActive: true },
+      update: { name, description, sortOrder: i, isActive: true },
+      create: { name, slug, description, sortOrder: i, isActive: true },
     });
   }
 
