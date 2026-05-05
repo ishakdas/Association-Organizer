@@ -139,15 +139,15 @@ function MeetingCard({
       )}
 
       {m.attendees.length > 0 && (
-        <div className="mt-3 flex max-w-full flex-wrap gap-1">
+        <div className="mt-3 flex min-w-0 max-w-full flex-wrap gap-1">
           {m.attendees.slice(0, 6).map((a) => (
             <Badge
               key={a.id}
               variant="outline"
-              className="block max-w-[180px] truncate text-[11px] font-normal"
+              className="inline-flex max-w-[180px] items-center text-[11px] font-normal"
               title={a.user.fullName}
             >
-              {a.user.fullName}
+              <span className="truncate">{a.user.fullName}</span>
             </Badge>
           ))}
           {m.attendees.length > 6 && (

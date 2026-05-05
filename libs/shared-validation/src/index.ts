@@ -20,7 +20,9 @@ export {
 // Tasks (Görevler)
 export {
   createTaskSchema,
+  updateTaskSchema,
   updateTaskStatusSchema,
+  resolveDisputeSchema,
   listTasksQuerySchema,
   listMyTasksQuerySchema,
   taskResponseSchema,
@@ -31,7 +33,9 @@ export {
   taskPriorityEnum,
   reminderFrequencyEnum,
   type CreateTaskInput,
+  type UpdateTaskInput,
   type UpdateTaskStatusInput,
+  type ResolveDisputeInput,
   type ListTasksQuery,
   type ListMyTasksQuery,
   type TaskResponse,

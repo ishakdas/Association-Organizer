@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaClient, PrismaService } from '@ticketbot/database';
@@ -97,6 +98,11 @@ describe('TasksService', () => {
       verifyTaskIcsToken: jest.fn().mockReturnValue(true),
       uidDomain: jest.fn().mockReturnValue('example.test'),
     };
+    const configMock = {
+      get: jest.fn((key: string) =>
+        key === 'webUrl' ? 'https://example.test' : undefined,
+      ),
+    };
 
     const moduleRef = await Test.createTestingModule({
       providers: [
@@ -105,6 +111,7 @@ describe('TasksService', () => {
         { provide: TaskReminderScheduler, useValue: schedulerMock },
         { provide: BotService, useValue: botMock },
         { provide: IcsTokenService, useValue: icsTokensMock },
+        { provide: ConfigService, useValue: configMock },
       ],
     }).compile();
     service = moduleRef.get(TasksService);
@@ -121,17 +128,30 @@ describe('TasksService', () => {
       expect(prisma.task.create).not.toHaveBeenCalled();
     });
 
-    it('rejects with BadRequest when assignee has no linked Telegram account', async () => {
+    it('still creates the task when the assignee has no linked Telegram, only skipping notification', async () => {
       prisma.associationMembership.findFirst.mockResolvedValue({
         id: 'mem-mem',
       } as never);
       prisma.telegramAccount.findUnique.mockResolvedValue(null);
+      const createdTask = {
+        id: 'task-1',
+        title: validInput.title,
+        description: null,
+        dueDate: null,
+        status: 'PENDING',
+        priority: 'MEDIUM',
+        assignedToUserId: validInput.assignedToUserId,
+        assignedById: SECRETARY_USER.id,
+        assignedBy: { id: SECRETARY_USER.id, fullName: 'Sekreter' },
+      } as never;
+      prisma.$transaction.mockImplementation(async (cb: any) => cb(prisma));
+      prisma.task.create.mockResolvedValue(createdTask);
+      prisma.taskActivity.create.mockResolvedValue({} as never);
 
-      await expect(
-        service.create(ASSOC, validInput, SECRETARY_USER),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      const result = await service.create(ASSOC, validInput, SECRETARY_USER);
 
-      expect(prisma.task.create).not.toHaveBeenCalled();
+      expect(prisma.task.create).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(createdTask);
     });
 
     it('creates the task and stamps assignedById from the authenticated user', async () => {

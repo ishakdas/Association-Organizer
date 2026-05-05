@@ -2,9 +2,11 @@ import { apiClient } from './client';
 import type {
   CreateTaskInput,
   MyTaskItem,
+  ResolveDisputeInput,
   TaskActivity,
   TaskResponse,
   TaskStatusValue,
+  UpdateTaskInput,
 } from '@ticketbot/shared-validation';
 
 export interface TasksListParams {
@@ -64,6 +66,30 @@ export function updateTaskStatus(
     token,
     method: 'PATCH',
     body: JSON.stringify({ status }),
+  });
+}
+
+export function updateTask(
+  token: string,
+  taskId: string,
+  input: UpdateTaskInput,
+) {
+  return apiClient<TaskResponse>(`/tasks/${taskId}`, {
+    token,
+    method: 'PATCH',
+    body: JSON.stringify(input),
+  });
+}
+
+export function resolveTaskDispute(
+  token: string,
+  taskId: string,
+  input: ResolveDisputeInput,
+) {
+  return apiClient<TaskResponse>(`/tasks/${taskId}/resolve-dispute`, {
+    token,
+    method: 'POST',
+    body: JSON.stringify(input),
   });
 }
 
