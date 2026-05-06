@@ -3,6 +3,7 @@ import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaClient, PrismaService } from '@ticketbot/database';
 import { BotService } from 'bot';
+import { AiService } from '@ticketbot/ai';
 import { TasksService } from './tasks.service';
 import { TaskReminderScheduler } from '../jobs/task-reminder.scheduler';
 import { IcsTokenService } from './ics-token.service';
@@ -98,6 +99,10 @@ describe('TasksService', () => {
       uidDomain: jest.fn().mockReturnValue('example.test'),
     };
 
+    const aiServiceMock = {
+      prioritizeTasks: jest.fn().mockResolvedValue({ prioritizedTasks: [] }),
+    };
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         TasksService,
@@ -105,6 +110,7 @@ describe('TasksService', () => {
         { provide: TaskReminderScheduler, useValue: schedulerMock },
         { provide: BotService, useValue: botMock },
         { provide: IcsTokenService, useValue: icsTokensMock },
+        { provide: AiService, useValue: aiServiceMock },
       ],
     }).compile();
     service = moduleRef.get(TasksService);

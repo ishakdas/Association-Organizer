@@ -125,6 +125,8 @@ model User {
   taskActivities      TaskActivity[]    @relation("TaskActivityActor")
   createdEvents       Event[]           @relation("EventCreator")
   telegramAccount     TelegramAccount?
+  aiSuggestions       AiSuggestion[]
+  savedSuggestions    SavedSuggestion[]
 
   @@index([isActive])
   @@index([deletedAt])
@@ -211,6 +213,7 @@ model Association {
   meetings            MeetingNote[]
   events              Event[]
   eventRoleDefinitions EventRoleDefinition[]
+  aiSuggestions       AiSuggestion[]
 
   @@index([city])
   @@index([isActive])
@@ -418,6 +421,7 @@ model Event {
   association Association       @relation(fields: [associationId], references: [id], onDelete: Cascade)
   createdBy   User              @relation("EventCreator", fields: [createdById], references: [id])
   assignments EventAssignment[]
+  programItems EventProgramItem[]
 
   @@index([associationId, startsAt])
   @@index([associationId, deletedAt])
@@ -453,4 +457,124 @@ model EventAssignment {
   @@index([membershipId])
   @@index([roleDefinitionId])
   @@map("event_assignments")
+}
+
+// External events cached from municipal websites (e.g. Gebze Belediyesi).
+// Fetched periodically and filtered by association district on read.
+model ExternalEvent {
+  id          String   @id @default(cuid())
+  source      String   // e.g. "gebze_belediyesi"
+  externalId  String   // original id from source
+  title       String
+  category    String
+  location    String
+  eventDate   DateTime
+  eventTime   String?
+  description String?
+  detailUrl   String
+  imageUrl    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([source, externalId])
+  @@index([source, eventDate])
+  @@map("external_events")
+}
+
+// AI-generated Islamic event suggestions stored for persistence, feedback, and learning.
+model AiSuggestion {
+  id                    String   @id @default(cuid())
+  associationId         String
+  period                String   // weekly | monthly
+  targetAudience        String   // all | middle_school | high_school
+
+  title                 String
+  description           String   @db.Text
+  category              String   // sohbet | egitim | kultur | genclik | aile | sosyal_sorumluluk | ibadet
+  keyTopics             String[]
+  resourcesNeeded       String
+  estimatedParticipants String
+
+  islamicSession        Json?
+  schedule              Json?
+  socialContent         Json?
+
+  // Generation metadata for learning & A/B testing
+  metadata              Json?   // { temperature, perspective, fewShotCount, promptVersion }
+
+  createdById           String
+  createdAt             DateTime @default(now())
+
+  association           Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  createdBy             User        @relation(fields: [createdById], references: [id])
+  feedback              AiSuggestionFeedback?
+  savedBy               SavedSuggestion[]
+
+  @@index([associationId, createdAt])
+  @@map("ai_suggestions")
+}
+
+// Feedback on AI suggestions to improve future recommendations.
+model AiSuggestionFeedback {
+  id                 String   @id @default(cuid())
+  suggestionId       String   @unique
+  rating             Int
+  isHelpful          Boolean?
+  comment            String?
+  likedCategories    String[] // which categories the user liked
+  dislikedCategories String[] // which categories the user disliked
+  createdAt          DateTime @default(now())
+
+  suggestion    AiSuggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+
+  @@map("ai_suggestion_feedbacks")
+}
+
+// Versioned prompt templates for A/B testing and admin editing.
+model PromptTemplate {
+  id        String   @id @default(cuid())
+  key       String   // e.g. "suggest-islamic-events", "generate-event-schedule"
+  version   Int      @default(1)
+  content   String   @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([key, version])
+  @@index([key, isActive])
+  @@map("prompt_templates")
+}
+
+// User-saved suggestions for later use.
+model SavedSuggestion {
+  id            String   @id @default(cuid())
+  userId        String
+  suggestionId  String
+  note          String?
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, suggestionId])
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  suggestion    AiSuggestion @relation(fields: [suggestionId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([suggestionId])
+  @@map("saved_suggestions")
+}
+
+// Structured program items for an event (schedule / agenda).
+model EventProgramItem {
+  id            String   @id @default(cuid())
+  eventId       String
+  startTime     String   // "14:00"
+  duration      String   // "30 dk"
+  title         String
+  description   String?
+  order         Int      @default(0)
+
+  event         Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([eventId])
+  @@map("event_program_items")
 }

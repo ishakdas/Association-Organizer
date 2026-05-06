@@ -29,6 +29,9 @@ import { UpdateEventDto } from './dto/update-event.dto';
 import { ListEventsQueryDto } from './dto/list-events-query.dto';
 import { AddEventAssignmentDto } from './dto/add-assignment.dto';
 import { UpdateEventAssignmentDto } from './dto/update-assignment.dto';
+import { SuggestIslamicEventsDto } from './dto/suggest-islamic-events.dto';
+import { SaveSuggestionDto } from './dto/save-suggestion.dto';
+import { FeedbackSuggestionDto } from './dto/feedback-suggestion.dto';
 
 @Controller('associations/:associationId/events')
 @UseGuards(AuthGuard, SupabaseUserGuard, AssociationRolesGuard)
@@ -143,6 +146,107 @@ export class EventsController {
     @Param('assignmentId') assignmentId: string,
   ) {
     return this.service.removeAssignment(associationId, id, assignmentId);
+  }
+
+  // Islamic event suggestions
+  @Post('suggest-islamic')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+  )
+  suggestIslamic(
+    @Param('associationId') associationId: string,
+    @Body() body: SuggestIslamicEventsDto,
+    @CurrentUser() user: RequestUser,
+    @Query('creative') creative?: string,
+  ) {
+    return this.service.suggestIslamicEvents(associationId, body, user, creative === 'true');
+  }
+
+  // Saved suggestions
+  @Post('suggestions/:suggestionId/save')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+  )
+  saveSuggestion(
+    @Param('suggestionId') suggestionId: string,
+    @Body() body: SaveSuggestionDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.saveSuggestion(user.id, suggestionId, body.note);
+  }
+
+  @Delete('suggestions/:suggestionId/save')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+  )
+  unsaveSuggestion(
+    @Param('suggestionId') suggestionId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.unsaveSuggestion(user.id, suggestionId);
+  }
+
+  @Get('saved-suggestions')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+  )
+  listSavedSuggestions(@CurrentUser() user: RequestUser) {
+    return this.service.listSavedSuggestions(user.id);
+  }
+
+  // Feedback
+  @Post('suggestions/:suggestionId/feedback')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+  )
+  addFeedback(
+    @Param('suggestionId') suggestionId: string,
+    @Body() body: FeedbackSuggestionDto,
+  ) {
+    return this.service.addFeedback(suggestionId, body.rating, body.isHelpful, body.comment);
+  }
+
+  // Event program items
+  @Post(':id/program')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+  )
+  addProgramToEvent(
+    @Param('associationId') associationId: string,
+    @Param('id') eventId: string,
+    @Body() body: { items: Array<{ startTime: string; duration: string; title: string; description?: string; order?: number }> },
+  ) {
+    return this.service.addProgramToEvent(associationId, eventId, body.items);
+  }
+
+  @Get(':id/program')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
+  getEventProgram(
+    @Param('associationId') associationId: string,
+    @Param('id') eventId: string,
+  ) {
+    return this.service.getEventProgram(associationId, eventId);
+  }
+
+  // External events from Gebze municipality
+  @Get('external-events/gebze')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
+  listGebzeExternalEvents(@Param('associationId') associationId: string) {
+    return this.service.listGebzeExternalEvents(associationId);
   }
 
   // PDF — sorumluluk listesi

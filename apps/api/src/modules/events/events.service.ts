@@ -4,15 +4,18 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService, Prisma } from '@ticketbot/database';
+import { AiService } from '@ticketbot/ai';
 import type {
   CreateEventInput,
   UpdateEventInput,
   ListEventsQuery,
   EventAssignmentInput,
   UpdateEventAssignmentInput,
+  SuggestIslamicEventsInput,
 } from '@ticketbot/shared-validation';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { EventReminderScheduler } from '../jobs/event-reminder.scheduler';
+import { IslamicCalendarService } from '../islamic-calendar/islamic-calendar.service';
 
 const ASSIGNMENT_INCLUDE = {
   membership: {
@@ -28,6 +31,8 @@ export class EventsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly scheduler: EventReminderScheduler,
+    private readonly ai: AiService,
+    private readonly islamicCalendar: IslamicCalendarService,
   ) {}
 
   async create(
@@ -439,5 +444,345 @@ export class EventsService {
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Islamic event suggestions
+  // ---------------------------------------------------------------------------
+
+  async suggestIslamicEvents(
+    associationId: string,
+    input: SuggestIslamicEventsInput,
+    user: AuthenticatedUser,
+    creative = false,
+  ) {
+    const association = await this.prisma.association.findFirst({
+      where: { id: associationId, deletedAt: null },
+      select: { id: true, city: true, memberCount: true },
+    });
+    if (!association) throw new NotFoundException('Dernek bulunamadı');
+
+    // Fetch past events for profile + duplication avoidance
+    const pastEvents = await this.prisma.event.findMany({
+      where: { associationId, deletedAt: null },
+      select: { title: true, type: true },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+    const pastEventTitles = pastEvents.map((e) => e.title);
+
+    // Build category breakdown
+    const categoryBreakdown: Record<string, number> = {};
+    for (const ev of pastEvents) {
+      categoryBreakdown[ev.type] = (categoryBreakdown[ev.type] ?? 0) + 1;
+    }
+
+    // Upcoming Islamic holidays — safe fallback if calendar service fails
+    let upcomingHolidays: { name: string; date: string; daysUntil: number }[] = [];
+    try {
+      if (this.islamicCalendar) {
+        upcomingHolidays = this.islamicCalendar.getHolidaysForPrompt(5);
+      }
+    } catch (calendarErr) {
+      // Silently ignore calendar errors so AI suggestion still works
+      console.warn('Islamic calendar lookup failed:', calendarErr);
+    }
+
+    const currentDate = new Date().toISOString().split('T')[0];
+
+    const aiCall = creative
+      ? this.ai.suggestIslamicEventsWithChainOfThought(
+          input.period,
+          input.targetAudience,
+          currentDate,
+          pastEventTitles,
+          {
+            memberCount: association.memberCount,
+            city: association.city,
+            pastCategoryBreakdown: categoryBreakdown,
+          },
+          upcomingHolidays,
+        )
+      : this.ai.suggestIslamicEvents(
+          input.period,
+          input.targetAudience,
+          currentDate,
+          pastEventTitles,
+          {
+            memberCount: association.memberCount,
+            city: association.city,
+            pastCategoryBreakdown: categoryBreakdown,
+          },
+          upcomingHolidays,
+        );
+
+    const result = await aiCall;
+
+    // Persist suggestions for feedback/archive
+    try {
+      await this.prisma.$transaction(
+        result.suggestions.map((s) =>
+          this.prisma.aiSuggestion.create({
+            data: {
+              associationId,
+              period: input.period,
+              targetAudience: input.targetAudience,
+              title: s.title,
+              description: s.description,
+              category: s.category,
+              keyTopics: s.keyTopics,
+              resourcesNeeded: s.resourcesNeeded,
+              estimatedParticipants: s.estimatedParticipants,
+              islamicSession: s.islamicSession ?? undefined,
+              metadata: {
+                creative,
+                temperature: 0.85,
+              },
+              createdById: user.id,
+            },
+          }),
+        ),
+      );
+    } catch (persistErr) {
+      console.warn('Failed to persist AI suggestions:', persistErr);
+      // Non-critical: still return the result to the user
+    }
+
+    return result;
+  }
+
+  // ---------------------------------------------------------------------------
+  // External events (Gebze Belediyesi)
+  // ---------------------------------------------------------------------------
+
+  async listGebzeExternalEvents(associationId: string) {
+    const association = await this.prisma.association.findFirst({
+      where: { id: associationId, deletedAt: null },
+      select: { district: true },
+    });
+    if (!association) throw new NotFoundException('Dernek bulunamadı');
+
+    if (association.district?.toLowerCase() !== 'gebze') {
+      return { data: [] };
+    }
+
+    // Ensure fresh data by fetching and caching
+    await this.syncGebzeEvents();
+
+    const fromDate = new Date();
+    fromDate.setHours(0, 0, 0, 0);
+
+    const rows = await this.prisma.externalEvent.findMany({
+      where: {
+        source: 'gebze_belediyesi',
+        eventDate: { gte: fromDate },
+      },
+      orderBy: { eventDate: 'asc' },
+      take: 100,
+    });
+
+    return {
+      data: rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        category: r.category,
+        location: r.location,
+        eventDate: r.eventDate.toISOString().split('T')[0],
+        eventTime: r.eventTime,
+        imageUrl: r.imageUrl,
+        detailUrl: r.detailUrl,
+      })),
+    };
+  }
+
+  private async syncGebzeEvents() {
+    const lastSync = await this.prisma.externalEvent.findFirst({
+      where: { source: 'gebze_belediyesi' },
+      orderBy: { updatedAt: 'desc' },
+      select: { updatedAt: true },
+    });
+
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000);
+    if (lastSync && lastSync.updatedAt > sixHoursAgo) {
+      return;
+    }
+
+    try {
+      const res = await fetch('https://www.gebze.bel.tr/json/etkinlik.json');
+      if (!res.ok) return;
+
+      const raw = (await res.json()) as Array<{
+        id: number;
+        baslik: string;
+        kategori: string;
+        konum: string;
+        tarih: string;
+        saat: string;
+        url: string;
+        resim: string;
+      }>;
+
+      const baseUrl = 'https://www.gebze.bel.tr/';
+
+      for (const item of raw) {
+        const externalId = String(item.id);
+        const eventDate = new Date(item.tarih);
+        if (isNaN(eventDate.getTime())) continue;
+
+        await this.prisma.externalEvent.upsert({
+          where: {
+            source_externalId: {
+              source: 'gebze_belediyesi',
+              externalId,
+            },
+          },
+          update: {
+            title: item.baslik,
+            category: item.kategori,
+            location: item.konum,
+            eventDate,
+            eventTime: item.saat || null,
+            detailUrl: item.url.startsWith('http') ? item.url : `${baseUrl}${item.url}`,
+            imageUrl: item.resim ? `${baseUrl}${item.resim}` : null,
+          },
+          create: {
+            source: 'gebze_belediyesi',
+            externalId,
+            title: item.baslik,
+            category: item.kategori,
+            location: item.konum,
+            eventDate,
+            eventTime: item.saat || null,
+            detailUrl: item.url.startsWith('http') ? item.url : `${baseUrl}${item.url}`,
+            imageUrl: item.resim ? `${baseUrl}${item.resim}` : null,
+          },
+        });
+      }
+    } catch {
+      // Silently fail — cached data will be served
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Saved suggestions
+  // ---------------------------------------------------------------------------
+
+  async saveSuggestion(
+    userId: string,
+    suggestionId: string,
+    note?: string,
+  ) {
+    return this.prisma.savedSuggestion.upsert({
+      where: {
+        userId_suggestionId: {
+          userId,
+          suggestionId,
+        },
+      },
+      update: { note: note ?? null },
+      create: {
+        userId,
+        suggestionId,
+        note: note ?? null,
+      },
+    });
+  }
+
+  async listSavedSuggestions(userId: string) {
+    return this.prisma.savedSuggestion.findMany({
+      where: { userId },
+      include: {
+        suggestion: {
+          select: {
+            id: true,
+            title: true,
+            description: true,
+            category: true,
+            targetAudience: true,
+            createdAt: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async unsaveSuggestion(userId: string, suggestionId: string) {
+    await this.prisma.savedSuggestion.deleteMany({
+      where: { userId, suggestionId },
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Suggestion feedback
+  // ---------------------------------------------------------------------------
+
+  async addFeedback(
+    suggestionId: string,
+    rating: number,
+    isHelpful?: boolean,
+    comment?: string,
+  ) {
+    return this.prisma.aiSuggestionFeedback.upsert({
+      where: { suggestionId },
+      update: {
+        rating,
+        isHelpful: isHelpful ?? null,
+        comment: comment ?? null,
+      },
+      create: {
+        suggestionId,
+        rating,
+        isHelpful: isHelpful ?? null,
+        comment: comment ?? null,
+      },
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Event program items
+  // ---------------------------------------------------------------------------
+
+  async addProgramToEvent(
+    associationId: string,
+    eventId: string,
+    items: Array<{ startTime: string; duration: string; title: string; description?: string; order?: number }>,
+  ) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, associationId, deletedAt: null },
+    });
+    if (!event) throw new NotFoundException('Etkinlik bulunamadı');
+
+    await this.prisma.eventProgramItem.deleteMany({
+      where: { eventId },
+    });
+
+    await this.prisma.eventProgramItem.createMany({
+      data: items.map((item, idx) => ({
+        eventId,
+        startTime: item.startTime,
+        duration: item.duration,
+        title: item.title,
+        description: item.description ?? null,
+        order: item.order ?? idx,
+      })),
+    });
+
+    return this.prisma.eventProgramItem.findMany({
+      where: { eventId },
+      orderBy: { order: 'asc' },
+    });
+  }
+
+  async getEventProgram(associationId: string, eventId: string) {
+    const event = await this.prisma.event.findFirst({
+      where: { id: eventId, associationId, deletedAt: null },
+    });
+    if (!event) throw new NotFoundException('Etkinlik bulunamadı');
+
+    return this.prisma.eventProgramItem.findMany({
+      where: { eventId },
+      orderBy: { order: 'asc' },
+    });
   }
 }

@@ -108,6 +108,28 @@ export {
   type EnrichedActionItem,
 } from './schemas/extracted-action-item.schema';
 
+// AI features (Toplantı özeti, gündem önerisi, görev önceliklendirme, İslami etkinlik önerisi, program akışı, sosyal medya)
+export {
+  meetingSummarySchema,
+  agendaItemSchema,
+  agendaSuggestionSchema,
+  prioritizeTasksResultSchema,
+  islamicEventSuggestionItemSchema,
+  islamicEventSuggestionSchema,
+  eventScheduleSchema,
+  scheduleItemSchema,
+  socialContentSchema,
+  recurringProgramSchema,
+  weeklySessionSchema,
+  type MeetingSummaryOutput,
+  type AgendaSuggestionOutput,
+  type PrioritizeTasksResultOutput,
+  type IslamicEventSuggestionOutput,
+  type EventScheduleOutput,
+  type SocialContentOutput,
+  type RecurringProgramOutput,
+} from './schemas/ai-features.schema';
+
 // Events (Etkinlik & Program Yönetimi)
 export {
   eventTypeEnum,
@@ -120,6 +142,8 @@ export {
   eventResponseSchema,
   eventAssignmentResponseSchema,
   eventListItemSchema,
+  suggestIslamicEventsInputSchema,
+  externalEventSchema,
   type EventTypeValue,
   type RecurrenceTypeValue,
   type CreateEventInput,
@@ -130,6 +154,8 @@ export {
   type EventResponse,
   type EventAssignmentResponse,
   type EventListItem,
+  type SuggestIslamicEventsInput,
+  type ExternalEventItem,
 } from './schemas/event.schema';
 
 // Event Role Definitions (Dernek bazlı sorumluluk rolleri)

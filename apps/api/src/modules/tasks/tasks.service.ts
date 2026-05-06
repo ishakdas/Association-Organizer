@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
@@ -20,6 +21,7 @@ import {
   UpdateTaskStatusInput,
 } from '@ticketbot/shared-validation';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
+import { AiService } from '@ticketbot/ai';
 import {
   BotService,
   assignmentActionsKeyboard,
@@ -37,6 +39,7 @@ export class TasksService {
     private readonly scheduler: TaskReminderScheduler,
     private readonly bot: BotService,
     private readonly icsTokens: IcsTokenService,
+    private readonly aiService: AiService,
   ) {}
 
   async create(
@@ -785,5 +788,39 @@ export class TasksService {
     );
     if (inAssoc.length === 0) return true;
     return inAssoc.every((m) => m.role === UserRole.ASSOCIATION_MEMBER);
+  }
+
+  async prioritizeTasks(associationId: string) {
+    const tasks = await this.prisma.task.findMany({
+      where: {
+        associationId,
+        status: { in: ['PENDING', 'IN_PROGRESS'] },
+        deletedAt: null,
+      },
+      include: {
+        assignedTo: { select: { id: true, fullName: true } },
+      },
+      take: 30,
+    });
+
+    if (tasks.length === 0) {
+      return { prioritizedTasks: [] };
+    }
+
+    const tasksContext = tasks
+      .map((t) => {
+        const due = t.dueDate ? `Bitiş: ${t.dueDate.toISOString().slice(0, 10)}` : 'Bitiş yok';
+        const assignee = t.assignedTo ? `Atanan: ${t.assignedTo.fullName}` : 'Atanan yok';
+        return `- ID: ${t.id} | ${t.title} | Mevcut öncelik: ${t.priority} | ${due} | ${assignee}${t.description ? ` | Açıklama: ${t.description}` : ''}`;
+      })
+      .join('\n');
+
+    try {
+      return await this.aiService.prioritizeTasks(tasksContext);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`AI task prioritization failed: ${message}`, err instanceof Error ? err.stack : undefined);
+      throw new InternalServerErrorException(`AI hatası: ${message}`);
+    }
   }
 }

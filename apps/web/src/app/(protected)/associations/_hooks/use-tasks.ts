@@ -11,6 +11,7 @@ import {
   listTaskActivities,
   listTasks,
   updateTaskStatus,
+  prioritizeTasks,
   type TasksListParams,
 } from '@/lib/api/tasks';
 import type {
@@ -18,6 +19,7 @@ import type {
   TaskResponse,
   TaskStatusValue,
 } from '@ticketbot/shared-validation';
+import type { PrioritizeTasksResponse } from '@/lib/api/tasks';
 import { getAccessToken } from './use-associations';
 
 export const tasksQueryKey = (
@@ -81,5 +83,20 @@ export function useTaskActivities(
     queryFn: async () =>
       listTaskActivities(await getAccessToken(), associationId, taskId),
     enabled,
+  });
+}
+
+export function usePrioritizeTasks(
+  associationId: string,
+  options?: { onSuccess?: (r: PrioritizeTasksResponse) => void; onError?: (err: Error) => void },
+) {
+  return useMutation({
+    mutationFn: async () =>
+      prioritizeTasks(await getAccessToken(), associationId),
+    onSuccess: (r) => options?.onSuccess?.(r),
+    onError: (err: Error) => {
+      toast.error(`Önceliklendirme başarısız: ${err.message}`);
+      options?.onError?.(err);
+    },
   });
 }

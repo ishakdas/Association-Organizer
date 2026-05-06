@@ -211,3 +211,23 @@ export const eventListItemSchema = z.object({
   createdAt: z.string(),
 });
 export type EventListItem = z.infer<typeof eventListItemSchema>;
+
+// Islamic event suggestion input
+export const suggestIslamicEventsInputSchema = z.object({
+  period: z.enum(['weekly', 'monthly']),
+  targetAudience: z.enum(['all', 'middle_school', 'high_school']).default('all'),
+});
+export type SuggestIslamicEventsInput = z.infer<typeof suggestIslamicEventsInputSchema>;
+
+// External event (e.g. Gebze Belediyesi)
+export const externalEventSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  category: z.string(),
+  location: z.string(),
+  eventDate: z.string(),
+  eventTime: z.string().nullable(),
+  imageUrl: z.string().nullable(),
+  detailUrl: z.string(),
+});
+export type ExternalEventItem = z.infer<typeof externalEventSchema>;

@@ -71,15 +71,8 @@ export function AnalyzeMeetingDialog({
 
   const { data: members } = useMembers(associationId);
 
-  const [aiNotice, setAiNotice] = useState<string | null>(null);
-
   const analyzeMutation = useAnalyzeMeeting(associationId, {
     onSuccess: (result) => {
-      setAiNotice(
-        result.aiAvailable
-          ? null
-          : `Yapay zeka şu an yanıt vermedi (${result.error ?? 'bilinmeyen hata'}). Görevleri manuel olarak ekleyebilirsiniz.`,
-      );
       setTasks(
         result.actionItems.map((item, i) => ({
           id: String(i),
@@ -103,7 +96,6 @@ export function AnalyzeMeetingDialog({
       analyzeTriggered.current = false;
       setState('analyzing');
       setTasks([]);
-      setAiNotice(null);
     }
   }, [open]);
 
@@ -201,13 +193,6 @@ export function AnalyzeMeetingDialog({
                   : 'Toplantı notunuzdan görev önerisi çıkarılamadı. Manuel görev ekleyebilirsiniz.'}
               </DialogDescription>
             </DialogHeader>
-
-            {aiNotice && (
-              <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-[12.5px] text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
-                <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0" />
-                <p>{aiNotice}</p>
-              </div>
-            )}
 
             <div className="max-h-[60vh] space-y-2 overflow-y-auto pr-1">
               {tasks.length === 0 && (
@@ -326,11 +311,26 @@ export function AnalyzeMeetingDialog({
               </Button>
             </div>
 
-            {unassignedTasks.length > 0 && (
-              <p className="flex items-center gap-1.5 rounded-md bg-amber-50 px-3 py-2 text-[11px] text-amber-700 dark:bg-amber-950/30 dark:text-amber-400">
-                <UserX className="h-3 w-3 shrink-0" />
-                {unassignedTasks.length} görevin atanan kişisi seçilmedi — bu görevler
-                oluşturulmayacak.
+            {tasks.length > 0 && (
+              <p
+                className={`flex items-center gap-1.5 rounded-md px-3 py-2 text-[11px] ${
+                  unassignedTasks.length === 0
+                    ? 'bg-green-50 text-green-700 dark:bg-green-950/30 dark:text-green-400'
+                    : 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400'
+                }`}
+              >
+                {unassignedTasks.length === 0 ? (
+                  <>
+                    <CheckCircle2 className="h-3 w-3 shrink-0" />
+                    Tüm görevler atandı.
+                  </>
+                ) : (
+                  <>
+                    <UserX className="h-3 w-3 shrink-0" />
+                    {unassignedTasks.length} görev atanmadı — oluşturulmadan önce kişi
+                    seçmelisiniz.
+                  </>
+                )}
               </p>
             )}
 

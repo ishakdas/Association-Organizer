@@ -63,6 +63,17 @@ export class TasksController {
     return this.service.list(associationId, query, user);
   }
 
+  @Post('prioritize')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+  )
+  prioritize(
+    @Param('associationId') associationId: string,
+  ) {
+    return this.service.prioritizeTasks(associationId);
+  }
+
   @Get(':taskId/activities')
   @AssociationRoles(
     UserRole.ASSOCIATION_MANAGER,

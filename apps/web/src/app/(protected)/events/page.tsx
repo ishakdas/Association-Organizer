@@ -23,17 +23,21 @@ export default async function EventsPage() {
     redirect('/associations');
   }
 
-  const nameById = new Map(
-    associationsResponse.data.map((a) => [a.id, a.name]),
+  const assocById = new Map(
+    associationsResponse.data.map((a) => [a.id, a]),
   );
 
   const memberships = me.memberships
     .filter((m) => m.isActive)
-    .map((m) => ({
-      associationId: m.associationId,
-      associationName: nameById.get(m.associationId) ?? 'Dernek',
-      role: m.role,
-    }));
+    .map((m) => {
+      const assoc = assocById.get(m.associationId);
+      return {
+        associationId: m.associationId,
+        associationName: assoc?.name ?? 'Dernek',
+        district: assoc?.district ?? null,
+        role: m.role,
+      };
+    });
 
   if (memberships.length === 0) {
     return (

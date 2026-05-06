@@ -49,6 +49,7 @@ import { useMembers } from '../../_hooks/use-members';
 import { useTasks, useUpdateTaskStatus } from '../../_hooks/use-tasks';
 import { AddTaskDialog } from './add-task-dialog';
 import { TaskActivityDialog } from './task-activity-dialog';
+import { PrioritizeTasksDialog } from './prioritize-tasks-dialog';
 
 type StatusTab = 'ALL' | TaskStatusValue;
 type ViewMode = 'list' | 'kanban';
@@ -122,6 +123,7 @@ export function TasksSection({
         </div>
         <div className="flex items-center gap-2">
           <ViewToggle value={view} onChange={setView} />
+          {canManage && <PrioritizeTasksDialog associationId={associationId} />}
           {canManage && <AddTaskDialog associationId={associationId} />}
         </div>
       </header>
