@@ -14,6 +14,8 @@ import { EventRolesModule } from './modules/event-roles/event-roles.module';
 import { SupabaseModule } from './modules/supabase/supabase.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { EmailModule } from './modules/email/email.module';
+import { IslamicCalendarModule } from './modules/islamic-calendar/islamic-calendar.module';
+import { AiHelperModule } from './modules/ai-helper/ai-helper.module';
 import { BotModule } from 'bot';
 
 @Module({
@@ -33,6 +35,8 @@ import { BotModule } from 'bot';
     MeetingsModule,
     EventsModule,
     EventRolesModule,
+    IslamicCalendarModule,
+    AiHelperModule,
     AdminModule,
     EmailModule,
     BotModule,

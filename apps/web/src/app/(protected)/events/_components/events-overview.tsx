@@ -11,6 +11,9 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import { SmartSuggestionHub } from './smart-suggestion-hub';
+import { IslamicInfoSuggestionsDialog } from './islamic-info-suggestions-dialog';
+import { GebzeEventsCard } from './gebze-events-card';
 import { UserRole } from '@ticketbot/shared-types';
 import type {
   EventAssignmentInput,
@@ -64,6 +67,7 @@ import { listMembers } from '@/lib/api/members';
 interface MembershipSummary {
   associationId: string;
   associationName: string;
+  district: string | null;
   role: UserRole;
 }
 
@@ -112,6 +116,7 @@ export function EventsOverview({ token, memberships }: Props) {
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createPrefill, setCreatePrefill] = useState<{ title?: string; description?: string; type?: EventTypeValue } | undefined>(undefined);
   const [detailEventId, setDetailEventId] = useState<string | null>(null);
 
   const refresh = useMemo(
@@ -162,13 +167,29 @@ export function EventsOverview({ token, memberships }: Props) {
             </Select>
           )}
           {writable && (
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-              Yeni Etkinlik
-            </Button>
+            <>
+              <SmartSuggestionHub
+                token={token}
+                associationId={activeId}
+                onCreateEvent={(prefill) => {
+                  setCreatePrefill(prefill as { title?: string; description?: string; type?: EventTypeValue });
+                  setCreateOpen(true);
+                }}
+              />
+              <Button onClick={() => { setCreatePrefill(undefined); setCreateOpen(true); }}>
+                <Plus className="h-4 w-4" />
+                Yeni Etkinlik
+              </Button>
+            </>
           )}
         </div>
       </header>
+
+      <GebzeEventsCard
+        token={token}
+        associationId={activeId}
+        district={active.district}
+      />
 
       {loading && events.length === 0 ? (
         <Card>
@@ -206,8 +227,10 @@ export function EventsOverview({ token, memberships }: Props) {
           onOpenChange={setCreateOpen}
           token={token}
           associationId={activeId}
+          prefill={createPrefill}
           onCreated={() => {
             setCreateOpen(false);
+            setCreatePrefill(undefined);
             void refresh();
           }}
         />
@@ -287,16 +310,18 @@ function CreateEventDialog({
   token,
   associationId,
   onCreated,
+  prefill,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   token: string;
   associationId: string;
   onCreated: () => void;
+  prefill?: { title?: string; description?: string; type?: EventTypeValue };
 }) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [type, setType] = useState<EventTypeValue>('TALK');
+  const [title, setTitle] = useState(prefill?.title ?? '');
+  const [description, setDescription] = useState(prefill?.description ?? '');
+  const [type, setType] = useState<EventTypeValue>(prefill?.type ?? 'TALK');
   const [location, setLocation] = useState('');
   const [startsAt, setStartsAt] = useState<Date | undefined>(undefined);
   const [notifyAt, setNotifyAt] = useState<Date | undefined>(undefined);
@@ -308,6 +333,9 @@ function CreateEventDialog({
 
   useEffect(() => {
     if (!open) return;
+    setTitle(prefill?.title ?? '');
+    setDescription(prefill?.description ?? '');
+    setType(prefill?.type ?? 'TALK');
     Promise.all([
       listMembers(token, associationId, { isActive: true }),
       listEventRoles(token, associationId),
@@ -317,7 +345,7 @@ function CreateEventDialog({
         setRoles(r);
       })
       .catch((err) => toast.error((err as Error).message));
-  }, [open, token, associationId]);
+  }, [open, token, associationId, prefill]);
 
   async function handleSubmit() {
     if (!title.trim()) return toast.error('Başlık gerekli');
@@ -683,6 +711,7 @@ function EventDetailDialog({
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[640px]">
+        <DialogTitle className="sr-only">Etkinlik Detayı</DialogTitle>
         {loading || !event ? (
           <div className="py-10 text-center text-sm text-muted-foreground">
             Yükleniyor…
@@ -806,6 +835,10 @@ function EventDetailDialog({
             </div>
 
             <DialogFooter className="flex-col gap-2 sm:flex-row">
+              <IslamicInfoSuggestionsDialog
+                eventTitle={event.title}
+                eventType={event.type}
+              />
               <Button
                 variant="outline"
                 onClick={handlePdf}

@@ -13,6 +13,9 @@ export const envSchema = z.object({
   // Optional — AiModule logs a warning and AI-dependent endpoints
   // return 503 when this is missing, so the rest of the API still boots.
   GROQ_API_KEY: z.string().min(1).optional(),
+  AI_MODEL: z.string().min(1).optional(),
+  AI_TEMPERATURE: z.string().min(1).optional(),
+  AI_MAX_TOKENS: z.string().min(1).optional(),
   BOT_TOKEN: z.string().min(1),
   TELEGRAM_BOT_USERNAME: z.string().min(1).default('dernek_organizer_bot'),
   API_URL: z.string().url().default('http://localhost:3000'),

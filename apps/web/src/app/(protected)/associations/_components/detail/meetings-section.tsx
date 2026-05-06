@@ -11,6 +11,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useMeetings } from '../../_hooks/use-meetings';
 import { AddMeetingDialog } from './add-meeting-dialog';
 import { AnalyzeMeetingDialog } from './analyze-meeting-dialog';
+import { SummarizeMeetingDialog } from './summarize-meeting-dialog';
+import { SuggestAgendaDialog } from './suggest-agenda-dialog';
 
 export function MeetingsSection({
   associationId,
@@ -121,6 +123,8 @@ function MeetingCard({
               Düzenle
             </Button>
             <AnalyzeMeetingDialog meeting={m} associationId={associationId} />
+            <SummarizeMeetingDialog meeting={m} associationId={associationId} />
+            <SuggestAgendaDialog meeting={m} associationId={associationId} />
             <AddMeetingDialog
               associationId={associationId}
               initialData={m}

@@ -99,3 +99,53 @@ export function analyzeMeeting(
     },
   );
 }
+
+export interface MeetingSummaryResponse {
+  summary: string;
+  decisions: string[];
+  discussionTopics: string[];
+  attendeeCount: number | null;
+  tone: 'olumlu' | 'nötr' | 'gergin' | 'acil';
+}
+
+export interface AgendaItem {
+  title: string;
+  description: string;
+  priority: 'YUKSEK' | 'ORTA' | 'DUSUK';
+  category: string;
+  estimatedDuration: number;
+}
+
+export interface AgendaSuggestionResponse {
+  agendaItems: AgendaItem[];
+}
+
+export function summarizeMeeting(
+  token: string,
+  associationId: string,
+  content: string,
+) {
+  return apiClient<MeetingSummaryResponse>(
+    `/associations/${associationId}/meetings/summarize`,
+    {
+      token,
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    },
+  );
+}
+
+export function suggestAgenda(
+  token: string,
+  associationId: string,
+  content: string,
+) {
+  return apiClient<AgendaSuggestionResponse>(
+    `/associations/${associationId}/meetings/suggest-agenda`,
+    {
+      token,
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    },
+  );
+}

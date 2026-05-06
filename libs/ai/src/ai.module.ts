@@ -1,5 +1,5 @@
 import { Logger, Module, ServiceUnavailableException } from '@nestjs/common';
-import { AI_PROVIDER, AiProvider } from './ai-provider.interface';
+import { AI_PROVIDER, AiProviderConfig } from './ai-provider.interface';
 import { OpenAiProvider } from './providers/openai.provider';
 import { AiService } from './ai.service';
 
@@ -7,7 +7,7 @@ import { AiService } from './ai.service';
 // boots (so unrelated endpoints work); only the AI-dependent endpoints
 // surface a clear 503 explaining the missing configuration. Callers
 // should handle ServiceUnavailableException gracefully.
-class UnconfiguredAiProvider implements AiProvider {
+class UnconfiguredAiProvider {
   async generateStructured(): Promise<never> {
     throw new ServiceUnavailableException(
       'Yapay zeka servisi yapılandırılmamış (GROQ_API_KEY eksik). Lütfen yöneticiyle iletişime geçin.',
@@ -28,7 +28,13 @@ class UnconfiguredAiProvider implements AiProvider {
           );
           return new UnconfiguredAiProvider();
         }
-        return new OpenAiProvider(apiKey);
+        const config: AiProviderConfig = {
+          apiKey,
+          model: process.env.AI_MODEL || undefined,
+          temperature: process.env.AI_TEMPERATURE ? parseFloat(process.env.AI_TEMPERATURE) : undefined,
+          maxTokens: process.env.AI_MAX_TOKENS ? parseInt(process.env.AI_MAX_TOKENS, 10) : undefined,
+        };
+        return new OpenAiProvider(config);
       },
     },
     AiService,

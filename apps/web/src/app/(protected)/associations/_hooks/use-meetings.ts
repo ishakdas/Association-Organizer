@@ -11,7 +11,11 @@ import {
   createMeeting,
   listMeetings,
   updateMeeting,
+  summarizeMeeting,
+  suggestAgenda,
   type AnalyzeMeetingResponse,
+  type MeetingSummaryResponse,
+  type AgendaSuggestionResponse,
   type MeetingsListParams,
 } from '@/lib/api/meetings';
 import type {
@@ -82,6 +86,36 @@ export function useAnalyzeMeeting(
     onError: (err: Error) => {
       console.error('[useAnalyzeMeeting] error:', err);
       toast.error(`Analiz başarısız: ${err.message}`);
+    },
+  });
+}
+
+export function useSummarizeMeeting(
+  associationId: string,
+  options?: { onSuccess?: (r: MeetingSummaryResponse) => void; onError?: (err: Error) => void },
+) {
+  return useMutation({
+    mutationFn: async (content: string) =>
+      summarizeMeeting(await getAccessToken(), associationId, content),
+    onSuccess: (r) => options?.onSuccess?.(r),
+    onError: (err: Error) => {
+      toast.error(`Özet başarısız: ${err.message}`);
+      options?.onError?.(err);
+    },
+  });
+}
+
+export function useSuggestAgenda(
+  associationId: string,
+  options?: { onSuccess?: (r: AgendaSuggestionResponse) => void; onError?: (err: Error) => void },
+) {
+  return useMutation({
+    mutationFn: async (content: string) =>
+      suggestAgenda(await getAccessToken(), associationId, content),
+    onSuccess: (r) => options?.onSuccess?.(r),
+    onError: (err: Error) => {
+      toast.error(`Gündem önerisi başarısız: ${err.message}`);
+      options?.onError?.(err);
     },
   });
 }

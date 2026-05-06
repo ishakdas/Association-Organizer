@@ -94,6 +94,58 @@ export class MeetingsService {
     }
   }
 
+  async summarizeMeeting(associationId: string, content: string) {
+    try {
+      return await this.aiService.summarizeMeeting(content);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`AI summarization failed: ${message}`, err instanceof Error ? err.stack : undefined);
+      throw new InternalServerErrorException(`AI hatası: ${message}`);
+    }
+  }
+
+  async suggestAgenda(associationId: string, content: string) {
+    const pendingTasks = await this.buildPendingTasksContext(associationId);
+
+    try {
+      return await this.aiService.suggestAgenda(content, pendingTasks ?? undefined);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`AI agenda suggestion failed: ${message}`, err instanceof Error ? err.stack : undefined);
+      throw new InternalServerErrorException(`AI hatası: ${message}`);
+    }
+  }
+
+  private async buildPendingTasksContext(associationId: string): Promise<string | null> {
+    const tasks = await this.prisma.task.findMany({
+      where: {
+        associationId,
+        status: { in: ['PENDING', 'IN_PROGRESS'] },
+        deletedAt: null,
+      },
+      orderBy: { dueDate: 'asc' },
+      take: 20,
+      select: {
+        title: true,
+        description: true,
+        dueDate: true,
+        priority: true,
+        assignedTo: { select: { fullName: true } },
+      },
+    });
+
+    if (tasks.length === 0) return null;
+
+    return tasks
+      .map((t) => {
+        const due = t.dueDate ? ` (Bitiş: ${t.dueDate.toISOString().slice(0, 10)})` : '';
+        const prio = `Öncelik: ${t.priority}`;
+        const assignee = t.assignedTo ? ` Atanan: ${t.assignedTo.fullName}` : '';
+        return `- ${t.title}${due} — ${prio}${assignee}`;
+      })
+      .join('\n');
+  }
+
   async create(
     associationId: string,
     input: CreateMeetingNoteInput,

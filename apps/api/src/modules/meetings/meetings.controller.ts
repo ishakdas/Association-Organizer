@@ -23,6 +23,8 @@ import { MeetingsService } from './meetings.service';
 import { CreateMeetingNoteDto } from './dto/create-meeting-note.dto';
 import { UpdateMeetingNoteDto } from './dto/update-meeting-note.dto';
 import { AnalyzeMeetingContentDto } from './dto/analyze-meeting-content.dto';
+import { SummarizeMeetingContentDto } from './dto/summarize-meeting-content.dto';
+import { SuggestAgendaDto } from './dto/suggest-agenda.dto';
 import { ListMeetingNotesQueryDto } from './dto/list-meeting-notes-query.dto';
 
 /**
@@ -46,6 +48,31 @@ export class MeetingsController {
     @Body() body: AnalyzeMeetingContentDto,
   ) {
     return this.service.analyzeContent(associationId, body.content);
+  }
+
+  @Post('summarize')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
+  summarize(
+    @Param('associationId') associationId: string,
+    @Body() body: SummarizeMeetingContentDto,
+  ) {
+    return this.service.summarizeMeeting(associationId, body.content);
+  }
+
+  @Post('suggest-agenda')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+  )
+  suggestAgenda(
+    @Param('associationId') associationId: string,
+    @Body() body: SuggestAgendaDto,
+  ) {
+    return this.service.suggestAgenda(associationId, body.content);
   }
 
   @Post()
