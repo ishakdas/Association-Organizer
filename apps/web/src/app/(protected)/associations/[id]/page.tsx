@@ -14,13 +14,14 @@ import { RosterSection } from '../_components/detail/roster-section';
 import { TasksSection } from '../_components/detail/tasks-section';
 import { MeetingsSection } from '../_components/detail/meetings-section';
 import { TelegramSection } from '../_components/detail/telegram-section';
+import { FinanceSection } from '../_components/detail/finance-section';
 
 interface Props {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ section?: string }>;
 }
 
-const VALID_SECTIONS = ['dashboard', 'uyeler', 'gorevler', 'toplantilar', 'telegram', 'ayarlar'] as const;
+const VALID_SECTIONS = ['dashboard', 'finans', 'uyeler', 'gorevler', 'toplantilar', 'telegram', 'ayarlar'] as const;
 type Section = (typeof VALID_SECTIONS)[number];
 
 export default async function AssociationDetailPage({ params, searchParams }: Props) {
@@ -56,6 +57,7 @@ export default async function AssociationDetailPage({ params, searchParams }: Pr
             <DetailTabs
               defaultValue={section ?? 'dashboard'}
               dashboard={<DashboardSection associationId={a.id} />}
+              finans={<FinanceSection associationId={a.id} />}
               ayarlar={<GeneralSection a={a} />}
               uyeler={
                 <RosterSection
@@ -83,6 +85,7 @@ export default async function AssociationDetailPage({ params, searchParams }: Pr
         <MemberDetailHeader name={a.name} />
         <div className="mt-8">
           {activeSection === 'dashboard' && <DashboardSection associationId={a.id} />}
+          {activeSection === 'finans' && <FinanceSection associationId={a.id} />}
           {activeSection === 'uyeler' && (
             <RosterSection
               associationId={a.id}

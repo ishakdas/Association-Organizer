@@ -19,6 +19,7 @@ import {
   recordFeePayment,
   getMemberFeeHistory,
   listFeePayments,
+  getReport,
 } from '@/lib/api/finance';
 import type {
   CreateTransactionInput,
@@ -279,5 +280,17 @@ export function useRecordFeePayment(associationId: string) {
       });
     },
     onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+// --- Report ---
+
+export const financeReportKey = (associationId: string, fromDate?: string, toDate?: string) =>
+  ['finance', 'report', associationId, fromDate, toDate] as const;
+
+export function useFinanceReport(associationId: string, fromDate?: string, toDate?: string) {
+  return useQuery({
+    queryKey: financeReportKey(associationId, fromDate, toDate),
+    queryFn: async () => getReport(await getAccessToken(), associationId, fromDate, toDate),
   });
 }

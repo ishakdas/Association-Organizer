@@ -178,3 +178,24 @@ export function listFeePayments(token: string, associationId: string) {
     { token },
   );
 }
+
+export function getReport(
+  token: string,
+  associationId: string,
+  fromDate?: string,
+  toDate?: string,
+) {
+  const sp = new URLSearchParams();
+  if (fromDate) sp.set('fromDate', fromDate);
+  if (toDate) sp.set('toDate', toDate);
+  const q = sp.toString();
+  return apiClient<
+    Array<{
+      categoryId: string;
+      categoryName: string;
+      type: 'INCOME' | 'EXPENSE';
+      totalAmountKurus: number;
+      transactionCount: number;
+    }>
+  >(`/associations/${associationId}/finance/report${q ? `?${q}` : ''}`, { token });
+}

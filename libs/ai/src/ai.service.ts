@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { z } from 'zod';
 import { AI_PROVIDER, AiProvider } from './ai-provider.interface';
 import {
@@ -51,14 +51,30 @@ import {
   GENERATE_RECURRING_PROGRAM_SYSTEM_PROMPT,
   buildRecurringProgramUserPrompt,
 } from './prompts/generate-recurring-program.prompt';
+import { PROMPT_TEMPLATE_LOADER, PromptTemplateLoader } from './prompt-template-loader.interface';
 
 @Injectable()
 export class AiService {
-  constructor(@Inject(AI_PROVIDER) private readonly provider: AiProvider) {}
+  constructor(
+    @Inject(AI_PROVIDER) private readonly provider: AiProvider,
+    @Optional()
+    @Inject(PROMPT_TEMPLATE_LOADER)
+    private readonly promptLoader: PromptTemplateLoader | null,
+  ) {}
+
+  private async getSystemPrompt(key: string, fallback: string): Promise<string> {
+    if (!this.promptLoader) return fallback;
+    try {
+      const loaded = await this.promptLoader.getPrompt(key);
+      return loaded ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
 
   async extractActionItems(meetingNotes: string, membersContext: string): Promise<ExtractionResultOutput> {
     return this.provider.generateStructured({
-      systemPrompt: EXTRACT_ACTION_ITEMS_SYSTEM_PROMPT,
+      systemPrompt: await this.getSystemPrompt('extract-action-items', EXTRACT_ACTION_ITEMS_SYSTEM_PROMPT),
       userPrompt: buildExtractionUserPrompt(meetingNotes, membersContext),
       schema: extractionResultSchema,
       schemaName: 'extractActionItems',
@@ -67,7 +83,7 @@ export class AiService {
 
   async summarizeMeeting(meetingNotes: string): Promise<MeetingSummaryOutput> {
     return this.provider.generateStructured({
-      systemPrompt: SUMMARIZE_MEETING_SYSTEM_PROMPT,
+      systemPrompt: await this.getSystemPrompt('summarize-meeting', SUMMARIZE_MEETING_SYSTEM_PROMPT),
       userPrompt: buildSummarizeUserPrompt(meetingNotes),
       schema: meetingSummarySchema,
       schemaName: 'summarizeMeeting',
@@ -76,7 +92,7 @@ export class AiService {
 
   async suggestAgenda(meetingNotes: string, pendingTasks?: string): Promise<AgendaSuggestionOutput> {
     return this.provider.generateStructured({
-      systemPrompt: SUGGEST_AGENDA_SYSTEM_PROMPT,
+      systemPrompt: await this.getSystemPrompt('suggest-agenda', SUGGEST_AGENDA_SYSTEM_PROMPT),
       userPrompt: buildAgendaUserPrompt(meetingNotes, pendingTasks),
       schema: agendaSuggestionSchema,
       schemaName: 'suggestAgenda',
@@ -85,7 +101,7 @@ export class AiService {
 
   async prioritizeTasks(tasksContext: string): Promise<PrioritizeTasksResultOutput> {
     return this.provider.generateStructured({
-      systemPrompt: PRIORITIZE_TASKS_SYSTEM_PROMPT,
+      systemPrompt: await this.getSystemPrompt('prioritize-tasks', PRIORITIZE_TASKS_SYSTEM_PROMPT),
       userPrompt: buildPrioritizeUserPrompt(tasksContext),
       schema: prioritizeTasksResultSchema,
       schemaName: 'prioritizeTasks',
@@ -106,7 +122,7 @@ export class AiService {
     upcomingHolidays?: { name: string; date: string; daysUntil: number }[],
   ): Promise<IslamicEventSuggestionOutput> {
     return this.provider.generateStructured({
-      systemPrompt: SUGGEST_ISLAMIC_EVENTS_SYSTEM_PROMPT,
+      systemPrompt: await this.getSystemPrompt('suggest-islamic-events', SUGGEST_ISLAMIC_EVENTS_SYSTEM_PROMPT),
       userPrompt: buildIslamicEventsUserPrompt(
         period,
         targetAudience,
@@ -127,7 +143,7 @@ export class AiService {
     timeRange: { start: string; end: string },
   ): Promise<EventScheduleOutput> {
     return this.provider.generateStructured({
-      systemPrompt: GENERATE_EVENT_SCHEDULE_SYSTEM_PROMPT,
+      systemPrompt: await this.getSystemPrompt('generate-event-schedule', GENERATE_EVENT_SCHEDULE_SYSTEM_PROMPT),
       userPrompt: buildEventScheduleUserPrompt(
         title,
         description,
@@ -154,7 +170,7 @@ export class AiService {
     endTime: string,
   ): Promise<SocialContentOutput> {
     return this.provider.generateStructured({
-      systemPrompt: GENERATE_INSTAGRAM_CONTENT_SYSTEM_PROMPT,
+      systemPrompt: await this.getSystemPrompt('generate-instagram-content', GENERATE_INSTAGRAM_CONTENT_SYSTEM_PROMPT),
       userPrompt: buildInstagramContentUserPrompt(
         title,
         description,
@@ -180,7 +196,7 @@ export class AiService {
     weeks: number,
   ): Promise<RecurringProgramOutput> {
     return this.provider.generateStructured({
-      systemPrompt: GENERATE_RECURRING_PROGRAM_SYSTEM_PROMPT,
+      systemPrompt: await this.getSystemPrompt('generate-recurring-program', GENERATE_RECURRING_PROGRAM_SYSTEM_PROMPT),
       userPrompt: buildRecurringProgramUserPrompt(
         title,
         description,
@@ -251,9 +267,11 @@ export class AiService {
       upcomingHolidays,
     );
 
+    const systemPrompt = await this.getSystemPrompt('suggest-islamic-events', SUGGEST_ISLAMIC_EVENTS_SYSTEM_PROMPT);
+
     return this.brainstormAndRefine(
       userPrompt,
-      SUGGEST_ISLAMIC_EVENTS_SYSTEM_PROMPT,
+      systemPrompt,
       islamicEventSuggestionSchema,
       'suggestIslamicEvents',
     );

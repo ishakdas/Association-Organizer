@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { getAccessToken } from '../../_hooks/use-associations';
-import { getFinanceSummary, listCategories, getMonthlyStats } from '@/lib/api/finance';
-import { FinanceDashboard } from './finance-dashboard';
+import { getFinanceSummary, listCategories, getMonthlyStats, getReport } from '@/lib/api/finance';
+import { FinanceDashboard } from '../../[id]/finance/_components/finance-dashboard';
 import type { TransactionResponse } from '@ticketbot/shared-validation';
 
 interface FinanceData {
@@ -11,6 +11,7 @@ interface FinanceData {
   transactions: { data: TransactionResponse[]; meta: { total: number; page: number; pageSize: number; totalPages: number } };
   categories: Awaited<ReturnType<typeof listCategories>>;
   monthlyStats: Awaited<ReturnType<typeof getMonthlyStats>>;
+  report: Awaited<ReturnType<typeof getReport>>;
 }
 
 export function FinanceSection({ associationId }: { associationId: string }) {
@@ -21,17 +22,18 @@ export function FinanceSection({ associationId }: { associationId: string }) {
     async function load() {
       try {
         const token = await getAccessToken();
-        const [summary, transactions, categories, monthlyStats] = await Promise.all([
+        const [summary, transactions, categories, monthlyStats, report] = await Promise.all([
           getFinanceSummary(token, associationId),
           fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/v1/associations/${associationId}/finance/transactions?page=1&pageSize=10`,
+            `${process.env.NEXT_PUBLIC_API_URL}/api/v1/associations/${associationId}/finance/transactions?page=1&pageSize=20`,
             { headers: { Authorization: `Bearer ${token}` } },
           ).then((r) => (r.ok ? r.json() : { data: [], meta: { total: 0 } })),
           listCategories(token, associationId),
           getMonthlyStats(token, associationId),
+          getReport(token, associationId),
         ]);
 
-        setData({ summary, transactions, categories, monthlyStats });
+        setData({ summary, transactions, categories, monthlyStats, report });
       } catch (err) {
         console.error('Failed to load finance data:', err);
       } finally {
@@ -70,6 +72,7 @@ export function FinanceSection({ associationId }: { associationId: string }) {
         transactions={data.transactions}
         categories={data.categories}
         monthlyStats={data.monthlyStats}
+        report={data.report}
       />
   );
 }

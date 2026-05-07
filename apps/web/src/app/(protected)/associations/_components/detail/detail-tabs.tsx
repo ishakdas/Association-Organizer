@@ -8,6 +8,7 @@ import {
   MessageSquare,
   Settings,
   Users,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -25,6 +26,7 @@ interface DetailTabsProps {
   gorevler: React.ReactNode;
   toplantilar: React.ReactNode;
   telegram: React.ReactNode;
+  finans: React.ReactNode;
 }
 
 interface TabDef {
@@ -35,6 +37,7 @@ interface TabDef {
 
 const TABS: readonly TabDef[] = [
   { value: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { value: 'finans', label: 'Finans', icon: Wallet },
   { value: 'uyeler', label: 'Üyeler', icon: Users },
   { value: 'gorevler', label: 'Görevler', icon: ClipboardList },
   { value: 'toplantilar', label: 'Toplantılar', icon: BookOpen },
@@ -50,6 +53,7 @@ export function DetailTabs({
   gorevler,
   toplantilar,
   telegram,
+  finans,
 }: DetailTabsProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -62,6 +66,7 @@ export function DetailTabs({
 
   const panes: Record<string, React.ReactNode> = {
     dashboard,
+    finans,
     ayarlar,
     uyeler,
     gorevler,
