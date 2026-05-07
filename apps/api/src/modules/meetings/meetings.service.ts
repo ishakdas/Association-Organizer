@@ -33,6 +33,55 @@ export class MeetingsService {
     private readonly aiService: AiService,
   ) {}
 
+  private async assertMeetingAccess(
+    user: AuthenticatedUser,
+    associationId: string,
+  ) {
+    if (user.systemRole === UserRole.SYSTEM_ADMIN) return;
+
+    const hasRole = user.memberships.some(
+      (m) =>
+        m.isActive &&
+        m.associationId === associationId &&
+        (m.role === UserRole.ASSOCIATION_MANAGER ||
+          m.role === UserRole.ASSOCIATION_SECRETARY),
+    );
+    if (hasRole) return;
+
+    const permission = await this.prisma.meetingPermission.findFirst({
+      where: {
+        associationId,
+        userId: user.id,
+        isActive: true,
+        revokedAt: null,
+      },
+    });
+    if (!permission) {
+      throw new ForbiddenException(
+        'Toplantı işlemleri için yetkiniz yok',
+      );
+    }
+  }
+
+  private assertManagerAccess(
+    user: AuthenticatedUser,
+    associationId: string,
+  ) {
+    if (user.systemRole === UserRole.SYSTEM_ADMIN) return;
+
+    const hasRole = user.memberships.some(
+      (m) =>
+        m.isActive &&
+        m.associationId === associationId &&
+        m.role === UserRole.ASSOCIATION_MANAGER,
+    );
+    if (!hasRole) {
+      throw new ForbiddenException(
+        'Bu işlem için sadece dernek başkanı yetkilidir',
+      );
+    }
+  }
+
   async analyzeContent(associationId: string, content: string) {
     const members = await this.prisma.associationMembership.findMany({
       where: { associationId, isActive: true, deletedAt: null },
@@ -151,6 +200,8 @@ export class MeetingsService {
     input: CreateMeetingNoteInput,
     user: AuthenticatedUser,
   ) {
+    await this.assertMeetingAccess(user, associationId);
+
     const uniqueAttendees = Array.from(new Set(input.attendeeUserIds));
     await this.ensureAllAreMembers(associationId, uniqueAttendees);
 
@@ -248,23 +299,12 @@ export class MeetingsService {
     input: UpdateMeetingNoteInput,
     user: AuthenticatedUser,
   ) {
+    await this.assertMeetingAccess(user, associationId);
+
     const meeting = await this.prisma.meetingNote.findFirst({
       where: { id: meetingId, associationId, deletedAt: null },
     });
     if (!meeting) throw new NotFoundException('Toplantı bulunamadı');
-
-    if (
-      user.systemRole !== UserRole.SYSTEM_ADMIN &&
-      !user.memberships.some(
-        (m) =>
-          m.isActive &&
-          m.associationId === associationId &&
-          (m.role === UserRole.ASSOCIATION_MANAGER ||
-            m.role === UserRole.ASSOCIATION_SECRETARY),
-      )
-    ) {
-      throw new ForbiddenException('Bu toplantıyı düzenleme yetkiniz yok');
-    }
 
     if (input.attendeeUserIds) {
       await this.ensureAllAreMembers(associationId, Array.from(new Set(input.attendeeUserIds)));
@@ -310,6 +350,83 @@ export class MeetingsService {
     }
 
     return meeting;
+  }
+
+  async grantPermission(
+    associationId: string,
+    userId: string,
+    grantedBy: AuthenticatedUser,
+  ) {
+    this.assertManagerAccess(grantedBy, associationId);
+
+    const targetMembership = await this.prisma.associationMembership.findFirst({
+      where: {
+        associationId,
+        userId,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!targetMembership) {
+      throw new BadRequestException('Kullanıcı bu derneğin aktif üyesi değil');
+    }
+
+    const existing = await this.prisma.meetingPermission.findFirst({
+      where: { associationId, userId },
+    });
+    if (existing) {
+      if (existing.isActive && !existing.revokedAt) {
+        throw new BadRequestException('Bu kullanıcıya zaten toplantı yetkisi verilmiş');
+      }
+      return this.prisma.meetingPermission.update({
+        where: { id: existing.id },
+        data: { isActive: true, revokedAt: null, grantedById: grantedBy.id },
+        include: {
+          user: { select: { id: true, fullName: true } },
+        },
+      });
+    }
+
+    return this.prisma.meetingPermission.create({
+      data: {
+        associationId,
+        userId,
+        grantedById: grantedBy.id,
+      },
+      include: {
+        user: { select: { id: true, fullName: true } },
+      },
+    });
+  }
+
+  async revokePermission(
+    associationId: string,
+    userId: string,
+    revokedBy: AuthenticatedUser,
+  ) {
+    this.assertManagerAccess(revokedBy, associationId);
+
+    const permission = await this.prisma.meetingPermission.findFirst({
+      where: { associationId, userId, isActive: true },
+    });
+    if (!permission) throw new NotFoundException('Yetki bulunamadı');
+
+    return this.prisma.meetingPermission.update({
+      where: { id: permission.id },
+      data: { isActive: false, revokedAt: new Date() },
+    });
+  }
+
+  async listPermissions(associationId: string) {
+    return this.prisma.meetingPermission.findMany({
+      where: { associationId, isActive: true },
+      include: {
+        user: { select: { id: true, fullName: true } },
+        grantedBy: { select: { id: true, fullName: true } },
+      },
+      orderBy: { grantedAt: 'desc' },
+    });
   }
 
   private async ensureAllAreMembers(

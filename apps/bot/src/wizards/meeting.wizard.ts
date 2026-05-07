@@ -113,13 +113,15 @@ function parseDateInput(raw: string): Date | null {
 
 const CANCEL_HINT = '\n\nİptal etmek için /iptal yazabilirsin.';
 
-async function loadEligibleAssociations(
+async function assertMeetingAccess(
   prisma: PrismaService,
   userId: string,
-): Promise<AssocOption[]> {
-  const memberships = await prisma.associationMembership.findMany({
+  associationId: string,
+): Promise<boolean> {
+  const membership = await prisma.associationMembership.findFirst({
     where: {
       userId,
+      associationId,
       isActive: true,
       deletedAt: null,
       role: {
@@ -129,6 +131,41 @@ async function loadEligibleAssociations(
           UserRole.ASSOCIATION_SECRETARY,
         ],
       },
+    },
+  });
+  if (membership) return true;
+
+  const permission = await prisma.meetingPermission.findFirst({
+    where: {
+      associationId,
+      userId,
+      isActive: true,
+      revokedAt: null,
+    },
+  });
+  return !!permission;
+}
+
+async function assertAccountStillLinked(
+  prisma: PrismaService,
+  telegramId: number,
+): Promise<boolean> {
+  const account = await prisma.telegramAccount.findUnique({
+    where: { telegramId: BigInt(telegramId) },
+    select: { id: true },
+  });
+  return !!account;
+}
+
+async function loadEligibleAssociations(
+  prisma: PrismaService,
+  userId: string,
+): Promise<AssocOption[]> {
+  const memberships = await prisma.associationMembership.findMany({
+    where: {
+      userId,
+      isActive: true,
+      deletedAt: null,
       association: { deletedAt: null },
     },
     select: {
@@ -140,9 +177,14 @@ async function loadEligibleAssociations(
   const seen = new Set<string>();
   const out: AssocOption[] = [];
   for (const m of memberships) {
-    if (seen.has(m.association.id)) continue;
-    seen.add(m.association.id);
-    out.push({ id: m.association.id, name: m.association.name });
+    const assoc = m.association;
+    if (seen.has(assoc.id)) continue;
+    seen.add(assoc.id);
+
+    const hasAccess = await assertMeetingAccess(prisma, userId, assoc.id);
+    if (hasAccess) {
+      out.push({ id: assoc.id, name: assoc.name });
+    }
   }
   return out;
 }
@@ -208,8 +250,8 @@ async function startWizard(
   const assocs = await loadEligibleAssociations(prisma, account.userId);
   if (assocs.length === 0) {
     return ctx.reply(
-      'Toplantı notu eklemek için Başkan veya Sekreter rolünde aktif bir ' +
-        'üyeliğin olmalı. Yetkili olduğun bir dernek bulunamadı.',
+      '📝 Toplantı işlemleri için yetkin yok. Sadece başkan, sekreter veya ' +
+        'yetki verilmiş kullanıcılar toplantı notu ekleyebilir.',
     );
   }
 
@@ -301,6 +343,18 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService) {
       return ctx.reply(
         'Toplantı ekleme oturumun zaman aşımına uğradı. Tekrar /toplanti yaz.',
       );
+    }
+
+    // Kullanıcı zaten bir dernek seçmişse hesabın hâlâ bağlı olduğunu kontrol et
+    if (s.userId) {
+      const stillLinked = await assertAccountStillLinked(prisma, fromId);
+      if (!stillLinked) {
+        sessions.delete(fromId);
+        return ctx.reply(
+          'Telegram hesabın artık sistemde bağlı değil. ' +
+            'Web panelinden yeniden bağlamalısın.',
+        );
+      }
     }
 
     if (s.step === 'title') {
@@ -502,6 +556,16 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService) {
     if (!s || s.step !== 'confirm') {
       return ctx.answerCbQuery('Akış güncel değil');
     }
+
+    const stillLinked = await assertAccountStillLinked(prisma, fromId);
+    if (!stillLinked) {
+      sessions.delete(fromId);
+      return ctx.answerCbQuery(
+        'Telegram hesabın artık sistemde bağlı değil. Web panelinden yeniden bağlamalısın.',
+        { show_alert: true },
+      );
+    }
+
     await ctx.answerCbQuery('Kaydediliyor…');
     await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
 

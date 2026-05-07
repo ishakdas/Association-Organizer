@@ -7,7 +7,9 @@ import {
   ClipboardList,
   Clock,
   Users,
+  Wallet,
 } from 'lucide-react';
+import Link from 'next/link';
 import type { AssociationStatsDto } from '@ticketbot/shared-types';
 import { useAssociationStats } from '../../_hooks/use-association-stats';
 
@@ -60,6 +62,7 @@ export function DashboardSection({ associationId }: { associationId: string }) {
         <TaskStatusCard data={data} />
         <MemberBreakdownCard data={data} />
       </div>
+      <FinanceLinkCard associationId={associationId} />
     </div>
   );
 }
@@ -88,6 +91,24 @@ function StatCards({ data }: { data: AssociationStatsDto }) {
         value={data.totalMeetings}
       />
     </div>
+  );
+}
+
+function FinanceLinkCard({ associationId }: { associationId: string }) {
+  return (
+    <Link href={`/associations/${associationId}/finance`}>
+      <div className="flex cursor-pointer items-center gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-accent">
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+          <Wallet className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold">Finans Yönetimi</p>
+          <p className="text-xs text-muted-foreground">
+            Gelir, gider ve kasa durumu takibi
+          </p>
+        </div>
+      </div>
+    </Link>
   );
 }
 

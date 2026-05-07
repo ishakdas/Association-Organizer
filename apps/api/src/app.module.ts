@@ -16,6 +16,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { EmailModule } from './modules/email/email.module';
 import { IslamicCalendarModule } from './modules/islamic-calendar/islamic-calendar.module';
 import { AiHelperModule } from './modules/ai-helper/ai-helper.module';
+import { FinanceModule } from './modules/finance/finance.module';
 import { BotModule } from 'bot';
 
 @Module({
@@ -37,6 +38,7 @@ import { BotModule } from 'bot';
     EventRolesModule,
     IslamicCalendarModule,
     AiHelperModule,
+    FinanceModule,
     AdminModule,
     EmailModule,
     BotModule,

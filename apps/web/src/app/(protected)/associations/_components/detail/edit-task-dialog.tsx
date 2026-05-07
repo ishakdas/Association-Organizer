@@ -141,7 +141,6 @@ export function EditTaskDialog({
         reminderAt: task.reminderAt ? new Date(task.reminderAt) : undefined,
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, task.id]);
 
   const reminderFrequency = form.watch('reminderFrequency');

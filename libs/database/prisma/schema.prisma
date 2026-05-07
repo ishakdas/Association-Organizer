@@ -78,6 +78,11 @@ enum PendingBranchStatus {
   REJECTED
 }
 
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
 // -----------------------------------------------------------------------------
 // Reference: assignable titles (admin-managed)
 // -----------------------------------------------------------------------------
@@ -127,6 +132,11 @@ model User {
   telegramAccount     TelegramAccount?
   aiSuggestions       AiSuggestion[]
   savedSuggestions    SavedSuggestion[]
+  financePermissionsGranted  FinancePermission[] @relation("FinancePermissionGranter")
+  financePermissionsReceived FinancePermission[] @relation("FinancePermissionUser")
+  meetingPermissionsGranted  MeetingPermission[] @relation("MeetingPermissionGranter")
+  meetingPermissionsReceived MeetingPermission[] @relation("MeetingPermissionUser")
+  createdTransactions Transaction[]
 
   @@index([isActive])
   @@index([deletedAt])
@@ -214,6 +224,11 @@ model Association {
   events              Event[]
   eventRoleDefinitions EventRoleDefinition[]
   aiSuggestions       AiSuggestion[]
+  transactionCategories TransactionCategory[]
+  transactions        Transaction[]
+  financePermissions  FinancePermission[]
+  meetingPermissions  MeetingPermission[]
+  associationSettings AssociationSettings?
 
   @@index([city])
   @@index([isActive])
@@ -414,6 +429,9 @@ model Event {
 
   createdById String
 
+  expenseAmount Int?
+  expenseNote   String?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -422,6 +440,7 @@ model Event {
   createdBy   User              @relation("EventCreator", fields: [createdById], references: [id])
   assignments EventAssignment[]
   programItems EventProgramItem[]
+  transactions Transaction[]
 
   @@index([associationId, startsAt])
   @@index([associationId, deletedAt])
@@ -577,4 +596,103 @@ model EventProgramItem {
 
   @@index([eventId])
   @@map("event_program_items")
+}
+
+// -----------------------------------------------------------------------------
+// Finance (Finans Takip Sistemi)
+// -----------------------------------------------------------------------------
+
+model TransactionCategory {
+  id            String          @id @default(cuid())
+  associationId String
+  name          String
+  type          TransactionType
+  sortOrder     Int             @default(0)
+  isActive      Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  deletedAt     DateTime?
+
+  association   Association     @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+
+  @@unique([associationId, name])
+  @@index([associationId, type, deletedAt])
+  @@map("transaction_categories")
+}
+
+model Transaction {
+  id              String            @id @default(cuid())
+  associationId   String
+  categoryId      String
+  eventId         String?
+  type            TransactionType
+  amountInKurus   Int
+  description     String?
+  receiptUrl      String?
+  transactionDate DateTime          @default(now())
+  createdById     String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  deletedAt       DateTime?
+
+  association     Association       @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  category        TransactionCategory @relation(fields: [categoryId], references: [id])
+  event           Event?            @relation(fields: [eventId], references: [id])
+  createdBy       User              @relation(fields: [createdById], references: [id])
+
+  @@index([associationId, transactionDate])
+  @@index([associationId, type, deletedAt])
+  @@index([eventId])
+  @@map("transactions")
+}
+
+model FinancePermission {
+  id            String    @id @default(cuid())
+  associationId String
+  userId        String
+  grantedById   String
+  grantedAt     DateTime  @default(now())
+  revokedAt     DateTime?
+  isActive      Boolean   @default(true)
+
+  association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  user          User        @relation("FinancePermissionUser", fields: [userId], references: [id])
+  grantedBy     User        @relation("FinancePermissionGranter", fields: [grantedById], references: [id])
+
+  @@unique([associationId, userId])
+  @@index([associationId, isActive])
+  @@map("finance_permissions")
+}
+
+model MeetingPermission {
+  id            String    @id @default(cuid())
+  associationId String
+  userId        String
+  grantedById   String
+  grantedAt     DateTime  @default(now())
+  revokedAt     DateTime?
+  isActive      Boolean   @default(true)
+
+  association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  user          User        @relation("MeetingPermissionUser", fields: [userId], references: [id])
+  grantedBy     User        @relation("MeetingPermissionGranter", fields: [grantedById], references: [id])
+
+  @@unique([associationId, userId])
+  @@index([associationId, isActive])
+  @@map("meeting_permissions")
+}
+
+model AssociationSettings {
+  id                    String   @id @default(cuid())
+  associationId         String   @unique
+  monthlyFeeAmountKurus Int?
+  yearlyFeeAmountKurus  Int?
+  feeFrequency          String   @default("MONTHLY")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  association           Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
+
+  @@map("association_settings")
 }

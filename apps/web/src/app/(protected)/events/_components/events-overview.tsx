@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
+  BarChart3,
   CalendarDays,
   Download,
   MapPin,
+  Pencil,
   Plus,
   Repeat,
   Trash2,
@@ -61,6 +63,7 @@ import {
   listEventRoles,
   listEvents,
   removeEventAssignment,
+  updateEvent,
 } from '@/lib/api/events';
 import { listMembers } from '@/lib/api/members';
 
@@ -330,6 +333,8 @@ function CreateEventDialog({
   const [members, setMembers] = useState<MemberResponse[]>([]);
   const [roles, setRoles] = useState<EventRoleResponse[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [expenseAmount, setExpenseAmount] = useState('');
+  const [expenseNote, setExpenseNote] = useState('');
 
   useEffect(() => {
     if (!open) return;
@@ -381,6 +386,10 @@ function CreateEventDialog({
               : undefined,
           notes: a.notes.trim() || undefined,
         })),
+        expenseAmount: expenseAmount
+          ? Math.round(parseFloat(expenseAmount) * 100)
+          : undefined,
+        expenseNote: expenseNote.trim() || undefined,
       });
       toast.success('Etkinlik oluşturuldu');
       onCreated();
@@ -480,6 +489,30 @@ function CreateEventDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="expenseAmount">Harcama (TL)</Label>
+              <Input
+                id="expenseAmount"
+                type="number"
+                step="0.01"
+                min="0"
+                value={expenseAmount}
+                onChange={(e) => setExpenseAmount(e.target.value)}
+                placeholder="0,00"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="expenseNote">Harcama Notu</Label>
+              <Input
+                id="expenseNote"
+                value={expenseNote}
+                onChange={(e) => setExpenseNote(e.target.value)}
+                placeholder="Örn. Catering, dekorasyon"
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -638,12 +671,19 @@ function EventDetailDialog({
   const [roles, setRoles] = useState<EventRoleResponse[]>([]);
   const [adding, setAdding] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [editingExpense, setEditingExpense] = useState(false);
+  const [editExpenseAmount, setEditExpenseAmount] = useState('');
+  const [editExpenseNote, setEditExpenseNote] = useState('');
+  const [savingExpense, setSavingExpense] = useState(false);
 
   async function load() {
     setLoading(true);
     try {
       const e = await getEvent(token, associationId, eventId);
       setEvent(e);
+      setEditExpenseAmount(e.expenseAmount ? (e.expenseAmount / 100).toFixed(2) : '');
+      setEditExpenseNote(e.expenseNote ?? '');
+      setEditingExpense(false);
     } catch (err) {
       toast.error((err as Error).message);
       onClose();
@@ -708,6 +748,26 @@ function EventDetailDialog({
     }
   }
 
+  async function handleSaveExpense() {
+    setSavingExpense(true);
+    try {
+      await updateEvent(token, associationId, eventId, {
+        expenseAmount: editExpenseAmount
+          ? Math.round(parseFloat(editExpenseAmount) * 100)
+          : null,
+        expenseNote: editExpenseNote.trim() || null,
+      });
+      toast.success('Harcama güncellendi');
+      setEditingExpense(false);
+      await load();
+      onChanged();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setSavingExpense(false);
+    }
+  }
+
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[640px]">
@@ -751,7 +811,83 @@ function EventDetailDialog({
                 label="Tekrar"
                 value={RECURRENCE_LABELS[event.recurrenceType]}
               />
+              <Meta
+                icon={BarChart3}
+                label="Harcama"
+                value={
+                  event.expenseAmount != null && event.expenseAmount > 0
+                    ? `${(event.expenseAmount / 100).toFixed(2)} TL`
+                    : '—'
+                }
+              />
             </div>
+            {event.expenseNote && !editingExpense && (
+              <p className="text-xs text-muted-foreground">
+                {event.expenseNote}
+              </p>
+            )}
+
+            {writable && !editingExpense && (
+              <div className="flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setEditingExpense(true)}
+                >
+                  <Pencil className="mr-1 h-3.5 w-3.5" />
+                  Harcamayı Düzenle
+                </Button>
+              </div>
+            )}
+
+            {editingExpense && (
+              <div className="space-y-2 rounded-md border border-dashed border-primary/40 bg-primary/5 p-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Tutar (TL)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editExpenseAmount}
+                      onChange={(e) => setEditExpenseAmount(e.target.value)}
+                      placeholder="0,00"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-xs">Not</Label>
+                    <Input
+                      value={editExpenseNote}
+                      onChange={(e) => setEditExpenseNote(e.target.value)}
+                      placeholder="Harcama açıklaması"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setEditingExpense(false);
+                      setEditExpenseAmount(
+                        event.expenseAmount ? (event.expenseAmount / 100).toFixed(2) : '',
+                      );
+                      setEditExpenseNote(event.expenseNote ?? '');
+                    }}
+                  >
+                    İptal
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveExpense}
+                    disabled={savingExpense}
+                  >
+                    {savingExpense ? 'Kaydediliyor…' : 'Kaydet'}
+                  </Button>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">

@@ -8,12 +8,13 @@ import {
   ShieldCheck,
   Tags,
   UserCog,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { createServerClient } from '@/lib/supabase/server';
 import { getMe } from '@/lib/api/me';
-import { isSystemAdmin, activeMemberships } from '@/lib/permissions';
+import { isSystemAdmin, activeMemberships, canManageMembers } from '@/lib/permissions';
 
 export const metadata = { title: 'Ayarlar' };
 
@@ -118,6 +119,16 @@ export default async function SettingsHubPage() {
               label: 'Şube Bilgileri',
               description: 'Şubenin genel bilgilerini görüntüle.',
               icon: Info,
+            }}
+          />
+        )}
+        {memberAssocId && canManageMembers(me, memberAssocId) && (
+          <SettingsCardLink
+            card={{
+              href: `/settings/permissions`,
+              label: 'Yetki',
+              description: 'Şube finans yetkilerini yönet.',
+              icon: Users,
             }}
           />
         )}

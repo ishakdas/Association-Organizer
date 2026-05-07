@@ -61,6 +61,8 @@ export const createEventSchema = z
     recurrenceInterval: z.coerce.number().int().min(1).max(365).default(1),
     recurrenceEndsAt: isoDateTime.optional(),
     assignments: z.array(eventAssignmentInputSchema).max(100).default([]),
+    expenseAmount: z.number().int().min(0).optional(),
+    expenseNote: z.string().max(500).optional(),
   })
   .superRefine((v, ctx) => {
     if (v.endsAt && v.endsAt < v.startsAt) {
@@ -106,6 +108,8 @@ export const updateEventSchema = z
     recurrenceType: recurrenceTypeEnum.optional(),
     recurrenceInterval: z.coerce.number().int().min(1).max(365).optional(),
     recurrenceEndsAt: isoDateTime.nullish(),
+    expenseAmount: z.number().int().min(0).nullish(),
+    expenseNote: z.string().max(500).nullish(),
   })
   .superRefine((v, ctx) => {
     if (v.endsAt && v.startsAt && v.endsAt < v.startsAt) {
@@ -189,6 +193,8 @@ export const eventResponseSchema = z.object({
   recurrenceInterval: z.number(),
   recurrenceEndsAt: z.string().nullable(),
   notificationSent: z.boolean(),
+  expenseAmount: z.number().nullable(),
+  expenseNote: z.string().nullable(),
   createdById: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),

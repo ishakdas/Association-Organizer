@@ -58,6 +58,8 @@ export class EventsService {
           recurrenceEndsAt: input.recurrenceEndsAt
             ? new Date(input.recurrenceEndsAt)
             : null,
+          expenseAmount: input.expenseAmount ?? null,
+          expenseNote: input.expenseNote ?? null,
           createdById: user.id,
         },
       });
@@ -166,6 +168,10 @@ export class EventsService {
       data.recurrenceEndsAt = input.recurrenceEndsAt
         ? new Date(input.recurrenceEndsAt)
         : null;
+    if (input.expenseAmount !== undefined)
+      data.expenseAmount = input.expenseAmount;
+    if (input.expenseNote !== undefined)
+      data.expenseNote = input.expenseNote ?? null;
 
     if (input.notifyAt !== undefined) {
       data.notificationSent = false;
@@ -323,6 +329,8 @@ export class EventsService {
         ? event.recurrenceEndsAt.toISOString()
         : null,
       notificationSent: event.notificationSent,
+      expenseAmount: event.expenseAmount,
+      expenseNote: event.expenseNote,
       createdById: event.createdById,
       createdAt: event.createdAt.toISOString(),
       updatedAt: event.updatedAt.toISOString(),

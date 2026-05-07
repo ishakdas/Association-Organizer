@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -17,6 +17,7 @@ import {
   Settings,
   UserCheck,
   Users,
+  Wallet,
   X,
   type LucideIcon,
 } from 'lucide-react';
@@ -59,6 +60,7 @@ function buildNav(user: AuthenticatedUser): NavItem[] {
     { href: `${base}?section=uyeler`, label: 'Üyeler', icon: Users, primary: true, matchSection: 'uyeler' },
     { href: `${base}?section=gorevler`, label: 'Görevler', icon: ClipboardList, primary: true, matchSection: 'gorevler' },
     { href: `${base}?section=toplantilar`, label: 'Toplantılar', icon: BookOpen, matchSection: 'toplantilar' },
+    { href: `${base}/finance`, label: 'Finans', icon: Wallet },
     { href: '/events', label: 'Etkinlikler', icon: Calendar, primary: true },
     { href: `${base}?section=telegram`, label: 'Telegram', icon: MessageSquare, matchSection: 'telegram' },
     { href: '/settings', label: 'Ayarlar', icon: Settings },
@@ -73,6 +75,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
   // Always call the hook (React rules), but skip the network call for non-admins
   const pendingCount = usePendingRegistrationsCount(isSystemAdmin(user));
   const items = buildNav(user).map((item) =>
@@ -80,6 +83,14 @@ export function AppShell({
       ? { ...item, badge: pendingCount }
       : item,
   );
+
+  useEffect(() => {
+    if (!pathname) return;
+    const match = pathname.match(/^\/associations\/([^/]+)/);
+    if (match?.[1]) {
+      localStorage.setItem('lastAssociationId', match[1]);
+    }
+  }, [pathname]);
 
   return (
     <div className="flex min-h-screen bg-background">

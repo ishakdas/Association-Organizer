@@ -9,12 +9,16 @@ export {
   meetingNoteResponseSchema,
   analyzeMeetingContentSchema,
   preApprovedTaskSchema,
+  grantMeetingPermissionSchema,
+  meetingPermissionResponseSchema,
   type CreateMeetingNoteInput,
   type UpdateMeetingNoteInput,
   type ListMeetingNotesQuery,
   type MeetingNoteResponse,
   type AnalyzeMeetingContentInput,
   type PreApprovedTask,
+  type GrantMeetingPermissionInput,
+  type MeetingPermissionResponse,
 } from './schemas/meeting-note.schema';
 
 // Tasks (Görevler)
@@ -189,6 +193,40 @@ export {
   type AdminAssociationResponse,
   type AdminLinkTokenResponse,
 } from './schemas/admin.schema';
+
+// Finance (Finans Takip Sistemi)
+export {
+  transactionTypeEnum,
+  feeFrequencyEnum,
+  createTransactionCategorySchema,
+  updateTransactionCategorySchema,
+  createTransactionSchema,
+  listTransactionsQuerySchema,
+  recordEventExpenseSchema,
+  recordFeePaymentSchema,
+  grantFinancePermissionSchema,
+  associationSettingsSchema,
+  transactionCategoryResponseSchema,
+  transactionResponseSchema,
+  financeSummarySchema,
+  feePaymentResponseSchema,
+  financePermissionResponseSchema,
+  type TransactionTypeValue,
+  type FeeFrequencyValue,
+  type CreateTransactionCategoryInput,
+  type UpdateTransactionCategoryInput,
+  type CreateTransactionInput,
+  type ListTransactionsQuery,
+  type RecordEventExpenseInput,
+  type RecordFeePaymentInput,
+  type GrantFinancePermissionInput,
+  type AssociationSettingsInput,
+  type TransactionCategoryResponse,
+  type TransactionResponse,
+  type FinanceSummaryResponse,
+  type FeePaymentResponse,
+  type FinancePermissionResponse,
+} from './schemas/finance.schema';
 
 // Helpers (pure utilities — usable from apps/api and apps/web)
 export {

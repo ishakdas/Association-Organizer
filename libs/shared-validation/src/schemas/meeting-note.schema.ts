@@ -69,3 +69,23 @@ export const meetingNoteResponseSchema = z.object({
   ),
 });
 export type MeetingNoteResponse = z.infer<typeof meetingNoteResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Permissions
+// ---------------------------------------------------------------------------
+
+export const grantMeetingPermissionSchema = z.object({
+  userId: z.string().cuid('Geçersiz kullanıcı'),
+});
+export type GrantMeetingPermissionInput = z.infer<typeof grantMeetingPermissionSchema>;
+
+export const meetingPermissionResponseSchema = z.object({
+  id: z.string(),
+  associationId: z.string(),
+  userId: z.string(),
+  grantedById: z.string(),
+  grantedAt: z.string(),
+  isActive: z.boolean(),
+  user: z.object({ id: z.string(), fullName: z.string() }),
+});
+export type MeetingPermissionResponse = z.infer<typeof meetingPermissionResponseSchema>;
