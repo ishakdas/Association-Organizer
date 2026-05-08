@@ -16,15 +16,23 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
+  const webUrl = config.get<string>('webUrl');
+  const nodeEnv = config.get<string>('nodeEnv');
+  const isProd = nodeEnv === 'production';
+
   app.enableCors({
     origin: (origin, callback) => {
-      // Allow all origins in development or matching webUrl
-      callback(null, true);
+      // Same-origin / server-to-server requests have no Origin header
+      if (!origin) return callback(null, true);
+      if (isProd) {
+        if (origin === webUrl) return callback(null, true);
+        return callback(new Error(`CORS: origin ${origin} not allowed`), false);
+      }
+      return callback(null, true);
     },
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type, Accept, Authorization, x-association-id, ngrok-skip-browser-warning',
-
   });
 
   app.setGlobalPrefix('api/v1');
@@ -47,7 +55,6 @@ async function bootstrap() {
   // polling mode instead — registering a webhook here would cancel
   // that mode silently and break /start, /link in dev.
   const apiUrl = config.get<string>('apiUrl');
-  const nodeEnv = config.get<string>('nodeEnv');
   const isPublicApiUrl =
     !!apiUrl &&
     !apiUrl.includes('localhost') &&
