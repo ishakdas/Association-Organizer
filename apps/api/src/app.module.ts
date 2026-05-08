@@ -17,6 +17,7 @@ import { EmailModule } from './modules/email/email.module';
 import { IslamicCalendarModule } from './modules/islamic-calendar/islamic-calendar.module';
 import { AiHelperModule } from './modules/ai-helper/ai-helper.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { HealthModule } from './modules/health/health.module';
 import { BotModule } from 'bot';
 
 @Module({
@@ -41,6 +42,7 @@ import { BotModule } from 'bot';
     FinanceModule,
     AdminModule,
     EmailModule,
+    HealthModule,
     BotModule,
   ],
 })
