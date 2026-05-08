@@ -104,7 +104,8 @@ export function registerLinkCommand(
           .oneTime()
           .resize(),
       );
-    } catch {
+    } catch (err) {
+      console.error('[link.command] /link failed:', err);
       return ctx.reply(
         'Bir hata oluştu. Lütfen tekrar deneyin veya destekle iletişime geçin.',
       );
