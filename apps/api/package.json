@@ -5,7 +5,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "serve": "ts-node-dev --respawn --transpile-only src/main.ts",
-    "start": "node dist/main.js",
+    "start": "node dist/apps/api/src/main.js",
     "test": "jest --passWithNoTests",
     "test:integration": "RUN_DB_INTEGRATION_TESTS=1 DATABASE_URL=postgresql://ticketbot:ticketbot@localhost:5433/ticketbot_test jest --testPathPattern='membership-constraints' --runInBand",
     "test:e2e": "jest --config jest-e2e.config.ts --runInBand",
