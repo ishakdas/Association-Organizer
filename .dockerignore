@@ -1,0 +1,49 @@
+# Heavy or generated dirs — installed/built inside the image
+node_modules
+**/node_modules
+**/dist
+**/.next
+**/.nx
+**/coverage
+**/.turbo
+
+# Git / CI
+.git
+.gitignore
+.github
+.gitattributes
+
+# Local env files — secrets must NEVER bake into the image.
+# Examples are kept so the image carries the shape for reference.
+**/.env
+**/.env.local
+**/.env.*.local
+**/.env.dev
+**/.env.test
+!**/.env.example
+
+# Editor / OS noise
+.vscode
+.idea
+.DS_Store
+*.swp
+*.swo
+
+# Docs not needed at runtime
+docs
+*.md
+!CLAUDE.md
+!AGENTS.md
+
+# Test artifacts
+**/jest-*.json
+**/*.tsbuildinfo
+
+# Stray emit inside libs/src (gitignored already)
+libs/**/src/**/*.js
+libs/**/src/**/*.js.map
+libs/**/src/**/*.d.ts
+libs/**/src/**/*.d.ts.map
+
+# Compose for local dev only
+docker-compose*.yml
