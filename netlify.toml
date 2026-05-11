@@ -1,0 +1,31 @@
+# Netlify config for the Next.js 15 web app (apps/web).
+# The repo is a pnpm + Nx monorepo; the web app depends on workspace libs
+# (@ticketbot/shared-types, @ticketbot/shared-validation), so the install
+# must run from the repo root to resolve the workspace graph.
+
+[build]
+  # cd into the Next.js project so `publish` and the Next.js plugin
+  # auto-detect work correctly.
+  base = "apps/web"
+
+  # 1) cd to repo root so pnpm can resolve workspace:* dependencies
+  # 2) install with frozen lockfile (reproducible)
+  # 3) build only the web app (Nx-aware via pnpm filter)
+  command = "cd ../.. && pnpm install --frozen-lockfile && pnpm --filter web build"
+
+  # `publish` is relative to `base`, so this becomes apps/web/.next
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+  PNPM_VERSION = "10.29.3"
+  # Skip npm fallback — we use pnpm exclusively
+  NPM_FLAGS = "--prefix=/dev/null"
+  # NEXT_PUBLIC_* values (API URL, Supabase URL/anon key) are set in the
+  # Netlify dashboard UI per environment so they never get committed.
+
+# Netlify's Next.js runtime: enables SSR, ISR, image optimization, and
+# serverless function emission from the .next build. Required for App
+# Router projects.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
