@@ -1,11 +1,6 @@
 'use client';
 
-// Next.js 15 prerender rejects `useSearchParams()` in a Client Component
-// unless wrapped in <Suspense>. This callback depends on URL hash + search
-// params and always runs in the browser, so skip static prerender entirely.
-export const dynamic = 'force-dynamic';
-
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '../../../lib/supabase/client';
 import { getMe } from '../../../lib/api/me';
@@ -22,7 +17,7 @@ function safeNext(raw: string | null): string {
 // Handles Supabase implicit-flow invite/magic links where tokens arrive as URL fragments
 // (#access_token=...). Server-side route handlers cannot read fragments, so this client
 // component reads them, calls setSession(), then redirects to ?next= (or /associations).
-export default function MagicLinkCallbackPage() {
+function MagicLinkCallbackInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -83,5 +78,23 @@ export default function MagicLinkCallbackPage() {
     <div className="flex min-h-screen items-center justify-center">
       <p className="text-sm text-muted-foreground">Giriş yapılıyor…</p>
     </div>
+  );
+}
+
+// Next.js 15 requires <Suspense> around any client component that reads
+// useSearchParams() — otherwise the prerender step bails out and fails
+// the build. Wrap the inner component so the same loading UI shows during
+// the brief client hydration window.
+export default function MagicLinkCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <p className="text-sm text-muted-foreground">Giriş yapılıyor…</p>
+        </div>
+      }
+    >
+      <MagicLinkCallbackInner />
+    </Suspense>
   );
 }

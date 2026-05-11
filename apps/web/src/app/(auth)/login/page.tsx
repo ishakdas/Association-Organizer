@@ -1,11 +1,6 @@
 'use client';
 
-// Next.js 15 prerender rejects `useSearchParams()` in a Client Component
-// unless wrapped in <Suspense>. Login reads `?error=` and `?next=` from
-// the URL, so skip static prerender entirely.
-export const dynamic = 'force-dynamic';
-
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ArrowRight, Clock, Loader2, MailQuestion, Sparkles, Users, XCircle } from 'lucide-react';
 import { createClient } from '../../../lib/supabase/client';
@@ -32,7 +27,24 @@ import {
 import { Plus } from 'lucide-react';
 import { getProvinceNames, getDistricts } from '@/lib/turkey-locations';
 
+// Next.js 15 requires <Suspense> around any client component that reads
+// useSearchParams() — otherwise the prerender step bails out and fails
+// the build.
 export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <LoginInner />
+    </Suspense>
+  );
+}
+
+function LoginInner() {
   const searchParams = useSearchParams();
   const callbackError = searchParams.get('error');
   const [branchDialogOpen, setBranchDialogOpen] = useState(false);
