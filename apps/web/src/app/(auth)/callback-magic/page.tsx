@@ -1,5 +1,10 @@
 'use client';
 
+// Next.js 15 prerender rejects `useSearchParams()` in a Client Component
+// unless wrapped in <Suspense>. This callback depends on URL hash + search
+// params and always runs in the browser, so skip static prerender entirely.
+export const dynamic = 'force-dynamic';
+
 import { useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '../../../lib/supabase/client';
