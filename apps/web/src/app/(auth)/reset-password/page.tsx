@@ -1,5 +1,10 @@
 'use client';
 
+// Next.js 15 prerender rejects `useSearchParams()` in a Client Component
+// unless wrapped in <Suspense>. Reset-password depends on URL params and
+// runs only after auth callback, so skip static prerender.
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, CheckCircle2, Loader2, Sparkles } from 'lucide-react';

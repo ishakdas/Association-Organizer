@@ -1,5 +1,10 @@
 'use client';
 
+// Next.js 15 prerender rejects `useSearchParams()` in a Client Component
+// unless wrapped in <Suspense>. Login reads `?error=` and `?next=` from
+// the URL, so skip static prerender entirely.
+export const dynamic = 'force-dynamic';
+
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ArrowRight, Clock, Loader2, MailQuestion, Sparkles, Users, XCircle } from 'lucide-react';
