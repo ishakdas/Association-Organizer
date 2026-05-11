@@ -16,12 +16,21 @@ export { TASK_REMINDERS_QUEUE, EVENT_REMINDERS_QUEUE };
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const url = new URL(config.get<string>('redis.url')!);
+        const isTls = url.protocol === 'rediss:';
         return {
           connection: {
             host: url.hostname,
             port: Number(url.port || 6379),
             username: url.username || undefined,
-            password: url.password || undefined,
+            password: url.password
+              ? decodeURIComponent(url.password)
+              : undefined,
+            // BullMQ + Upstash requirements: null retries so blocking
+            // commands don't bail, no ready check since Upstash limits INFO.
+            maxRetriesPerRequest: null,
+            enableReadyCheck: false,
+            // TLS for `rediss://` URLs (Upstash defaults to TLS).
+            ...(isTls ? { tls: { servername: url.hostname } } : {}),
           },
         };
       },
