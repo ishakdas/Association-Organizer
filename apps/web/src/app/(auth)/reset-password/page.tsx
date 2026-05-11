@@ -1,11 +1,6 @@
 'use client';
 
-// Next.js 15 prerender rejects `useSearchParams()` in a Client Component
-// unless wrapped in <Suspense>. Reset-password depends on URL params and
-// runs only after auth callback, so skip static prerender.
-export const dynamic = 'force-dynamic';
-
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { createClient } from '../../../lib/supabase/client';
@@ -23,7 +18,7 @@ function safeNext(raw: string | null, fallback: string): string {
   return raw;
 }
 
-export default function ResetPasswordPage() {
+function ResetPasswordInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   // Magic-link first-time set lands with ?next=/onboarding. Standalone
@@ -189,6 +184,23 @@ export default function ResetPasswordPage() {
         </footer>
       </div>
     </div>
+  );
+}
+
+// Next.js 15 requires <Suspense> around any client component that reads
+// useSearchParams() — otherwise the prerender step bails out and fails
+// the build.
+export default function ResetPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      }
+    >
+      <ResetPasswordInner />
+    </Suspense>
   );
 }
 
