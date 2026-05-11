@@ -11,16 +11,18 @@
     "dev:bot": "nx run bot:serve",
     "dev:web": "nx run web:dev",
     "dev": "nx run-many -t serve dev --parallel=3",
-    "db:generate": "pnpm --filter @ticketbot/database exec prisma generate",
-    "db:migrate": "pnpm --filter @ticketbot/database exec prisma migrate dev",
-    "db:seed": "pnpm --filter @ticketbot/database exec prisma db seed",
-    "db:studio": "pnpm --filter @ticketbot/database exec prisma studio",
-    "db:dev-reset": "pnpm --filter @ticketbot/database exec tsx prisma/dev-reset.ts"
+    "db:generate": "dotenv -e apps/api/.env -- pnpm --filter @ticketbot/database exec prisma generate",
+    "db:migrate": "dotenv -e apps/api/.env -- pnpm --filter @ticketbot/database exec prisma migrate dev",
+    "db:migrate:deploy": "dotenv -e apps/api/.env -- pnpm --filter @ticketbot/database exec prisma migrate deploy",
+    "db:seed": "dotenv -e apps/api/.env -- pnpm --filter @ticketbot/database exec prisma db seed",
+    "db:studio": "dotenv -e apps/api/.env -- pnpm --filter @ticketbot/database exec prisma studio",
+    "db:dev-reset": "dotenv -e apps/api/.env -- pnpm --filter @ticketbot/database exec tsx prisma/dev-reset.ts"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.5",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
     "@typescript-eslint/parser": "^8.0.0",
+    "dotenv-cli": "^11.0.0",
     "eslint": "^9.0.0",
     "nx": "^22.6.5",
     "prettier": "^3.4.0",
