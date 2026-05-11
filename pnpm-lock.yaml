@@ -165,6 +165,9 @@ importers:
       '@ticketbot/shared-types':
         specifier: workspace:*
         version: link:../../libs/shared-types
+      '@ticketbot/shared-validation':
+        specifier: workspace:*
+        version: link:../../libs/shared-validation
       reflect-metadata:
         specifier: ^0.2.0
         version: 0.2.2
