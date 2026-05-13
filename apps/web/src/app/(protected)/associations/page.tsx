@@ -17,19 +17,18 @@ export default async function AssociationsPage() {
     data: { session },
   } = await supabase.auth.getSession();
 
-  if (session) {
-    try {
-      const me = await getMe(session.access_token);
-      if (isSystemAdmin(me)) {
-        redirect('/dashboard');
-      }
-      // Non-admin users with a single active membership go directly to that association
-      const active = activeMemberships(me);
-      if (active.length === 1) {
-        redirect(`/associations/${active[0].associationId}`);
-      }
-    } catch {
-      // devam et
+  // Resolve current user first. `redirect()` throws NEXT_REDIRECT internally,
+  // so it MUST NOT be wrapped in a try/catch — otherwise the navigation
+  // signal is swallowed and the picker renders even when it shouldn't.
+  const me = session ? await safeGetMe(session.access_token) : null;
+
+  if (me) {
+    if (isSystemAdmin(me)) {
+      redirect('/dashboard');
+    }
+    const active = activeMemberships(me);
+    if (active.length === 1) {
+      redirect(`/associations/${active[0].associationId}`);
     }
   }
 
@@ -46,4 +45,12 @@ export default async function AssociationsPage() {
   }
 
   return <AssociationsList initialData={initialData} />;
+}
+
+async function safeGetMe(token: string) {
+  try {
+    return await getMe(token);
+  } catch {
+    return null;
+  }
 }
