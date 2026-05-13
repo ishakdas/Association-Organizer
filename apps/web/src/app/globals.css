@@ -4,72 +4,76 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
- * Design system: Swiss Modernism 2.0
- * Palette: slate (neutrals) + sky (single accent)
+ * Design system: YediHilal — yellow + black
+ * Source: Anthropic design handoff (Dernek Organizer.html)
+ * Primary: #FCC200 (Pantone 7408C, yellow) on #0E0E0E black ink
+ * Functional colors (success/destructive) kept semantic, not brand-coded.
  * Typography: Plus Jakarta Sans
  * Radius: 0.5rem
  * Shadow: hairline-first; heavy shadows reserved for popover/dialog only.
  */
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.208 0.042 265.755);
+  --background: oklch(1 0 0);                         /* #ffffff */
+  --foreground: oklch(0.207 0 0);                     /* #1a1a1a — yh-ink */
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.208 0.042 265.755);
+  --card-foreground: oklch(0.207 0 0);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.208 0.042 265.755);
-  --primary: oklch(0.588 0.158 241.966);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
+  --popover-foreground: oklch(0.207 0 0);
+  --primary: oklch(0.825 0.165 86);                   /* #FCC200 — yh-yellow */
+  --primary-foreground: oklch(0.144 0 0);             /* #0E0E0E — yh-black */
+  --secondary: oklch(0.985 0 0);                      /* #fafafa — yh-page */
+  --secondary-foreground: oklch(0.207 0 0);
+  --muted: oklch(0.985 0 0);
+  --muted-foreground: oklch(0.5 0 0);                 /* #6b6b6b — yh-muted */
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.207 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(1 0 0);
   --success: oklch(0.648 0.154 160);
   --success-foreground: oklch(1 0 0);
-  --warning: oklch(0.768 0.171 66);
-  --warning-foreground: oklch(0.208 0.042 265.755);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.588 0.158 241.966);
+  --warning: oklch(0.825 0.165 86);                   /* match brand yellow */
+  --warning-foreground: oklch(0.144 0 0);
+  --border: oklch(0.93 0 0);                          /* #ececec — yh-line */
+  --input: oklch(0.93 0 0);
+  --ring: oklch(0.825 0.165 86 / 40%);                /* yellow focus halo */
   --radius: 0.5rem;
 
-  --brand: oklch(0.208 0.042 265.755);
+  --brand: oklch(0.144 0 0);                          /* #0E0E0E — yh-black */
   --brand-foreground: oklch(1 0 0);
-  --brand-muted: oklch(0.398 0.07 227.392);
+  --brand-muted: oklch(0.5 0 0);
 }
 
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.685 0.169 237.323);
-  --primary-foreground: oklch(0.129 0.042 264.695);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --success: oklch(0.724 0.154 160);
-  --success-foreground: oklch(0.129 0.042 264.695);
-  --warning: oklch(0.828 0.189 85);
-  --warning-foreground: oklch(0.129 0.042 264.695);
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.685 0.169 237.323);
+  /* Near-black surface ramp: page → card → muted/accent.
+     Pure black avoided so the layering reads at low contrast. */
+  --background: oklch(0.17 0 0);                      /* ~#111111 — page */
+  --foreground: oklch(0.93 0 0);                      /* ~#e8e8e8 — text */
+  --card: oklch(0.21 0 0);                            /* ~#1a1a1a — surface */
+  --card-foreground: oklch(0.93 0 0);
+  --popover: oklch(0.22 0 0);                         /* slightly lifted */
+  --popover-foreground: oklch(0.93 0 0);
+  --primary: oklch(0.825 0.165 86);                   /* #FCC200 yellow */
+  --primary-foreground: oklch(0.144 0 0);             /* black on yellow */
+  --secondary: oklch(0.245 0 0);                      /* ~#222222 */
+  --secondary-foreground: oklch(0.93 0 0);
+  --muted: oklch(0.235 0 0);
+  --muted-foreground: oklch(0.68 0 0);                /* ~#aaaaaa */
+  --accent: oklch(0.27 0 0);                          /* hover surface */
+  --accent-foreground: oklch(0.93 0 0);
+  --destructive: oklch(0.62 0.21 27);
+  --destructive-foreground: oklch(0.98 0 0);
+  --success: oklch(0.7 0.15 160);
+  --success-foreground: oklch(0.144 0 0);
+  --warning: oklch(0.825 0.165 86);
+  --warning-foreground: oklch(0.144 0 0);
+  --border: oklch(1 0 0 / 9%);                        /* subtle white hairline */
+  --input: oklch(1 0 0 / 13%);
+  --ring: oklch(0.825 0.165 86 / 45%);
 
-  --brand: oklch(0.129 0.042 264.695);
-  --brand-foreground: oklch(0.984 0.003 247.858);
-  --brand-muted: oklch(0.704 0.04 256.788);
+  --brand: oklch(0.825 0.165 86);                     /* on dark, brand = yellow */
+  --brand-foreground: oklch(0.144 0 0);
+  --brand-muted: oklch(0.68 0 0);
 }
 
 @theme inline {

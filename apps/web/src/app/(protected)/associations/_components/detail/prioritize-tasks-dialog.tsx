@@ -73,8 +73,12 @@ export function PrioritizeTasksDialog({
       }}
     >
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-7 gap-1.5 text-[11px]">
-          <Sparkles className="h-3 w-3 text-amber-500" />
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1.5 border-primary/30 bg-primary/5 text-[11px] text-foreground hover:border-primary/50 hover:bg-primary/15 hover:text-foreground"
+        >
+          <Sparkles className="h-3 w-3 text-primary" />
           Önceliklendir
         </Button>
       </DialogTrigger>

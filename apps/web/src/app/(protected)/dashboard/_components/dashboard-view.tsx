@@ -64,7 +64,7 @@ function RingChart({ active, total }: { active: number; total: number }) {
         <circle cx="50" cy="50" r={r} fill="none" strokeWidth="10" stroke="hsl(var(--muted))" />
         <circle
           cx="50" cy="50" r={r} fill="none" strokeWidth="10"
-          stroke="#22c55e"
+          stroke="#34d399"
           strokeLinecap="round"
           strokeDasharray={`${arc} ${circumference}`}
           style={{ transition: 'stroke-dasharray 1.3s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
@@ -171,7 +171,7 @@ export function DashboardView({ stats }: { stats: GlobalBranchStatsDto }) {
           label="Aktif Şube"
           value={stats.activeBranches}
           delay={80}
-          iconClass="text-green-600"
+          iconClass="text-emerald-400"
         />
         <StatCard
           icon={<XCircle className="h-5 w-5" />}
@@ -185,7 +185,7 @@ export function DashboardView({ stats }: { stats: GlobalBranchStatsDto }) {
           label="Toplam Üye"
           value={stats.totalMembers}
           delay={240}
-          iconClass="text-blue-600"
+          iconClass="text-sky-400"
         />
         <StatCard
           icon={<Clock className="h-5 w-5" />}
@@ -212,7 +212,7 @@ export function DashboardView({ stats }: { stats: GlobalBranchStatsDto }) {
             <RingChart active={stats.activeBranches} total={stats.totalBranches} />
             <div className="space-y-3">
               <div className="flex items-center gap-2">
-                <span className="h-3 w-3 rounded-full bg-green-500" />
+                <span className="h-3 w-3 rounded-full bg-emerald-400" />
                 <span className="text-sm text-foreground font-medium">{stats.activeBranches} Aktif</span>
               </div>
               <div className="flex items-center gap-2">
@@ -238,14 +238,14 @@ export function DashboardView({ stats }: { stats: GlobalBranchStatsDto }) {
               label="Aktif Şube Oranı"
               value={stats.activeBranches}
               total={stats.totalBranches}
-              color="bg-green-500"
+              color="bg-emerald-400"
               delay={500}
             />
             <ActiveRatioBar
               label="Üye / Şube Ortalaması"
               value={stats.totalBranches > 0 ? Math.round(stats.totalMembers / stats.totalBranches) : 0}
               total={stats.totalBranches > 0 ? Math.round(stats.totalMembers / stats.totalBranches) : 1}
-              color="bg-blue-500"
+              color="bg-sky-400"
               delay={700}
               showRaw
               rawValue={

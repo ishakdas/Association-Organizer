@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -192,10 +193,15 @@ function Sidebar({
 
 function Brand({ homeHref = '/associations' }: { homeHref?: string }) {
   return (
-    <Link href={homeHref} className="group flex items-center gap-2.5">
-      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-foreground text-background">
-        <span className="text-[13px] font-extrabold tracking-tight">DO</span>
-      </div>
+    <Link href={homeHref} className="group flex items-center gap-3">
+      <Image
+        src="/yedihilal-logo.png"
+        alt="YediHilal"
+        width={32}
+        height={45}
+        className="h-11 w-auto"
+        priority
+      />
       <div className="leading-tight">
         <div className="text-[13px] font-bold tracking-tight text-foreground">
           Dernek Organizer
@@ -231,26 +237,19 @@ function NavLink({
       className={cn(
         'group relative flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150',
         active
-          ? 'bg-accent text-foreground'
+          ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/30'
           : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground hover:translate-x-0.5',
       )}
     >
-      <span
-        aria-hidden
-        className={cn(
-          'absolute inset-y-1 left-0 w-[2px] rounded-full bg-primary transition-all duration-200',
-          active ? 'opacity-100 scale-y-100' : 'opacity-0 scale-y-0',
-        )}
-      />
       <Icon
         className={cn(
           'h-4 w-4 shrink-0 transition-colors duration-150',
-          active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground',
+          active ? 'text-primary-foreground' : 'text-muted-foreground group-hover:text-foreground',
         )}
       />
       <span className="truncate flex-1">{label}</span>
       {badge != null && badge > 0 && (
-        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">
+        <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-foreground px-1.5 text-[10px] font-semibold text-background">
           {badge}
         </span>
       )}
@@ -286,7 +285,7 @@ function UserFooter({ user }: { user: AuthenticatedUser }) {
   return (
     <div className="border-t border-border px-3 py-3">
       <div className="flex items-center gap-2.5 rounded-md px-2 py-1.5">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
           {initials}
         </div>
         <div className="min-w-0 flex-1">

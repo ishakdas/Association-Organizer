@@ -199,7 +199,7 @@ export function TransactionsTable({
                     <div className="flex items-center gap-2 min-w-0">
                       <div
                         className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                          isIncome ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
+                          isIncome ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'
                         }`}
                       >
                         {isIncome ? (
@@ -218,7 +218,7 @@ export function TransactionsTable({
                       </div>
                       <div
                         className={`shrink-0 text-right text-xs font-bold tabular-nums sm:hidden ${
-                          isIncome ? 'text-emerald-600' : 'text-rose-600'
+                          isIncome ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
                         {isIncome ? '+' : '-'}
@@ -257,7 +257,7 @@ export function TransactionsTable({
                     </div>
                     <div
                       className={`hidden text-right text-xs font-bold tabular-nums sm:block ${
-                        isIncome ? 'text-emerald-600' : 'text-rose-600'
+                        isIncome ? 'text-emerald-400' : 'text-rose-400'
                       }`}
                     >
                       {isIncome ? '+' : '-'}

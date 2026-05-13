@@ -3,11 +3,11 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-  TrendingUp,
-  TrendingDown,
-  Wallet,
-  Receipt,
+  Activity,
+  ArrowDownRight,
+  ArrowUpRight,
   Download,
+  Landmark,
 } from 'lucide-react';
 import {
   Card,
@@ -134,9 +134,9 @@ export function FinanceDashboard({
     >
       {/* Header */}
       <motion.div variants={itemVariants} className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-            <Wallet className="h-4 w-4" />
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
+            <Landmark className="h-4.5 w-4.5" />
           </div>
           <div>
             <h1 className="text-lg font-bold tracking-tight leading-none">Finans Yönetimi</h1>
@@ -166,64 +166,64 @@ export function FinanceDashboard({
                 <p className="text-[11px] font-medium text-muted-foreground">Kasa Bakiyesi</p>
                 <p
                   className={`text-lg font-bold tabular-nums leading-tight ${
-                    summary.balanceKurus >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                    summary.balanceKurus >= 0 ? 'text-emerald-400' : 'text-rose-400'
                   }`}
                 >
                   {kurusToTl(summary.balanceKurus)}
                 </p>
               </div>
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary">
-                <Wallet className="h-4 w-4" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                <Landmark className="h-4 w-4" />
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
         <motion.div variants={itemVariants}>
-          <Card className="border-l-4 border-l-emerald-500">
+          <Card className="border-l-4 border-l-emerald-400">
             <CardContent className="flex items-center justify-between p-3">
               <div>
                 <p className="text-[11px] font-medium text-muted-foreground">Aylık Gelir</p>
-                <p className="text-lg font-bold tabular-nums text-emerald-600 leading-tight">
+                <p className="text-lg font-bold tabular-nums leading-tight text-emerald-400">
                   {kurusToTl(summary.monthlyIncomeKurus)}
                 </p>
               </div>
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-emerald-100 text-emerald-600">
-                <TrendingUp className="h-4 w-4" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-300">
+                <ArrowUpRight className="h-4 w-4" />
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
         <motion.div variants={itemVariants}>
-          <Card className="border-l-4 border-l-rose-500">
+          <Card className="border-l-4 border-l-rose-400">
             <CardContent className="flex items-center justify-between p-3">
               <div>
                 <p className="text-[11px] font-medium text-muted-foreground">Aylık Gider</p>
-                <p className="text-lg font-bold tabular-nums text-rose-600 leading-tight">
+                <p className="text-lg font-bold tabular-nums leading-tight text-rose-400">
                   {kurusToTl(summary.monthlyExpenseKurus)}
                 </p>
               </div>
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-rose-100 text-rose-600">
-                <TrendingDown className="h-4 w-4" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/15 text-rose-300">
+                <ArrowDownRight className="h-4 w-4" />
               </div>
             </CardContent>
           </Card>
         </motion.div>
 
         <motion.div variants={itemVariants}>
-          <Card className="border-l-4 border-l-blue-500">
+          <Card className="border-l-4 border-l-sky-400">
             <CardContent className="flex items-center justify-between p-3">
               <div>
                 <p className="text-[11px] font-medium text-muted-foreground">Toplam İşlem</p>
-                <p className="text-lg font-bold tabular-nums text-blue-600 leading-tight">
+                <p className="text-lg font-bold tabular-nums leading-tight text-sky-400">
                   {summary.totalIncomeKurus + summary.totalExpenseKurus > 0
                     ? Math.round((summary.totalIncomeKurus + summary.totalExpenseKurus) / 100).toLocaleString('tr-TR')
                     : '0'} <span className="text-[10px] font-normal text-muted-foreground">TL</span>
                 </p>
               </div>
-              <div className="flex h-8 w-8 items-center justify-center rounded-md bg-blue-100 text-blue-600">
-                <Receipt className="h-4 w-4" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/15 text-sky-300">
+                <Activity className="h-4 w-4" />
               </div>
             </CardContent>
           </Card>

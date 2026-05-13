@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useState } from 'react';
+import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { ArrowRight, Clock, Loader2, MailQuestion, Sparkles, Users, XCircle } from 'lucide-react';
 import { createClient } from '../../../lib/supabase/client';
@@ -51,8 +52,7 @@ function LoginInner() {
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      <BrandPanel />
-      <div className="flex flex-col px-6 py-10 sm:px-10 lg:px-14 lg:py-12">
+      <div className="order-2 flex flex-col bg-card px-6 py-10 sm:px-10 lg:order-1 lg:px-14 lg:py-12">
         <header className="flex items-center justify-between lg:hidden">
           <Brand />
         </header>
@@ -86,7 +86,7 @@ function LoginInner() {
                 <span className="w-full border-t border-border" />
               </div>
               <div className="relative flex justify-center text-[11px] uppercase tracking-widest">
-                <span className="bg-background px-3 text-muted-foreground">veya</span>
+                <span className="bg-card px-3 text-muted-foreground">veya</span>
               </div>
             </div>
 
@@ -107,6 +107,7 @@ function LoginInner() {
           © {new Date().getFullYear()} Dernek Organizer
         </footer>
       </div>
+      <BrandPanel />
 
       <Dialog open={branchDialogOpen} onOpenChange={setBranchDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -206,6 +207,7 @@ function AdminLoginPanel() {
           </Label>
           <button
             type="button"
+            tabIndex={-1}
             onClick={handleResetPassword}
             disabled={resetLoading || resetCooldown > 0}
             className="flex items-center gap-1 text-[12px] font-medium text-muted-foreground hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
@@ -646,11 +648,24 @@ function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
 
 function BrandPanel() {
   return (
-    <aside className="relative hidden overflow-hidden bg-foreground text-background lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-12">
-      <div aria-hidden className="bg-grid-slate absolute inset-0 opacity-60" />
+    <aside
+      className="relative order-1 hidden overflow-hidden text-white lg:order-2 lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-12"
+      style={{
+        backgroundColor: '#0E0E0E',
+        backgroundImage: [
+          'linear-gradient(rgba(252,194,0,0.06), rgba(252,194,0,0))',
+          'repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 60px)',
+          'repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 60px)',
+        ].join(', '),
+      }}
+    >
       <div
         aria-hidden
-        className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-primary/20"
+        className="pointer-events-none absolute -right-32 -top-32 h-[380px] w-[380px] rounded-full"
+        style={{
+          background:
+            'radial-gradient(circle at 30% 30%, rgba(252,194,0,0.18), rgba(252,194,0,0) 60%)',
+        }}
       />
 
       <div className="relative z-10">
@@ -659,16 +674,16 @@ function BrandPanel() {
 
       <div className="relative z-10 max-w-md space-y-8">
         <div className="space-y-4">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-background/20 bg-background/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest">
-            <Sparkles className="h-3 w-3" />
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white">
+            <Sparkles className="h-3 w-3 text-primary" />
             Türkiye&apos;nin Dernekleri İçin
           </span>
           <h1 className="text-4xl font-extrabold leading-tight tracking-tight">
             Dernek sekreterliğini,
             <br />
-            <span className="text-background/70">tek yerden yönetin.</span>
+            <span className="text-primary">tek yerden yönetin.</span>
           </h1>
-          <p className="text-sm leading-relaxed text-background/70">
+          <p className="text-sm leading-relaxed text-white/65">
             Sicil kayıtları, üyelik, yönetim kurulu toplantıları ve görevler —
             hepsi tutarlı, denetlenebilir ve hızlı.
           </p>
@@ -683,7 +698,7 @@ function BrandPanel() {
         </ul>
       </div>
 
-      <div className="relative z-10 flex items-center justify-between text-[11px] uppercase tracking-widest text-background/50">
+      <div className="relative z-10 flex items-center justify-between text-[11px] uppercase tracking-widest text-white/50">
         <span>© {new Date().getFullYear()} Dernek Organizer</span>
         <span>TR</span>
       </div>
@@ -693,19 +708,20 @@ function BrandPanel() {
 
 function Brand({ dark }: { dark?: boolean }) {
   return (
-    <div className="flex items-center gap-2.5">
-      <div
-        className={`flex h-8 w-8 items-center justify-center rounded-md ${
-          dark ? 'bg-background text-foreground' : 'bg-foreground text-background'
-        }`}
-      >
-        <span className="text-[13px] font-extrabold tracking-tight">DO</span>
-      </div>
+    <div className="flex items-center gap-3">
+      <Image
+        src="/yedihilal-logo.png"
+        alt="YediHilal"
+        width={32}
+        height={45}
+        className="h-11 w-auto"
+        priority
+      />
       <div className="leading-tight">
-        <div className={`text-[13px] font-bold tracking-tight ${dark ? 'text-background' : 'text-foreground'}`}>
+        <div className={`text-[13px] font-bold tracking-tight ${dark ? 'text-white' : 'text-foreground'}`}>
           Dernek Organizer
         </div>
-        <div className={`text-[10px] font-medium uppercase tracking-widest ${dark ? 'text-background/60' : 'text-muted-foreground'}`}>
+        <div className={`text-[10px] font-medium uppercase tracking-widest ${dark ? 'text-white/60' : 'text-muted-foreground'}`}>
           Sicil &amp; Üyelik
         </div>
       </div>
@@ -724,12 +740,12 @@ function Feature({
 }) {
   return (
     <li className="flex items-start gap-3">
-      <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-background/15 bg-background/5 text-background/80">
+      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
         {icon}
       </span>
       <div>
-        <div className="text-[13px] font-semibold">{title}</div>
-        <div className="text-xs text-background/60">{body}</div>
+        <div className="text-[13px] font-semibold text-white">{title}</div>
+        <div className="text-xs text-white/60">{body}</div>
       </div>
     </li>
   );

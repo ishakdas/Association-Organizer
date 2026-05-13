@@ -139,23 +139,34 @@ export default async function SettingsHubPage() {
 
 function SettingsCardLink({ card }: { card: SettingsCard }) {
   const Icon = card.icon;
+  const isSystem = !!card.systemAdminOnly;
   return (
     <Link
       href={card.href}
-      className="group flex flex-col gap-3 rounded-lg border border-border bg-card p-5 transition-colors hover:border-foreground/20 hover:bg-accent/40"
+      className="group relative flex flex-col gap-4 rounded-2xl border border-border bg-card p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
     >
-      <div className="flex items-start justify-between gap-2">
-        <span className="flex h-9 w-9 items-center justify-center rounded-md bg-muted text-muted-foreground group-hover:bg-foreground group-hover:text-background">
-          <Icon className="h-4 w-4" />
+      <span
+        className={
+          isSystem
+            ? 'flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm shadow-primary/30 transition-all duration-200 group-hover:shadow-md group-hover:shadow-primary/40 group-hover:scale-105'
+            : 'flex h-11 w-11 items-center justify-center rounded-xl bg-primary/15 text-primary transition-colors duration-200 group-hover:bg-primary group-hover:text-primary-foreground'
+        }
+      >
+        <Icon className="h-5 w-5" />
+      </span>
+      {card.badge && (
+        <span
+          className={
+            isSystem
+              ? 'absolute right-4 top-4 rounded-full border border-primary bg-primary px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-primary-foreground'
+              : 'absolute right-4 top-4 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-foreground'
+          }
+        >
+          {card.badge}
         </span>
-        {card.badge && (
-          <span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-            {card.badge}
-          </span>
-        )}
-      </div>
+      )}
       <div className="space-y-1">
-        <h2 className="text-[14px] font-semibold tracking-tight text-foreground">
+        <h2 className="text-[15px] font-bold tracking-tight text-foreground">
           {card.label}
         </h2>
         <p className="text-[12.5px] leading-relaxed text-muted-foreground">

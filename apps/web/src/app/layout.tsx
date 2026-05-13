@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="tr" className={jakarta.variable}>
+    <html lang="tr" className={`${jakarta.variable} dark`}>
       {/* suppressHydrationWarning: browser extensions (ColorZilla, Grammarly, etc.) inject attributes like cz-shortcut-listen on <body> after SSR, which would otherwise mismatch. */}
       <body className="font-sans antialiased" suppressHydrationWarning>
         <QueryProvider>{children}</QueryProvider>

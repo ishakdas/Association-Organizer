@@ -153,8 +153,12 @@ export function AnalyzeMeetingDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="h-7 gap-1.5 text-[11px]">
-          <Sparkles className="h-3 w-3 text-violet-500" />
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-7 gap-1.5 border-primary/30 bg-primary/5 text-[11px] text-foreground hover:border-primary/50 hover:bg-primary/15 hover:text-foreground"
+        >
+          <Sparkles className="h-3 w-3 text-primary" />
           Yapay Zeka Analizi
         </Button>
       </DialogTrigger>

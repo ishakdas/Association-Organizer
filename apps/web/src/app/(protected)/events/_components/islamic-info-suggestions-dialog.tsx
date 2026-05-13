@@ -150,8 +150,12 @@ export function IslamicInfoSuggestionsDialog({ eventTitle, eventType }: Props) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-1.5">
-          <Lightbulb className="h-3.5 w-3.5" />
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 border-primary/30 bg-primary/5 text-foreground hover:border-primary/50 hover:bg-primary/15 hover:text-foreground"
+        >
+          <Lightbulb className="h-3.5 w-3.5 text-primary" />
           İslami Bilgi Önerileri
         </Button>
       </DialogTrigger>

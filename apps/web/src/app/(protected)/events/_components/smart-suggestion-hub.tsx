@@ -239,7 +239,10 @@ export function SmartSuggestionHub({ token, associationId, onCreateEvent }: Prop
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" className="gap-2">
+        <Button
+          variant="outline"
+          className="gap-2 border-primary/30 bg-primary/5 text-foreground hover:border-primary/50 hover:bg-primary/15 hover:text-foreground"
+        >
           <Sparkles className="h-4 w-4 text-primary" />
           Akıllı Etkinlik Öner
         </Button>
