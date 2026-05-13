@@ -22,10 +22,9 @@ export default async function AssociationsPage() {
   // signal is swallowed and the picker renders even when it shouldn't.
   const me = session ? await safeGetMe(session.access_token) : null;
 
-  if (me) {
-    if (isSystemAdmin(me)) {
-      redirect('/dashboard');
-    }
+  if (me && !isSystemAdmin(me)) {
+    // System admins always see the full branch list. Non-admins with a
+    // single active membership go straight to that branch (no picker).
     const active = activeMemberships(me);
     if (active.length === 1) {
       redirect(`/associations/${active[0].associationId}`);

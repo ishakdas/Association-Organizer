@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import {
   BarChart3,
@@ -202,38 +203,51 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
   const slide = slides[current];
   const progress = ((current + 1) / slides.length) * 100;
 
-  const adminGradient = 'from-indigo-600 via-violet-600 to-purple-700';
-  const branchGradient = 'from-blue-600 via-cyan-500 to-teal-600';
-  const gradientClass = isSystemAdmin ? adminGradient : branchGradient;
+  const accentClass =
+    'bg-primary/15 text-primary ring-1 ring-primary/30';
+  const checkClass = 'text-primary';
 
-  const accentClass = isSystemAdmin
-    ? 'bg-indigo-50 text-indigo-700 ring-indigo-200 dark:bg-indigo-950 dark:text-indigo-300 dark:ring-indigo-800'
-    : 'bg-teal-50 text-teal-700 ring-teal-200 dark:bg-teal-950 dark:text-teal-300 dark:ring-teal-800';
-
-  const checkClass = isSystemAdmin ? 'text-indigo-500' : 'text-teal-500';
+  const brandPanelStyle = {
+    backgroundColor: '#0E0E0E',
+    backgroundImage: [
+      'linear-gradient(rgba(252,194,0,0.06), rgba(252,194,0,0))',
+      'repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 60px)',
+      'repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 60px)',
+    ].join(', '),
+  };
+  const radialGlowStyle = {
+    background:
+      'radial-gradient(circle at 30% 30%, rgba(252,194,0,0.18), rgba(252,194,0,0) 60%)',
+  };
 
   return (
     <div className="flex min-h-screen">
-      {/* ── Desktop left gradient panel ── */}
+      {/* ── Desktop left brand panel ── */}
       <aside
         className={cn(
           'hidden lg:flex lg:flex-col lg:sticky lg:top-0 lg:h-screen',
           'lg:w-[42%] xl:w-[38%]',
-          'relative overflow-hidden bg-gradient-to-br',
-          gradientClass,
+          'relative overflow-hidden text-white',
         )}
+        style={brandPanelStyle}
       >
-        {/* Decorative blobs */}
-        <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-white/10" />
-        <div className="pointer-events-none absolute -bottom-28 -left-16 h-96 w-96 rounded-full bg-white/10" />
-        <div className="pointer-events-none absolute bottom-1/3 right-1/4 h-40 w-40 rounded-full bg-white/5" />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-32 -top-32 h-[380px] w-[380px] rounded-full"
+          style={radialGlowStyle}
+        />
 
         {/* Brand */}
         <div className="relative z-10 p-8">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/20 backdrop-blur-sm ring-1 ring-white/30">
-              <span className="text-sm font-extrabold tracking-tight text-white">DO</span>
-            </div>
+            <Image
+              src="/yedihilal-logo.png"
+              alt="YediHilal"
+              width={32}
+              height={45}
+              className="h-11 w-auto"
+              priority
+            />
             <div>
               <div className="text-sm font-bold tracking-tight text-white">Dernek Organizer</div>
               <div className="text-[10px] font-medium uppercase tracking-widest text-white/60">
@@ -248,12 +262,12 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
           <div
             className={cn(
               'mb-10 flex h-32 w-32 items-center justify-center rounded-3xl',
-              'bg-white/15 shadow-2xl ring-1 ring-white/25 backdrop-blur-sm',
+              'bg-primary text-primary-foreground shadow-2xl shadow-primary/30 ring-1 ring-primary/50',
               'transition-all duration-300',
               visible ? 'scale-100 opacity-100' : 'scale-90 opacity-0',
             )}
           >
-            <div className="text-white">{slide.icon}</div>
+            {slide.icon}
           </div>
 
           {/* Slide dots */}
@@ -264,7 +278,7 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
                 onClick={() => goTo(i)}
                 className={cn(
                   'h-1.5 rounded-full transition-all duration-300',
-                  i === current ? 'w-10 bg-white' : 'w-2.5 bg-white/30 hover:bg-white/50',
+                  i === current ? 'w-10 bg-primary' : 'w-2.5 bg-white/30 hover:bg-white/50',
                 )}
                 aria-label={`Slayt ${i + 1}`}
               />
@@ -278,7 +292,7 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
 
         {/* Footer label */}
         <div className="relative z-10 p-8 text-center">
-          <span className="rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium text-white/70 ring-1 ring-white/20">
+          <span className="rounded-full border border-white/15 bg-white/5 px-4 py-1.5 text-xs font-medium text-white/70">
             {isSystemAdmin ? 'Genel Başkan Paneli' : 'Şube Yönetim Paneli'}
           </span>
         </div>
@@ -294,27 +308,26 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
           />
         </div>
 
-        {/* Mobile gradient header */}
+        {/* Mobile brand header */}
         <div
-          className={cn(
-            'relative overflow-hidden lg:hidden',
-            'flex h-52 flex-col items-center justify-center gap-5',
-            'bg-gradient-to-br',
-            gradientClass,
-          )}
+          className="relative flex h-52 flex-col items-center justify-center gap-5 overflow-hidden text-white lg:hidden"
+          style={brandPanelStyle}
         >
-          <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-white/10" />
-          <div className="pointer-events-none absolute -bottom-16 -left-8 h-60 w-60 rounded-full bg-white/10" />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-16 -top-16 h-60 w-60 rounded-full"
+            style={radialGlowStyle}
+          />
 
           <div
             className={cn(
               'relative z-10 flex h-20 w-20 items-center justify-center rounded-2xl',
-              'bg-white/15 ring-1 ring-white/25 backdrop-blur-sm',
+              'bg-primary text-primary-foreground shadow-lg shadow-primary/30 ring-1 ring-primary/50',
               'transition-all duration-300',
               visible ? 'scale-100 opacity-100' : 'scale-90 opacity-0',
             )}
           >
-            <div className="text-white">{slide.icon}</div>
+            {slide.icon}
           </div>
 
           <div className="relative z-10 flex items-center gap-2">
@@ -324,7 +337,7 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
                 onClick={() => goTo(i)}
                 className={cn(
                   'h-1.5 rounded-full transition-all duration-300',
-                  i === current ? 'w-8 bg-white' : 'w-2 bg-white/35',
+                  i === current ? 'w-8 bg-primary' : 'w-2 bg-white/35',
                 )}
                 aria-label={`Slayt ${i + 1}`}
               />

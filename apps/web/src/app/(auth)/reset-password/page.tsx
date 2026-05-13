@@ -1,6 +1,7 @@
 'use client';
 
 import { Suspense, useState, useEffect } from 'react';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowRight, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { createClient } from '../../../lib/supabase/client';
@@ -88,13 +89,12 @@ function ResetPasswordInner() {
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      <BrandPanel />
-      <div className="flex flex-col px-6 py-10 sm:px-10 lg:px-14 lg:py-12">
+      <div className="order-2 flex flex-col bg-card px-6 py-10 sm:px-10 lg:order-1 lg:px-14 lg:py-12">
         <div className="flex flex-1 items-center">
           <div className="mx-auto w-full max-w-sm space-y-8 py-10 lg:py-0">
             {done ? (
               <div className="space-y-4 text-center">
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-green-600">
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-300">
                   <CheckCircle2 className="h-7 w-7" />
                 </div>
                 <div className="space-y-1">
@@ -183,6 +183,7 @@ function ResetPasswordInner() {
           © {new Date().getFullYear()} Dernek Organizer
         </footer>
       </div>
+      <BrandPanel />
     </div>
   );
 }
@@ -206,23 +207,41 @@ export default function ResetPasswordPage() {
 
 function BrandPanel() {
   return (
-    <aside className="relative hidden overflow-hidden bg-foreground text-background lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-12">
-      <div aria-hidden className="bg-grid-slate absolute inset-0 opacity-60" />
+    <aside
+      className="relative order-1 hidden overflow-hidden text-white lg:order-2 lg:flex lg:flex-col lg:justify-between lg:px-14 lg:py-12"
+      style={{
+        backgroundColor: '#0E0E0E',
+        backgroundImage: [
+          'linear-gradient(rgba(252,194,0,0.06), rgba(252,194,0,0))',
+          'repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 60px)',
+          'repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 60px)',
+        ].join(', '),
+      }}
+    >
       <div
         aria-hidden
-        className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-primary/20"
+        className="pointer-events-none absolute -right-32 -top-32 h-[380px] w-[380px] rounded-full"
+        style={{
+          background:
+            'radial-gradient(circle at 30% 30%, rgba(252,194,0,0.18), rgba(252,194,0,0) 60%)',
+        }}
       />
 
       <div className="relative z-10">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-background text-foreground">
-            <span className="text-[13px] font-extrabold tracking-tight">DO</span>
-          </div>
+        <div className="flex items-center gap-3">
+          <Image
+            src="/yedihilal-logo.png"
+            alt="YediHilal"
+            width={32}
+            height={45}
+            className="h-11 w-auto"
+            priority
+          />
           <div className="leading-tight">
-            <div className="text-[13px] font-bold tracking-tight text-background">
+            <div className="text-[13px] font-bold tracking-tight text-white">
               Dernek Organizer
             </div>
-            <div className="text-[10px] font-medium uppercase tracking-widest text-background/60">
+            <div className="text-[10px] font-medium uppercase tracking-widest text-white/60">
               Sicil &amp; Üyelik
             </div>
           </div>
@@ -230,19 +249,19 @@ function BrandPanel() {
       </div>
 
       <div className="relative z-10 max-w-md space-y-4">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-background/20 bg-background/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest">
-          <Sparkles className="h-3 w-3" />
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white">
+          <Sparkles className="h-3 w-3 text-primary" />
           Güvenli Şifre Sıfırlama
         </span>
         <h1 className="text-4xl font-extrabold leading-tight tracking-tight">
-          Hesabınızı güvende tutun.
+          Hesabınızı <span className="text-primary">güvende</span> tutun.
         </h1>
-        <p className="text-sm leading-relaxed text-background/70">
+        <p className="text-sm leading-relaxed text-white/65">
           Yeni şifrenizi belirleyin ve hesabınıza giriş yapmaya devam edin.
         </p>
       </div>
 
-      <div className="relative z-10 flex items-center justify-between text-[11px] uppercase tracking-widest text-background/50">
+      <div className="relative z-10 flex items-center justify-between text-[11px] uppercase tracking-widest text-white/50">
         <span>© {new Date().getFullYear()} Dernek Organizer</span>
         <span>TR</span>
       </div>

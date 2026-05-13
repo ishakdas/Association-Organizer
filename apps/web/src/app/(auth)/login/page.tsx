@@ -676,7 +676,7 @@ function BrandPanel() {
         <div className="space-y-4">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[10px] font-semibold uppercase tracking-widest text-white">
             <Sparkles className="h-3 w-3 text-primary" />
-            Türkiye&apos;nin Dernekleri İçin
+            Türkiye&apos;deki tüm şubeler için
           </span>
           <h1 className="text-4xl font-extrabold leading-tight tracking-tight">
             Dernek sekreterliğini,
@@ -684,16 +684,16 @@ function BrandPanel() {
             <span className="text-primary">tek yerden yönetin.</span>
           </h1>
           <p className="text-sm leading-relaxed text-white/65">
-            Sicil kayıtları, üyelik, yönetim kurulu toplantıları ve görevler —
-            hepsi tutarlı, denetlenebilir ve hızlı.
+            Üye kayıtları, toplantı notları, görev takibi ve şube iletişimi —
+            hepsi tek bir sekreterya merkezinde, denetlenebilir ve hızlı.
           </p>
         </div>
 
         <ul className="space-y-3 text-sm">
           <Feature
             icon={<Users className="h-4 w-4" />}
-            title="Tek kaynakta dernek sicili"
-            body="VKN, kuruluş, iletişim ve yönetim verileri tek ekranda."
+            title="Tüm şubeler tek panelde"
+            body="Üyelik, toplantılar ve görevler her şube için aynı tutarlılıkta."
           />
         </ul>
       </div>
@@ -719,10 +719,10 @@ function Brand({ dark }: { dark?: boolean }) {
       />
       <div className="leading-tight">
         <div className={`text-[13px] font-bold tracking-tight ${dark ? 'text-white' : 'text-foreground'}`}>
-          Dernek Organizer
+          YediHilal Sekreterya
         </div>
         <div className={`text-[10px] font-medium uppercase tracking-widest ${dark ? 'text-white/60' : 'text-muted-foreground'}`}>
-          Sicil &amp; Üyelik
+          Şube bazlı sekreterya
         </div>
       </div>
     </div>
