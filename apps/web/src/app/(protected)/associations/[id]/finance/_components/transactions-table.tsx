@@ -170,7 +170,7 @@ export function TransactionsTable({
 
         {/* Table */}
         <div className="rounded-lg border">
-          <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 px-4 py-2 text-[10px] font-medium text-muted-foreground border-b bg-muted/30">
+          <div className="hidden grid-cols-[1fr_auto_auto_auto] gap-2 border-b bg-muted/30 px-4 py-2 text-[10px] font-medium text-muted-foreground sm:grid">
             <span>İşlem</span>
             <span className="text-center">Kategori</span>
             <span className="text-center">Tarih</span>
@@ -194,7 +194,7 @@ export function TransactionsTable({
                     initial={{ opacity: 0, y: 5 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.02 }}
-                    className="grid grid-cols-[1fr_auto_auto_auto] gap-2 px-4 py-2.5 items-center hover:bg-muted/30 transition-colors"
+                    className="flex flex-col gap-2 px-3 py-2.5 transition-colors hover:bg-muted/30 sm:grid sm:grid-cols-[1fr_auto_auto_auto] sm:items-center sm:gap-2 sm:px-4"
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div
@@ -208,7 +208,7 @@ export function TransactionsTable({
                           <ArrowDownRight className="h-3 w-3" />
                         )}
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <p className="text-xs font-medium truncate">
                           {tx.description || cat?.name || 'İşlem'}
                         </p>
@@ -216,15 +216,39 @@ export function TransactionsTable({
                           <ReceiptViewer receiptUrl={tx.receiptUrl} description={tx.description} />
                         </div>
                       </div>
+                      <div
+                        className={`shrink-0 text-right text-xs font-bold tabular-nums sm:hidden ${
+                          isIncome ? 'text-emerald-600' : 'text-rose-600'
+                        }`}
+                      >
+                        {isIncome ? '+' : '-'}
+                        {kurusToTl(tx.amountInKurus)}
+                      </div>
                     </div>
-                    <div className="text-center">
+                    <div className="flex items-center justify-between gap-2 pl-8 text-[10px] text-muted-foreground sm:hidden">
+                      {cat?.name ? (
+                        <Badge variant="outline" className="text-[9px] font-normal px-1.5 py-0">
+                          {cat.name}
+                        </Badge>
+                      ) : (
+                        <span />
+                      )}
+                      <span>
+                        {new Date(tx.transactionDate).toLocaleDateString('tr-TR', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    </div>
+                    <div className="hidden text-center sm:block">
                       {cat?.name && (
                         <Badge variant="outline" className="text-[9px] font-normal px-1.5 py-0">
                           {cat.name}
                         </Badge>
                       )}
                     </div>
-                    <div className="text-center text-[10px] text-muted-foreground">
+                    <div className="hidden text-center text-[10px] text-muted-foreground sm:block">
                       {new Date(tx.transactionDate).toLocaleDateString('tr-TR', {
                         day: '2-digit',
                         month: 'short',
@@ -232,7 +256,7 @@ export function TransactionsTable({
                       })}
                     </div>
                     <div
-                      className={`text-right text-xs font-bold tabular-nums ${
+                      className={`hidden text-right text-xs font-bold tabular-nums sm:block ${
                         isIncome ? 'text-emerald-600' : 'text-rose-600'
                       }`}
                     >

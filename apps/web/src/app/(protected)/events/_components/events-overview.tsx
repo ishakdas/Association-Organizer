@@ -542,9 +542,9 @@ function CreateEventDialog({
               {assignments.map((a, idx) => (
                 <div
                   key={idx}
-                  className="grid grid-cols-12 items-start gap-2 rounded-md border border-border p-2"
+                  className="flex flex-col gap-2 rounded-md border border-border p-2 sm:grid sm:grid-cols-12 sm:items-start sm:gap-2"
                 >
-                  <div className="col-span-5">
+                  <div className="sm:col-span-5">
                     <Select
                       value={a.membershipId}
                       onValueChange={(v) =>
@@ -555,7 +555,7 @@ function CreateEventDialog({
                         )
                       }
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="Üye" />
                       </SelectTrigger>
                       <SelectContent>
@@ -567,7 +567,7 @@ function CreateEventDialog({
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="col-span-6">
+                  <div className="sm:col-span-6">
                     {roles.length > 0 ? (
                       <Select
                         value={a.roleDefinitionId}
@@ -581,7 +581,7 @@ function CreateEventDialog({
                           )
                         }
                       >
-                        <SelectTrigger>
+                        <SelectTrigger className="w-full">
                           <SelectValue placeholder="Rol" />
                         </SelectTrigger>
                         <SelectContent>
@@ -610,7 +610,7 @@ function CreateEventDialog({
                   </div>
                   <button
                     type="button"
-                    className="col-span-1 rounded-md p-1.5 text-muted-foreground hover:bg-accent"
+                    className="self-end rounded-md p-1.5 text-muted-foreground hover:bg-accent sm:col-span-1 sm:self-start"
                     onClick={() =>
                       setAssignments((arr) => arr.filter((_, i) => i !== idx))
                     }
@@ -1047,9 +1047,9 @@ function AddAssignmentRow({
 
   return (
     <div className="space-y-2 rounded-md border border-dashed border-primary/40 bg-primary/5 p-3">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <Select value={membershipId} onValueChange={setMembershipId}>
-          <SelectTrigger>
+          <SelectTrigger className="w-full">
             <SelectValue placeholder="Üye" />
           </SelectTrigger>
           <SelectContent>
@@ -1062,7 +1062,7 @@ function AddAssignmentRow({
         </Select>
         {roles.length > 0 ? (
           <Select value={roleId} onValueChange={setRoleId}>
-            <SelectTrigger>
+            <SelectTrigger className="w-full">
               <SelectValue placeholder="Rol" />
             </SelectTrigger>
             <SelectContent>
