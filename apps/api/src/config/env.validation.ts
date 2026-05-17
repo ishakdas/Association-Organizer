@@ -12,7 +12,11 @@ export const envSchema = z.object({
   JWT_SECRET: z.string().min(1),
   // Optional — AiModule logs a warning and AI-dependent endpoints
   // return 503 when this is missing, so the rest of the API still boots.
+  // AI_API_KEY is the primary; GROQ_API_KEY is kept for backward compatibility.
+  AI_API_KEY: z.string().min(1).optional(),
   GROQ_API_KEY: z.string().min(1).optional(),
+  AI_PROVIDER_TYPE: z.string().min(1).optional(),
+  AI_PROVIDER_BASE_URL: z.string().url().optional(),
   AI_MODEL: z.string().min(1).optional(),
   AI_TEMPERATURE: z.string().min(1).optional(),
   AI_MAX_TOKENS: z.string().min(1).optional(),
