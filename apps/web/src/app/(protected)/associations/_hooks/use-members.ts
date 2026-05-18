@@ -8,6 +8,7 @@ import {
   updateMember,
   removeMember,
   generateMemberTelegramLink,
+  generateMemberTelegramLinkWithEmail,
   unlinkMemberTelegramAccount,
   type ListMembersParams,
 } from '@/lib/api/members';
@@ -88,6 +89,21 @@ export function useGenerateMemberTelegramLink(associationId: string) {
         await getAccessToken(),
         associationId,
         membershipId,
+      ),
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
+  });
+}
+
+export function useGenerateMemberTelegramLinkWithEmail(associationId: string) {
+  return useMutation({
+    mutationFn: async ({ membershipId, email }: { membershipId: string; email: string }) =>
+      generateMemberTelegramLinkWithEmail(
+        await getAccessToken(),
+        associationId,
+        membershipId,
+        email,
       ),
     onError: (err: Error) => {
       toast.error(err.message);

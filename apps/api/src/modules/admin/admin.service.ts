@@ -3,8 +3,10 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { PrismaService, UserRole } from '@ticketbot/database';
+import { SupabaseAdminService } from '../supabase/supabase-admin.service';
 import type {
   AdminAssociationResponse,
   AdminLinkTokenResponse,
@@ -14,9 +16,22 @@ import type {
   UpdateProfileInput,
 } from '@ticketbot/shared-validation';
 
+export interface HardDeleteResult {
+  associationId: string;
+  usersDeleted: number;
+  membershipsDeleted: number;
+  tasksDeleted: number;
+  meetingNotesDeleted: number;
+}
+
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(AdminService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly supabase: SupabaseAdminService,
+  ) {}
 
   async updateProfile(userId: string, input: UpdateProfileInput) {
     const data: { fullName?: string; phone?: string | null } = {};
@@ -264,6 +279,143 @@ export class AdminService {
       where: { id },
       data: { deletedAt: null, isActive: true },
     });
+  }
+
+  /**
+   * Hard-delete an association and all its exclusive users from both
+   * PostgreSQL and Supabase Auth. Users who belong to other associations
+   * keep their accounts — only their membership rows are removed.
+   */
+  async hardDeleteAssociation(id: string): Promise<HardDeleteResult> {
+    const rootId = await this.resolveSystemRootAssociationId().catch(() => null);
+    if (rootId && id === rootId) {
+      throw new BadRequestException('Sistem kökü silinemez');
+    }
+
+    const association = await this.prisma.association.findFirst({
+      where: { id },
+      select: { id: true, name: true },
+    });
+    if (!association) throw new NotFoundException('Dernek bulunamadı');
+
+    const memberships = await this.prisma.associationMembership.findMany({
+      where: { associationId: id },
+      select: { userId: true },
+      distinct: ['userId'],
+    });
+    const allUserIds = memberships.map((m) => m.userId);
+
+    const exclusiveUserIds: string[] = [];
+    const sharedUserIds: string[] = [];
+    if (allUserIds.length > 0) {
+      const withElsewhere = await this.prisma.associationMembership.findMany({
+        where: {
+          userId: { in: allUserIds },
+          associationId: { not: id },
+        },
+        select: { userId: true },
+        distinct: ['userId'],
+      });
+      const elsewhereSet = new Set(withElsewhere.map((m) => m.userId));
+      for (const uid of allUserIds) {
+        if (elsewhereSet.has(uid)) {
+          sharedUserIds.push(uid);
+        } else {
+          exclusiveUserIds.push(uid);
+        }
+      }
+    }
+
+    const exclusiveUsers = exclusiveUserIds.length > 0
+      ? await this.prisma.user.findMany({
+          where: { id: { in: exclusiveUserIds } },
+          select: { id: true, supabaseUserId: true },
+        })
+      : [];
+
+    let usersDeleted = 0;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.telegramAccount.deleteMany({
+        where: { userId: { in: exclusiveUserIds } },
+      });
+
+      await tx.telegramLinkToken.deleteMany({
+        where: { userId: { in: exclusiveUserIds } },
+      });
+
+      await tx.associationMembership.deleteMany({
+        where: { associationId: id },
+      });
+
+      await tx.task.deleteMany({
+        where: { associationId: id },
+      });
+
+      await tx.meetingNote.deleteMany({
+        where: { associationId: id },
+      });
+
+      await tx.event.deleteMany({
+        where: { associationId: id },
+      });
+
+      await tx.associationSettings.deleteMany({
+        where: { associationId: id },
+      });
+
+      await tx.transaction.deleteMany({
+        where: { associationId: id },
+      });
+
+      await tx.transactionCategory.deleteMany({
+        where: { associationId: id },
+      });
+
+      await tx.financePermission.deleteMany({
+        where: { associationId: id },
+      });
+
+      await tx.meetingPermission.deleteMany({
+        where: { associationId: id },
+      });
+
+      await tx.association.delete({ where: { id } });
+
+      for (const user of exclusiveUsers) {
+        await tx.user.delete({ where: { id: user.id } });
+      }
+    });
+
+    for (const user of exclusiveUsers) {
+      if (user.supabaseUserId) {
+        try {
+          await this.supabase.getAuthClient().deleteUser(user.supabaseUserId);
+          usersDeleted++;
+        } catch (err) {
+          this.logger.error(
+            `Supabase deleteUser failed for ${user.supabaseUserId}: ${(err as Error).message}`,
+          );
+          usersDeleted++;
+        }
+      } else {
+        usersDeleted++;
+      }
+    }
+
+    this.logger.log(
+      `Association ${id} ("${association.name}") hard-deleted — ` +
+        `${usersDeleted} users removed from Supabase+DB, ` +
+        `${sharedUserIds.length} users had memberships removed only`,
+    );
+
+    return {
+      associationId: id,
+      usersDeleted,
+      membershipsDeleted: memberships.length,
+      tasksDeleted: 0,
+      meetingNotesDeleted: 0,
+    };
   }
 
   async listLinkTokens(): Promise<AdminLinkTokenResponse[]> {

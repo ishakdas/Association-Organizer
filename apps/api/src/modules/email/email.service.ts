@@ -1,63 +1,98 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
-import type { Transporter } from 'nodemailer';
+import { PrismaService, EmailStatus } from '@ticketbot/database';
+import { BrevoClient } from '@getbrevo/brevo';
+import {
+  renderMagicLinkTemplate,
+  renderWelcomeTemplate,
+  renderTelegramLinkTemplate,
+} from './templates/index';
+
+interface BrevoEmailRequest {
+  sender: { email: string; name?: string };
+  to: Array<{ email: string; name?: string }>;
+  subject: string;
+  htmlContent?: string;
+  textContent?: string;
+}
+
+export interface SendEmailResult {
+  messageId: string | null;
+  previewUrl: string | null;
+}
 
 @Injectable()
 export class EmailService implements OnModuleInit {
   private readonly logger = new Logger(EmailService.name);
-  private transporter!: Transporter;
-  private from!: string;
+  private client: BrevoClient | null = null;
+  private fromEmail = '';
+  private fromName = '';
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async onModuleInit() {
-    const host = this.config.get<string>('smtp.host');
+    const apiKey = this.config.get<string>('brevo.apiKey');
+    const fromEmail = this.config.get<string>('brevo.fromEmail');
+    const fromName = this.config.get<string>('brevo.fromName') ?? 'Dernek Yönetim Sistemi';
 
-    if (host) {
-      this.transporter = nodemailer.createTransport({
-        host,
-        port: this.config.get<number>('smtp.port') ?? 587,
-        secure: (this.config.get<number>('smtp.port') ?? 587) === 465,
-        auth: {
-          user: this.config.get<string>('smtp.user'),
-          pass: this.config.get<string>('smtp.pass'),
-        },
-      });
-      const fromName = this.config.get<string>('smtp.fromName') ?? 'Dernek Yönetim Sistemi';
-      const fromAddr = this.config.get<string>('smtp.from') ?? host;
-      this.from = `"${fromName}" <${fromAddr}>`;
-      this.logger.log(`E-posta servisi aktif: ${host}`);
+    if (apiKey && fromEmail) {
+      this.client = new BrevoClient({ apiKey });
+      this.fromEmail = fromEmail;
+      this.fromName = fromName;
+      this.logger.log(`Brevo aktif — gönderen: ${fromName} <${fromEmail}>`);
     } else {
-      const test = await nodemailer.createTestAccount();
-      this.transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false,
-        auth: { user: test.user, pass: test.pass },
-      });
-      this.from = `"Dernek Yönetim Sistemi" <${test.user}>`;
-      this.logger.warn('SMTP yapılandırılmamış — geliştirme için Ethereal kullanılıyor');
+      this.logger.warn(
+        'BREVO_API_KEY veya BREVO_FROM_EMAIL yapılandırılmamış — e-posta gönderimi devre dışı',
+      );
     }
+  }
+
+  // ─── Public API ────────────────────────────────────────────────────────────
+
+  async sendMagicLink(
+    to: string,
+    fullName: string,
+    magicLink: string,
+    associationName?: string,
+  ): Promise<SendEmailResult> {
+    const html = await renderMagicLinkTemplate({ fullName, magicLink, associationName });
+    return this.send({
+      to,
+      subject: "Yedimuîn'e Davet — Hesabınızı Aktifleştirin",
+      html,
+      templateKey: 'magic-link',
+    });
+  }
+
+  async sendWelcome(
+    to: string,
+    fullName: string,
+    loginUrl: string,
+    associationName?: string,
+  ): Promise<SendEmailResult> {
+    const html = await renderWelcomeTemplate({ fullName, loginUrl, associationName });
+    return this.send({
+      to,
+      subject: "Yedimuîn'e Hoş Geldiniz",
+      html,
+      templateKey: 'welcome',
+    });
   }
 
   async sendTempPassword(
     to: string,
     fullName: string,
     tempPassword: string,
-  ): Promise<{ previewUrl: string | null }> {
-    const info = await this.transporter.sendMail({
-      from: this.from,
+  ): Promise<SendEmailResult> {
+    return this.send({
       to,
       subject: 'Başvurunuz Onaylandı — Geçici Şifreniz',
       html: this.tempPasswordHtml(fullName, tempPassword),
+      templateKey: 'temp-password',
     });
-
-    const previewUrl = nodemailer.getTestMessageUrl(info) || null;
-    if (previewUrl) {
-      this.logger.log(`[DEV] E-posta önizlemesi: ${previewUrl}`);
-    }
-    return { previewUrl };
   }
 
   async sendBranchInvite(
@@ -65,22 +100,130 @@ export class EmailService implements OnModuleInit {
     fullName: string,
     tempPassword: string,
     loginUrl: string,
-  ): Promise<{ previewUrl: string | null }> {
-    const info = await this.transporter.sendMail({
-      from: this.from,
+  ): Promise<SendEmailResult> {
+    return this.send({
       to,
       subject: "Yedimuîn'e Hoşgeldiniz",
       html: this.branchInviteHtml(to, fullName, tempPassword, loginUrl),
+      templateKey: 'branch-invite',
     });
-
-    const previewUrl = nodemailer.getTestMessageUrl(info) || null;
-    if (previewUrl) {
-      this.logger.log(`[DEV] E-posta önizlemesi: ${previewUrl}`);
-    }
-    return { previewUrl };
   }
 
-  // ─── HTML Templates ──────────────────────────────────────────────────────────
+  async sendInvitation(
+    to: string,
+    fullName: string,
+    magicLink: string,
+  ): Promise<SendEmailResult> {
+    return this.send({
+      to,
+      subject: "Yedimuîn'e Davet — Hesabınızı Aktifleştirin",
+      html: this.invitationHtml(fullName, magicLink),
+      templateKey: 'invitation',
+    });
+  }
+
+  async sendTelegramLinkEmail(
+    to: string,
+    fullName: string,
+    botUsername: string,
+    deepLinkUrl: string,
+    tgDirectUrl: string,
+    token: string,
+    expiresAt: string,
+    connectUrl?: string,
+  ): Promise<SendEmailResult> {
+    const html = await renderTelegramLinkTemplate({
+      fullName,
+      botUsername,
+      deepLinkUrl,
+      tgDirectUrl,
+      token,
+      expiresAt,
+      connectUrl,
+    });
+    return this.send({
+      to,
+      subject: 'Telegram Hesabınızı Bağlayın',
+      html,
+      templateKey: 'telegram-link',
+    });
+  }
+
+  // ─── Brevo ─────────────────────────────────────────────────────────────────
+
+  private async send(params: {
+    to: string;
+    subject: string;
+    html: string;
+    templateKey: string;
+  }): Promise<SendEmailResult> {
+    if (!this.client) {
+      this.logger.warn(`Email gönderim atlandı (Brevo yapılandırılmamış): ${params.to}`);
+      return { messageId: null, previewUrl: null };
+    }
+
+    try {
+      const request: BrevoEmailRequest = {
+        sender: { email: this.fromEmail, name: this.fromName },
+        to: [{ email: params.to }],
+        subject: params.subject,
+        htmlContent: params.html,
+      };
+
+      const response = await this.client.transactionalEmails.sendTransacEmail(request);
+
+      await this.prisma.emailLog.create({
+        data: {
+          to: params.to,
+          templateKey: params.templateKey,
+          subject: params.subject,
+          status: EmailStatus.SENT,
+          resendId: response.messageId ?? null,
+          error: null,
+        },
+      });
+
+      return { messageId: response.messageId ?? null, previewUrl: null };
+    } catch (err) {
+      const message = (err as Error).message;
+      this.logger.error(`Brevo gönderim hatası (${params.to}): ${message}`);
+
+      await this.prisma.emailLog.create({
+        data: {
+          to: params.to,
+          templateKey: params.templateKey,
+          subject: params.subject,
+          status: EmailStatus.FAILED,
+          error: message,
+        },
+      });
+
+      return { messageId: null, previewUrl: null };
+    }
+  }
+
+  // ─── HTML Templates (fallback for non-React-Email templates) ───────────────
+
+  private tempPasswordHtml(fullName: string, tempPassword: string): string {
+    return this.wrapLayout(`
+      <h1>Başvurunuz Onaylandı!</h1>
+      <p>Merhaba <strong>${this.escape(fullName)}</strong>,</p>
+      <p>
+        Dernek yönetim sistemine üyelik başvurunuz onaylandı.
+        Aşağıdaki geçici şifre ile giriş yapabilirsiniz.
+      </p>
+      <div style="margin:24px 0;padding:20px;background:#f3f4f6;border-radius:8px;text-align:center;">
+        <p style="margin:0 0 8px;font-size:13px;color:#6b7280;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;">Geçici Şifreniz</p>
+        <p style="margin:0;font-size:28px;font-weight:700;letter-spacing:0.12em;color:#111827;font-family:monospace;">${this.escape(tempPassword)}</p>
+      </div>
+      <p style="font-size:14px;color:#374151;">
+        Giriş yaptıktan sonra <strong>Ayarlar → Hesabım</strong> bölümünden şifrenizi değiştirmenizi öneririz.
+      </p>
+      <p class="note">
+        Bu e-postayı beklemiyordaydınız lütfen sistem yöneticinizle iletişime geçin.
+      </p>
+    `);
+  }
 
   private branchInviteHtml(email: string, fullName: string, tempPassword: string, loginUrl: string): string {
     return this.wrapLayout(`
@@ -113,23 +256,37 @@ export class EmailService implements OnModuleInit {
     `);
   }
 
-  private tempPasswordHtml(fullName: string, tempPassword: string): string {
+  private invitationHtml(fullName: string, magicLink: string): string {
     return this.wrapLayout(`
-      <h1>Başvurunuz Onaylandı!</h1>
+      <h1>Yedimuîn'e Davet Edildiniz!</h1>
       <p>Merhaba <strong>${this.escape(fullName)}</strong>,</p>
       <p>
-        Dernek yönetim sistemine üyelik başvurunuz onaylandı.
-        Aşağıdaki geçici şifre ile giriş yapabilirsiniz.
+        Yedimuîn Dernek Yönetim Sistemi'ne davet edildiniz.
+        Aşağıdaki butona tıklayarak hesabınızı aktifleştirebilir ve
+        şubenizi yönetmeye başlayabilirsiniz.
       </p>
-      <div style="margin:24px 0;padding:20px;background:#f3f4f6;border-radius:8px;text-align:center;">
-        <p style="margin:0 0 8px;font-size:13px;color:#6b7280;font-weight:500;text-transform:uppercase;letter-spacing:0.05em;">Geçici Şifreniz</p>
-        <p style="margin:0;font-size:28px;font-weight:700;letter-spacing:0.12em;color:#111827;font-family:monospace;">${this.escape(tempPassword)}</p>
-      </div>
+      <p style="text-align:center;margin:32px 0;">
+        <a href="${this.escape(magicLink)}"
+           style="display:inline-block;background:#1e40af;color:#ffffff;font-size:16px;font-weight:600;
+                  text-decoration:none;padding:14px 40px;border-radius:8px;letter-spacing:0.02em;">
+          Hesabımı Aktifleştir
+        </a>
+      </p>
+      <p style="font-size:14px;color:#6b7280;margin-bottom:16px;">
+        Buton çalışmazsa aşağıdaki bağlantıyı tarayıcınıza kopyalayabilirsiniz:
+      </p>
+      <p style="margin:0 0 24px;">
+        <a href="${this.escape(magicLink)}"
+           style="font-size:13px;color:#2563eb;word-break:break-all;">
+          ${this.escape(magicLink)}
+        </a>
+      </p>
       <p style="font-size:14px;color:#374151;">
-        Giriş yaptıktan sonra <strong>Ayarlar → Hesabım</strong> bölümünden şifrenizi değiştirmenizi öneririz.
+        İlk girişin ardından profil bilgilerinizi tamamlamanızı öneririz.
       </p>
       <p class="note">
-        Bu e-postayı beklemiyordaydınız lütfen sistem yöneticinizle iletişime geçin.
+        Bu daveti beklemiyorsanız lütfen bu e-postayı dikkate almayın.
+        Herhangi bir sorun için sistem yöneticinizle iletişime geçebilirsiniz.
       </p>
     `);
   }
@@ -151,16 +308,14 @@ export class EmailService implements OnModuleInit {
                style="max-width:560px;background:#ffffff;border-radius:12px;
                       box-shadow:0 1px 3px rgba(0,0,0,0.08);overflow:hidden;">
 
-          <!-- Header -->
           <tr>
             <td style="background-color:#1e40af;padding:28px 40px;text-align:center;">
               <p style="margin:0;color:#ffffff;font-size:20px;font-weight:700;letter-spacing:0.02em;">
-                🏛 Dernek Yönetim Sistemi
+                Dernek Yönetim Sistemi
               </p>
             </td>
           </tr>
 
-          <!-- Body -->
           <tr>
             <td style="padding:40px;color:#111827;font-size:15px;line-height:1.6;">
               <style>
@@ -173,7 +328,6 @@ export class EmailService implements OnModuleInit {
             </td>
           </tr>
 
-          <!-- Footer -->
           <tr>
             <td style="background-color:#f9fafb;padding:20px 40px;
                        border-top:1px solid #e5e7eb;text-align:center;">

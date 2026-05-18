@@ -21,16 +21,14 @@ export const envSchema = z.object({
   AI_TEMPERATURE: z.string().min(1).optional(),
   AI_MAX_TOKENS: z.string().min(1).optional(),
   BOT_TOKEN: z.string().min(1),
-  TELEGRAM_BOT_USERNAME: z.string().min(1).default('dernek_organizer_bot'),
+  TELEGRAM_BOT_USERNAME: z.string().min(1).default('yedi_hilal_organizator_bot'),
   API_URL: z.string().url().default('http://localhost:3000'),
   WEB_URL: z.string().url().default('http://localhost:3001'),
-  // SMTP (opsiyonel — ayarlanmazsa geliştirme ortamında Ethereal kullanılır)
-  SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.coerce.number().default(587),
-  SMTP_USER: z.string().optional(),
-  SMTP_PASS: z.string().optional(),
-  SMTP_FROM: z.string().email().optional(),
-  SMTP_FROM_NAME: z.string().default('Dernek Yönetim Sistemi'),
+  // ─── Brevo (email delivery — magic link, telegram link, etc.) ─────
+  // Free tier: 300 emails/day (~9,000/month). API key from https://app.brevo.com
+  BREVO_API_KEY: z.string().min(1).optional(),
+  BREVO_FROM_EMAIL: z.string().email().optional(),
+  BREVO_FROM_NAME: z.string().default('Dernek Yönetim Sistemi'),
 });
 
 export type Env = z.infer<typeof envSchema>;

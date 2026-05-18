@@ -34,7 +34,7 @@ const optionalEmail = z
 export const addMemberSchema = z
   .object({
     fullName: z.string().min(2, 'En az 2 karakter').max(200),
-    email: optionalEmail,
+    email: z.string().email('Geçerli bir e-posta girin').max(200),
     phone: optionalPhoneSchema,
     address: z.string().max(500).optional(),
     role: userRoleEnum,
@@ -49,13 +49,6 @@ export const addMemberSchema = z
           code: z.ZodIssueCode.custom,
           path: ['password'],
           message: 'Sekreter için şifre zorunludur',
-        });
-      }
-      if (!v.email) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['email'],
-          message: 'Sekreter için e-posta zorunludur',
         });
       }
     }

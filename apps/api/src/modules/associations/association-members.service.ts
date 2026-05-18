@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -297,14 +298,23 @@ export class AssociationMembersService {
   // a one-time code on behalf of a member, who then sends `/link <code>`
   // to the bot. Required for DB-only members (no Supabase login = cannot
   // self-issue from /settings/telegram).
-  async generateTelegramLink(associationId: string, membershipId: string) {
+  async generateTelegramLink(
+    associationId: string,
+    membershipId: string,
+    email?: string,
+  ) {
     const membership = await this.prisma.associationMembership.findFirst({
       where: { id: membershipId, associationId, deletedAt: null },
-      select: { userId: true },
+      select: { userId: true, user: { select: { email: true } } },
     });
     if (!membership) throw new NotFoundException('Üyelik bulunamadı');
 
-    return this.auth.generateLinkToken(membership.userId);
+    const targetEmail = email ?? membership.user.email;
+    if (!targetEmail) {
+      throw new BadRequestException('E-posta adresi bulunamadı');
+    }
+
+    return this.auth.generateLinkTokenWithEmail(membership.userId, targetEmail);
   }
 
   private async ensureAssociation(id: string) {

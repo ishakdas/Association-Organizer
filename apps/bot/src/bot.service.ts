@@ -33,7 +33,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
-    registerStartCommand(this.bot, this.config);
+    registerStartCommand(this.bot, this.config, this.prisma);
     registerLinkCommand(this.bot, this.prisma, this.config);
     registerHelpCommand(this.bot);
     registerMeetingWizard(this.bot, this.prisma);

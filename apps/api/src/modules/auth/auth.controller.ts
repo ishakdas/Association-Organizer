@@ -22,6 +22,8 @@ import { AdminService } from '../admin/admin.service';
 import {
   telegramLinkRedeemSchema,
   TelegramLinkRedeemInput,
+  telegramLinkGenerateSchema,
+  TelegramLinkGenerateInput,
   updateProfileSchema,
   UpdateProfileInput,
   requestBranchRegistrationSchema,
@@ -69,7 +71,13 @@ export class AuthController {
 
   @Post('telegram-link')
   @UseGuards(AuthGuard)
-  generateLinkToken(@CurrentUser() user: RequestUser) {
+  generateLinkToken(
+    @CurrentUser() user: RequestUser,
+    @Body(new ZodValidationPipe(telegramLinkGenerateSchema)) body?: TelegramLinkGenerateInput,
+  ) {
+    if (body?.email) {
+      return this.authService.generateLinkTokenWithEmail(user.id, body.email);
+    }
     return this.authService.generateLinkToken(user.id);
   }
 
@@ -161,5 +169,12 @@ export class AuthController {
     @Body(new ZodValidationPipe(resendInviteForUserSchema)) body: ResendInviteForUserInput,
   ) {
     return this.authService.resendInviteForUser(body.userId);
+  }
+
+  @Get('registrations/:email/email-logs')
+  @UseGuards(AuthGuard, SupabaseUserGuard, RolesGuard)
+  @Roles(UserRole.SYSTEM_ADMIN)
+  getEmailLogs(@Param('email') email: string) {
+    return this.authService.getEmailLogs(decodeURIComponent(email));
   }
 }

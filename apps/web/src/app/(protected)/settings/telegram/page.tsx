@@ -8,17 +8,38 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { createServerClient } from '@/lib/supabase/server';
+import { getMe } from '@/lib/api/me';
+import { TelegramLinkPanel } from './_components/telegram-link-panel';
 
 const BOT_USERNAME =
-  process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'dernek_organizer_bot';
+  process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'yedi_hilal_organizator_bot';
 
-export default function TelegramSettingsPage() {
+export default async function TelegramSettingsPage() {
+  const supabase = await createServerClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  let user = null;
+  if (session?.access_token) {
+    try {
+      user = await getMe(session.access_token);
+    } catch {
+      user = null;
+    }
+  }
+
   return (
     <div className="space-y-8 pb-10">
       <PageHeader />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
+          <SelfServiceCard
+            userEmail={user?.email}
+            userFullName={user?.fullName}
+          />
           <MemberGuideCard />
           <HowItWorksCard />
         </div>
@@ -28,6 +49,33 @@ export default function TelegramSettingsPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+function SelfServiceCard({
+  userEmail,
+  userFullName,
+}: {
+  userEmail?: string | null;
+  userFullName?: string;
+}) {
+  return (
+    <section className="overflow-hidden rounded-lg border border-border bg-card">
+      <header className="border-b border-border px-5 py-3">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-widest text-primary">
+            Bağlantı
+          </span>
+          <Separator orientation="vertical" className="h-3" />
+          <h2 className="text-[13.5px] font-semibold tracking-tight text-foreground">
+            Telegram Hesabınızı Bağlayın
+          </h2>
+        </div>
+      </header>
+      <div className="px-5 py-5">
+        <TelegramLinkPanel userEmail={userEmail} userFullName={userFullName} />
+      </div>
+    </section>
   );
 }
 
@@ -66,20 +114,20 @@ function MemberGuideCard() {
     {
       step: '01',
       icon: <Smartphone className="h-4 w-4" />,
-      title: 'Telegram uygulamasını açın',
-      body: `Üye, Telegram'da arama çubuğuna @${BOT_USERNAME} yazarak botu bulmalı ve "Başlat" (Start) tuşuna basmalıdır.`,
+      title: 'Yöneticinizden bağlantı daveti alın',
+      body: 'Yönetici, Üyeler sayfasından ilgili üyenin yanındaki Telegram simgesine tıklayarak "E-posta ile gönder" butonunu kullanır. Üye, Telegram deep link içeren bir davet e-postası alır.',
     },
     {
       step: '02',
-      icon: <UserCheck className="h-4 w-4" />,
-      title: 'Yöneticiden bağlantı kodu alın',
-      body: 'Yönetici, Üyeler sayfasından ilgili üyenin yanındaki Telegram simgesine tıklayarak tek kullanımlık bir bağlantı kodu üretir ve bu kodu üyeye iletir.',
+      icon: <Send className="h-4 w-4" />,
+      title: 'E-postadaki "Botu Aç" butonuna tıklayın',
+      body: `E-postadaki butona tıkladığınızda Telegram otomatik açılır ve @${BOT_USERNAME} botuna bağlanırsınız. Alternatif olarak e-postadaki kodu kopyalayıp bota /link KODU şeklinde gönderebilirsiniz.`,
     },
     {
       step: '03',
-      icon: <Send className="h-4 w-4" />,
-      title: 'Kodu bota gönderin',
-      body: `Üye, bota şu mesajı gönderir: /link KODU — örneğin /link abc123… Bot doğrulamayı tamamladığında bildirimler 30 gün boyunca aktif olur.`,
+      icon: <UserCheck className="h-4 w-4" />,
+      title: 'Telefonunuzu paylaşın',
+      body: 'Bot, hesap güvenliği için telefon numaranızı paylaşmanızı isteyecektir. "Telefonu paylaş" butonuna dokunduğunuzda bağlantı tamamlanır ve bildirimler aktif hale gelir.',
     },
   ];
 

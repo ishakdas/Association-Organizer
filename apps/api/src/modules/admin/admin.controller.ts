@@ -67,6 +67,12 @@ export class AdminController {
     return this.admin.softDeleteAssociation(id);
   }
 
+  @Delete('associations/:id/hard')
+  @HttpCode(HttpStatus.OK)
+  hardDeleteAssociation(@Param('id') id: string) {
+    return this.admin.hardDeleteAssociation(id);
+  }
+
   @Post('associations/:id/restore')
   @HttpCode(HttpStatus.OK)
   restoreAssociation(@Param('id') id: string) {

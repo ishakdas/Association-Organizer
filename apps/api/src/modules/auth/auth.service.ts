@@ -15,6 +15,13 @@ import * as jose from 'jose';
 import { randomBytes } from 'crypto';
 import { BOT_JWT_ISSUER } from './auth.constants';
 import { SupabaseAdminService } from '../supabase/supabase-admin.service';
+import { EmailService } from '../email/email.service';
+
+export interface InviteResult {
+  emailSent: boolean;
+  magicLink: string | null;
+  messageId: string | null;
+}
 
 @Injectable()
 export class AuthService {
@@ -24,10 +31,11 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly supabase: SupabaseAdminService,
+    private readonly emailService: EmailService,
   ) {}
 
   async generateLinkToken(userId: string) {
-    const token = randomBytes(32).toString('hex');
+    const token = randomBytes(28).toString('hex');
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     // Invalidate any prior unredeemed tokens for this user so only the
@@ -43,7 +51,38 @@ export class AuthService {
       }),
     ]);
 
-    return { token, expiresAt: expiresAt.toISOString() };
+    const botUsername = this.config.get<string>('telegramBotUsername') ?? 'dernek_organizer_bot';
+    const deepLinkUrl = `https://t.me/${botUsername}?start=link_${token}`;
+
+    return { token, expiresAt: expiresAt.toISOString(), deepLinkUrl };
+  }
+
+  async generateLinkTokenWithEmail(userId: string, email: string) {
+    const { token, expiresAt } = await this.generateLinkToken(userId);
+
+    const botUsername = this.config.get<string>('telegramBotUsername') ?? 'yedi_hilal_organizator_bot';
+    const webUrl = this.config.get<string>('webUrl') ?? 'http://localhost:3001';
+    const deepLinkUrl = `https://t.me/${botUsername}?start=link_${token}`;
+    const tgDirectUrl = `tg://resolve?domain=${botUsername}&start=link_${token}`;
+    const connectUrl = `${webUrl}/connect-telegram?t=${token}`;
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { fullName: true },
+    });
+
+    const emailResult = await this.emailService.sendTelegramLinkEmail(
+      email,
+      user?.fullName ?? email,
+      botUsername,
+      deepLinkUrl,
+      tgDirectUrl,
+      token,
+      expiresAt,
+      connectUrl,
+    );
+
+    return { token, expiresAt, deepLinkUrl, tgDirectUrl, connectUrl, emailSent: true, messageId: emailResult.messageId };
   }
 
   async redeemLinkToken(input: TelegramLinkRedeemInput) {
@@ -121,7 +160,7 @@ export class AuthService {
     const now = new Date();
     await this.prisma.user.update({
       where: { id: userId },
-      data: { onboardingCompletedAt: now, mustChangePassword: false },
+      data: { onboardingCompletedAt: now, mustChangePassword: false, activatedAt: now },
     });
     return { completedAt: now.toISOString() };
   }
@@ -217,7 +256,22 @@ export class AuthService {
     });
   }
 
-  async resendInvite(id: string): Promise<{ sent: boolean }> {
+  async getEmailLogs(email: string) {
+    return this.prisma.emailLog.findMany({
+      where: { to: email },
+      orderBy: { sentAt: 'desc' },
+      take: 10,
+      select: {
+        id: true,
+        templateKey: true,
+        status: true,
+        error: true,
+        sentAt: true,
+      },
+    });
+  }
+
+  async resendInvite(id: string): Promise<InviteResult> {
     const registration = await this.prisma.pendingBranchRegistration.findUnique({
       where: { id },
     });
@@ -234,24 +288,24 @@ export class AuthService {
       throw new BadRequestException('Bu kullanıcı zaten şifresini belirlemiş, tekrar davet gönderilemez.');
     }
 
-    const auth = this.supabase.getAuthClient();
     const webUrl = this.config.get<string>('webUrl') ?? 'http://localhost:3001';
+    const redirectTo = `${webUrl}/callback-magic?next=/onboarding`;
 
-    const { error } = await auth.inviteUserByEmail(registration.email, {
-      data: { full_name: registration.fullName },
-      redirectTo: `${webUrl}/callback-magic?next=/onboarding`,
-    });
-    if (error) {
-      this.logger.error(`Supabase davet gönderilemedi (${registration.email}): ${error.message}`);
-      if (error.message.toLowerCase().includes('already registered') || error.message.toLowerCase().includes('already been registered')) {
-        throw new BadRequestException('Bu kullanıcı Supabase\'de zaten kayıtlı ve şifresini belirlemiş. Davet gönderilmesine gerek yok.');
-      }
-      throw new BadRequestException(`Davet gönderilemedi: ${error.message}`);
-    }
-    return { sent: true };
+    const { url: magicLink } = await this.supabase.generateMagicLink(
+      registration.email,
+      redirectTo,
+    );
+
+    const emailResult = await this.emailService.sendMagicLink(
+      registration.email,
+      registration.fullName,
+      magicLink,
+    );
+
+    return { emailSent: true, magicLink, messageId: emailResult.messageId };
   }
 
-  async resendInviteForUser(userId: string): Promise<{ sent: boolean }> {
+  async resendInviteForUser(userId: string): Promise<InviteResult> {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { email: true, fullName: true, mustChangePassword: true },
@@ -261,70 +315,104 @@ export class AuthService {
       throw new BadRequestException('Kullanıcı zaten şifresini belirlemiş');
     }
 
-    const auth = this.supabase.getAuthClient();
     const webUrl = this.config.get<string>('webUrl') ?? 'http://localhost:3001';
+    const redirectTo = `${webUrl}/callback-magic?next=/onboarding`;
 
-    const { error } = await auth.inviteUserByEmail(user.email, {
-      data: { full_name: user.fullName },
-      redirectTo: `${webUrl}/callback-magic?next=/onboarding`,
-    });
-    if (error) {
-      this.logger.error(`Supabase davet gönderilemedi (${user.email}): ${error.message}`);
-      throw new BadRequestException(`Davet gönderilemedi: ${error.message}`);
-    }
-    return { sent: true };
+    const { url: magicLink } = await this.supabase.generateMagicLink(
+      user.email,
+      redirectTo,
+    );
+
+    const emailResult = await this.emailService.sendMagicLink(
+      user.email,
+      user.fullName,
+      magicLink,
+    );
+
+    return { emailSent: true, magicLink, messageId: emailResult.messageId };
   }
 
   async approveBranchRegistration(
     id: string,
     adminUserId: string,
-  ): Promise<{}> {
+  ): Promise<InviteResult> {
     // --- Pre-checks (before any Supabase call so no email is sent on error) ---
     const registration = await this.prisma.pendingBranchRegistration.findUnique({
       where: { id },
     });
     if (!registration) throw new NotFoundException('Başvuru bulunamadı');
-    // Allow re-approving REJECTED registrations (admin reconsidered).
-    // Block APPROVED ones to keep the saga idempotent.
     if (registration.status === PendingBranchStatus.APPROVED) {
       throw new BadRequestException('Bu başvuru zaten onaylanmış');
     }
 
     // Check for duplicate branch (same city + district already approved)
-    const duplicateBranch = await this.prisma.association.findFirst({
+    const existingBranch = await this.prisma.association.findFirst({
       where: {
         city: registration.city,
         district: registration.district,
         deletedAt: null,
       },
-      select: { id: true, name: true },
+      include: {
+        createdBy: { select: { id: true, supabaseUserId: true, activatedAt: true } },
+      },
     });
-    if (duplicateBranch) {
-      throw new ConflictException(
-        `${registration.city} / ${registration.district} şubesi zaten sistemde kayıtlı.`,
+
+    if (existingBranch) {
+      if (existingBranch.createdBy?.activatedAt) {
+        throw new ConflictException(
+          `${registration.city} / ${registration.district} şubesi zaten sistemde kayıtlı.`,
+        );
+      }
+
+      this.logger.log(
+        `Orphaned branch cleanup: "${existingBranch.name}" (${existingBranch.id}) — creator never activated`,
+      );
+      await this.cleanupOrphanedBranch(existingBranch);
+    }
+
+    // --- Create Supabase user (does NOT send email) ---
+    const auth = this.supabase.getAuthClient();
+    const { data: userData, error: createError } = await auth.createUser({
+      email: registration.email,
+      email_confirm: true,
+      user_metadata: { full_name: registration.fullName },
+    });
+    if (createError || !userData?.user) {
+      throw new BadRequestException(
+        `Kullanıcı oluşturulamadı: ${createError?.message ?? 'Bilinmeyen hata'}`,
+      );
+    }
+    const supabaseUserId = userData.user.id;
+
+    // --- Generate magic link ---
+    const webUrl = this.config.get<string>('webUrl') ?? 'http://localhost:3001';
+    const redirectTo = `${webUrl}/callback-magic?next=/onboarding`;
+
+    let magicLink: string | null = null;
+    try {
+      const linkResult = await this.supabase.generateMagicLink(
+        registration.email,
+        redirectTo,
+      );
+      magicLink = linkResult.url;
+    } catch (linkErr) {
+      this.logger.warn(
+        `Magic link oluşturulamadı (${registration.email}): ${(linkErr as Error).message}`,
       );
     }
 
-    // --- Send Supabase invite email (creates user + sends magic link) ---
-    const auth = this.supabase.getAuthClient();
-    const webUrl = this.config.get<string>('webUrl') ?? 'http://localhost:3001';
-
-    const { data: inviteData, error: inviteError } = await auth.inviteUserByEmail(
-      registration.email,
-      {
-        data: { full_name: registration.fullName },
-        redirectTo: `${webUrl}/callback-magic?next=/onboarding`,
-      },
-    );
-    if (inviteError) {
-      throw new BadRequestException(`Davet gönderilemedi: ${inviteError.message}`);
+    // --- Send email via Resend (or fallback) ---
+    let messageId: string | null = null;
+    if (magicLink) {
+      const emailResult = await this.emailService.sendMagicLink(
+        registration.email,
+        registration.fullName,
+        magicLink,
+      );
+      messageId = emailResult.messageId;
     }
-    const supabaseUserId = inviteData.user.id;
 
     // --- Persist: create branch Association + User + Membership ---
-    // Saga: Supabase user already exists at this point. If the local
-    // transaction fails we MUST delete the Supabase user, otherwise an
-    // orphan auth identity is leaked (CLAUDE.md: provisioning sagas).
     try {
       await this.prisma.$transaction(async (tx) => {
         await tx.pendingBranchRegistration.update({
@@ -349,7 +437,6 @@ export class AuthService {
           },
         });
 
-        // Create a new Association representing this branch
         const branchName = `${registration.city} - ${registration.district} Şubesi`;
         const newAssociation = await tx.association.create({
           data: {
@@ -389,7 +476,7 @@ export class AuthService {
       throw err;
     }
 
-    return {};
+    return { emailSent: true, magicLink, messageId };
   }
 
   async rejectBranchRegistration(id: string, adminUserId: string): Promise<void> {
@@ -408,6 +495,37 @@ export class AuthService {
         reviewedBy: adminUserId,
         reviewedAt: new Date(),
       },
+    });
+  }
+
+  /**
+   * Removes an orphaned branch association and its creator user from both
+   * Supabase Auth and the local database. Used when a branch was approved
+   * but the creator never completed onboarding (activatedAt is null).
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async cleanupOrphanedBranch(association: any): Promise<void> {
+    const user = association.createdBy;
+    if (user?.supabaseUserId) {
+      try {
+        await this.supabase.getAuthClient().deleteUser(user.supabaseUserId);
+      } catch (err) {
+        this.logger.warn(
+          `Supabase cleanup failed for orphaned branch ${association.id}: ${(err as Error).message}`,
+        );
+      }
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      if (user?.id) {
+        await tx.telegramAccount.deleteMany({ where: { userId: user.id } });
+        await tx.associationMembership.deleteMany({ where: { associationId: association.id } });
+        await tx.user.delete({ where: { id: user.id } });
+      }
+      await tx.task.deleteMany({ where: { associationId: association.id } });
+      await tx.meetingNote.deleteMany({ where: { associationId: association.id } });
+      await tx.event.deleteMany({ where: { associationId: association.id } });
+      await tx.association.delete({ where: { id: association.id } });
     });
   }
 

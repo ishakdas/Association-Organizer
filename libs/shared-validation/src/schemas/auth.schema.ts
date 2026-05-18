@@ -23,6 +23,13 @@ export const telegramLinkRequestSchema = z.object({
 });
 export type TelegramLinkRequestInput = z.infer<typeof telegramLinkRequestSchema>;
 
+export const telegramLinkGenerateSchema = z
+  .object({
+    email: z.string().email('Geçerli bir e-posta girin').max(200).optional(),
+  })
+  .optional();
+export type TelegramLinkGenerateInput = z.infer<typeof telegramLinkGenerateSchema>;
+
 export const telegramLinkRedeemSchema = z.object({
   token: z.string().min(1),
   telegramId: z.string().min(1), // BigInt serialized as string
@@ -60,3 +67,11 @@ export const resendInviteForUserSchema = z.object({
   userId: z.string().cuid('Geçersiz kullanıcı'),
 });
 export type ResendInviteForUserInput = z.infer<typeof resendInviteForUserSchema>;
+
+export const sendMagicLinkSchema = z.object({
+  email: z.string().email('Geçerli bir e-posta girin').max(200),
+  fullName: z.string().min(2, 'En az 2 karakter').max(100),
+  redirectTo: z.string().optional(),
+  templateKey: z.enum(['magic-link', 'welcome']).optional(),
+});
+export type SendMagicLinkInput = z.infer<typeof sendMagicLinkSchema>;

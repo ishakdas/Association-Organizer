@@ -124,37 +124,37 @@ export class BotService {
 
 ### /start
 
-**Purpose**: Welcome message and initial setup.
+**Purpose**: Welcome message and initial setup. Also handles deep link payloads from email invitations.
 
-**Flow**:
+**Flow (default)**:
 ```
 User: /start
 Bot:  Welcome! To get started, please link your account using /link
       [Link Account] [Help]
 ```
 
+**Flow (deep link from email)**:
+```
+User clicks "Botu Aç" in email
+→ Telegram opens: https://t.me/BOT?start=link_abc123...
+Bot:  Merhaba Ahmet!
+      Hesabınızı bağlamadan önce telefon numaranızı paylaşmanız gerekiyor.
+      [📱 Telefonu paylaş]
+```
+
 **Implementation**:
 ```typescript
-async handleStart(ctx: Context) {
-  const telegramId = BigInt(ctx.from.id);
-  const account = await this.prisma.telegramAccount.findUnique({
-    where: { telegramId }
-  });
-  
-  if (account) {
-    await ctx.reply('Welcome back!', {
-      reply_markup: {
-        inline_keyboard: this.getMainMenuKeyboard()
-      }
-    });
-  } else {
-    await ctx.reply('Welcome! Please link your account to get started.', {
-      reply_markup: {
-        inline_keyboard: [[{ text: 'Link Account', callback_data: 'link' }]]
-      }
-    });
+bot.start(async (ctx) => {
+  const payload = ctx.startPayload;
+
+  if (payload?.startsWith('link_')) {
+    const token = payload.slice(5);
+    return startPendingLink(ctx, prisma, token);
   }
-}
+
+  // Default welcome message
+  ctx.reply('Welcome! To get started, please link your account using /link');
+});
 ```
 
 ### /link
@@ -610,8 +610,9 @@ await bot.telegram.setWebhook(`${process.env.API_URL}/telegram/webhook`);
 
 | Command | Description | Access |
 |---------|-------------|--------|
-| `/start` | Welcome message | All |
-| `/link` | Link account with token | Unlinked users |
+| `/start` | Welcome message or deep link handler | All |
+| `/start link_<token>` | Deep link from email invitation | Unlinked users |
+| `/link <token>` | Link account with manual token | Unlinked users |
 | `/tasks` | View assigned tasks | Linked users |
 | `/settings` | User settings | Linked users |
 | `/help` | Help message | All |

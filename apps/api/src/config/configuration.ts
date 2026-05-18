@@ -15,15 +15,13 @@ export default () => {
     },
     jwt: { secret: env.JWT_SECRET },
     bot: { token: env.BOT_TOKEN },
+    telegramBotUsername: env.TELEGRAM_BOT_USERNAME,
     apiUrl: env.API_URL,
     webUrl: env.WEB_URL,
-    smtp: {
-      host: env.SMTP_HOST ?? null,
-      port: env.SMTP_PORT,
-      user: env.SMTP_USER ?? null,
-      pass: env.SMTP_PASS ?? null,
-      from: env.SMTP_FROM ?? null,
-      fromName: env.SMTP_FROM_NAME,
+    brevo: {
+      apiKey: env.BREVO_API_KEY ?? null,
+      fromEmail: env.BREVO_FROM_EMAIL ?? null,
+      fromName: env.BREVO_FROM_NAME,
     },
   };
 };

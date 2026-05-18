@@ -84,6 +84,13 @@ enum TransactionType {
   EXPENSE
 }
 
+enum EmailStatus {
+  SENT
+  DELIVERED
+  BOUNCED
+  FAILED
+}
+
 // -----------------------------------------------------------------------------
 // Reference: assignable titles (admin-managed)
 // -----------------------------------------------------------------------------
@@ -116,6 +123,7 @@ model User {
   address               String?
   isActive              Boolean   @default(true)
   onboardingCompletedAt DateTime?
+  activatedAt           DateTime?
   mustChangePassword    Boolean   @default(false)
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
@@ -696,4 +704,24 @@ model AssociationSettings {
   association           Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
 
   @@map("association_settings")
+}
+
+// -----------------------------------------------------------------------------
+// Email logging
+// -----------------------------------------------------------------------------
+
+model EmailLog {
+  id          String      @id @default(cuid())
+  to          String
+  templateKey String
+  subject     String
+  status      EmailStatus @default(SENT)
+  resendId    String?
+  error       String?
+  metadata    Json?
+  sentAt      DateTime    @default(now())
+
+  @@index([sentAt])
+  @@index([status])
+  @@map("email_logs")
 }

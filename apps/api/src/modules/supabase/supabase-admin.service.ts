@@ -63,4 +63,31 @@ export class SupabaseAdminService {
   getAuthClient() {
     return this.getClient().auth.admin;
   }
+
+  /**
+   * Generate a Supabase magic link for an existing user.
+   * Returns the URL the user should click to sign in.
+   */
+  async generateMagicLink(
+    email: string,
+    redirectTo: string,
+  ): Promise<{ url: string }> {
+    const auth = this.getAuthClient();
+    const { data, error } = await auth.generateLink({
+      type: 'magiclink',
+      email,
+      options: { redirectTo },
+    });
+
+    if (error) {
+      this.logger.error(
+        `generateMagicLink failed for ${email}: ${error.message}`,
+      );
+      throw new InternalServerErrorException(
+        `Davet linki oluşturulamadı: ${error.message}`,
+      );
+    }
+
+    return { url: data.properties.action_link };
+  }
 }

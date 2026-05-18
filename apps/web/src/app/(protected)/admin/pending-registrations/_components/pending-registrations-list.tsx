@@ -12,7 +12,9 @@ import {
   listRejectedRegistrations,
   rejectBranchRegistration,
   resendInvite,
+  getEmailLogs,
   type PendingRegistration,
+  type EmailLogEntry,
 } from '@/lib/api/auth';
 import { ApproveDialog } from './approve-dialog';
 import { CreateRegistrationDialog } from './create-registration-dialog';
@@ -76,6 +78,7 @@ export function PendingRegistrationsList({
       const token = await getToken();
       await resendInvite(token, id);
       toast.success('Davet e-postası yeniden gönderildi.');
+      queryClient.invalidateQueries({ queryKey: APPROVED_KEY });
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Gönderim başarısız.');
     }
@@ -322,16 +325,47 @@ function ApprovedCard({
       })
     : '';
 
+  const { data: emailLogs } = useQuery<EmailLogEntry[]>({
+    queryKey: ['email-logs', registration.email],
+    queryFn: async () => getEmailLogs(await getToken(), registration.email),
+    enabled: !!registration.email,
+    staleTime: 10_000,
+  });
+
   async function handleResend() {
     setLoading(true);
-    await onResend();
-    setLoading(false);
+    try {
+      await onResend();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function formatDateTime(dateStr: string) {
+    return new Date(dateStr).toLocaleString('tr-TR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
+
+  function getStatusIcon(status: EmailLogEntry['status']) {
+    switch (status) {
+      case 'SENT':
+      case 'DELIVERED':
+        return <CheckCircle2 className="h-3 w-3 text-emerald-500" />;
+      case 'FAILED':
+      case 'BOUNCED':
+        return <XCircle className="h-3 w-3 text-destructive" />;
+    }
   }
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-2">
+        <div className="space-y-2 flex-1">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
             <div>
@@ -352,6 +386,35 @@ function ApprovedCard({
               {approvedDate}
             </span>
           </div>
+
+          {emailLogs && emailLogs.length > 0 && (
+            <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                Gönderim Geçmişi
+              </p>
+              <div className="space-y-1.5">
+                {emailLogs.map((log) => (
+                  <div key={log.id} className="flex items-start gap-2 text-[12px]">
+                    <span className="mt-0.5 shrink-0">{getStatusIcon(log.status)}</span>
+                    <span className="text-muted-foreground shrink-0">
+                      {formatDateTime(log.sentAt)}
+                    </span>
+                    <span className="text-foreground">
+                      {log.status === 'FAILED' && log.error
+                        ? log.error.length > 60
+                          ? log.error.slice(0, 60) + '…'
+                          : log.error
+                        : log.status === 'SENT' || log.status === 'DELIVERED'
+                          ? 'Gönderildi'
+                          : log.status === 'BOUNCED'
+                            ? 'Bounced'
+                            : ''}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <Button

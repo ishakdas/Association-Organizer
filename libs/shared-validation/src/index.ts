@@ -54,19 +54,23 @@ export {
 // Auth
 export {
   telegramLinkRequestSchema,
+  telegramLinkGenerateSchema,
   telegramLinkRedeemSchema,
   botAuthPayloadSchema,
   requestBranchRegistrationSchema,
   approveBranchRegistrationSchema,
   checkBranchEmailSchema,
   resendInviteForUserSchema,
+  sendMagicLinkSchema,
   type TelegramLinkRequestInput,
+  type TelegramLinkGenerateInput,
   type TelegramLinkRedeemInput,
   type BotAuthPayload,
   type RequestBranchRegistrationInput,
   type ApproveBranchRegistrationInput,
   type CheckBranchEmailInput,
   type ResendInviteForUserInput,
+  type SendMagicLinkInput,
 } from './schemas/auth.schema';
 
 // Associations (Dernek Sicili)

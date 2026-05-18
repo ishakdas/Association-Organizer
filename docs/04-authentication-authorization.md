@@ -121,16 +121,23 @@ The bot linking flow connects a system User to a Telegram account.
 ```
 1. User (web or admin) generates link token
    → AuthService.generateLinkToken()
-   → Creates TelegramLinkToken row with short-lived hex token
+   → Creates TelegramLinkToken row with short-lived hex token (28 bytes = 56 hex chars)
 
-2. User opens Telegram bot and sends /link command
-   → Bot prompts for token
+   OR (recommended):
 
-3. User provides token
-   → Bot calls AuthService.redeemLinkToken(token)
-   → Validates token (exists, not expired, not used)
-   → Creates TelegramAccount row
-   → Issues 30-day bot JWT
+1. Admin generates link token with email delivery
+   → AuthService.generateLinkTokenWithEmail(userId, email)
+   → Creates TelegramLinkToken row
+   → Sends email with deep link: https://t.me/BOT_USERNAME?start=link_<token>
+   → Email contains "Botu Aç" CTA button + fallback manual code
+
+2. User clicks deep link in email (or sends /link <token> manually)
+   → Telegram opens bot with /start link_<token> payload
+   → Bot validates token, prompts for phone contact share
+
+3. User shares phone contact
+   → Bot verifies phone matches user's registered phone (E.164)
+   → Creates/updates TelegramAccount row
    → Marks token as used
 
 4. User can now interact via bot
@@ -141,23 +148,45 @@ The bot linking flow connects a system User to a Telegram account.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `token` | String | Opaque hex token (unique) |
+| `token` | String | Opaque hex token (unique, 56 chars from 28 bytes) |
 | `userId` | String | Target user ID |
-| `expiresAt` | DateTime | Token expiration |
+| `expiresAt` | DateTime | Token expiration (10 minutes) |
 | `usedAt` | DateTime? | Usage timestamp |
 
 ### Token Generation
 
 ```typescript
-AuthService.generateLinkToken(userId: string): string {
-  const token = randomBytes(32).toString('hex');
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+AuthService.generateLinkToken(userId: string) {
+  const token = randomBytes(28).toString('hex'); // 56 hex chars — fits in Telegram deep link
+  const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
-  await prisma.telegramLinkToken.create({
-    data: { token, userId, expiresAt }
-  });
+  // Invalidate prior unredeemed tokens for this user
+  await prisma.$transaction([
+    prisma.telegramLinkToken.updateMany({
+      where: { userId, usedAt: null },
+      data: { usedAt: new Date() },
+    }),
+    prisma.telegramLinkToken.create({ data: { token, userId, expiresAt } }),
+  ]);
 
-  return token;
+  return { token, expiresAt: expiresAt.toISOString() };
+}
+```
+
+### Token Generation with Email
+
+```typescript
+AuthService.generateLinkTokenWithEmail(userId: string, email: string) {
+  const { token, expiresAt } = await this.generateLinkToken(userId);
+
+  const botUsername = this.config.get('telegramBotUsername');
+  const deepLinkUrl = `https://t.me/${botUsername}?start=link_${token}`;
+
+  await this.emailService.sendTelegramLinkEmail(
+    email, fullName, botUsername, deepLinkUrl, token, expiresAt,
+  );
+
+  return { token, expiresAt, emailSent: true, messageId };
 }
 ```
 
@@ -195,6 +224,20 @@ AuthService.redeemLinkToken(token: string, telegramId: bigint, username: string)
   return { token: botToken };
 }
 ```
+
+### Deep Link Handling
+
+When a user clicks the email's "Botu Aç" button, Telegram opens the bot with a start payload:
+
+```
+https://t.me/BOT_USERNAME?start=link_abc123...
+```
+
+The bot's `/start` handler checks `ctx.startPayload`:
+- If it starts with `link_`, extracts the token and initiates the link flow
+- Otherwise, shows the default welcome message
+
+This eliminates the need for users to manually copy/paste the token.
 
 ## Authorization Guards
 

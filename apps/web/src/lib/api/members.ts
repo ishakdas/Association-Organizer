@@ -75,6 +75,15 @@ export function removeMember(
 export interface MemberTelegramLinkCode {
   token: string;
   expiresAt: string;
+  deepLinkUrl: string;
+}
+
+export interface MemberTelegramLinkCodeWithEmail {
+  token: string;
+  expiresAt: string;
+  deepLinkUrl: string;
+  emailSent: boolean;
+  messageId: string | null;
 }
 
 export function generateMemberTelegramLink(
@@ -87,6 +96,22 @@ export function generateMemberTelegramLink(
     {
       token,
       method: 'POST',
+    },
+  );
+}
+
+export function generateMemberTelegramLinkWithEmail(
+  token: string,
+  associationId: string,
+  membershipId: string,
+  email: string,
+) {
+  return apiClient<MemberTelegramLinkCodeWithEmail>(
+    `/associations/${associationId}/members/${membershipId}/telegram-link`,
+    {
+      token,
+      method: 'POST',
+      body: JSON.stringify({ email }),
     },
   );
 }

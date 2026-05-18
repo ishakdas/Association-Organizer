@@ -136,8 +136,8 @@ const BRANCH_SLIDES: Slide[] = [
       'Üyeleriniz Telegram hesaplarını sisteme bağlayarak bildirim alabilir ve bot üzerinden işlem yapabilir.',
     highlights: [
       'Ayarlar → Telegram bölümüne gidin',
-      'Bağlantı kodu oluşturun ve kodu @YedimuinBot\'a gönderin',
-      'Bağlantı tamamlandığında üye otomatik tanımlanır',
+      'Bağlantı kodu oluşturun ve e-posta ile gönderin',
+      'Üye e-postadaki "Botu Aç" butonuna tıklayarak tek adımda bağlanır',
     ],
   },
 ];
