@@ -3,6 +3,7 @@ import {
   PrismaService,
   UserRole,
   TransactionType,
+  PermissionAction,
 } from '@ticketbot/database';
 
 type FinanceStep =
@@ -316,12 +317,11 @@ async function assertFinanceAccess(
   });
   if (membership) return true;
 
-  const permission = await prisma.financePermission.findFirst({
+  const permission = await prisma.permission.findFirst({
     where: {
       associationId,
       userId,
-      isActive: true,
-      revokedAt: null,
+      action: PermissionAction.USE_FINANCE_COMMANDS,
     },
   });
   return !!permission;
@@ -389,6 +389,21 @@ async function startWizard(
 
   const assocs = await loadEligibleAssociations(prisma, account.userId);
   if (assocs.length === 0) {
+    const hasAnyMembership = await prisma.associationMembership.findFirst({
+      where: {
+        userId: account.userId,
+        isActive: true,
+        deletedAt: null,
+        association: { deletedAt: null },
+      },
+    });
+    if (hasAnyMembership) {
+      return ctx.reply(
+        '💰 Finans işlemleri için yetkiniz bulunmamaktadır. ' +
+          'Sadece başkan, sekreter veya finans yetkisi verilmiş kullanıcılar ' +
+          'finans işlemi yapabilir.',
+      );
+    }
     return ctx.reply('Aktif bir dernek üyeliğin bulunamadı.');
   }
 
@@ -766,7 +781,11 @@ export function registerFinanceWizard(
     const fromId = ctx.from?.id;
     if (!fromId) return;
     evictExpired(Date.now());
-    return startWizard(ctx, prisma, fromId);
+    try {
+      return await startWizard(ctx, prisma, fromId);
+    } catch (err) {
+      return ctx.reply('Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.');
+    }
   });
 
   // /gider <tutar> [açıklama]
@@ -786,7 +805,11 @@ export function registerFinanceWizard(
       description: parsed.description || undefined,
       expiresAt: Date.now() + SESSION_TTL_MS,
     });
-    return startWizard(ctx, prisma, fromId, 'expense');
+    try {
+      return await startWizard(ctx, prisma, fromId, 'expense');
+    } catch (err) {
+      return ctx.reply('Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.');
+    }
   });
 
   // /bagis <tutar> [açıklama]
@@ -806,7 +829,11 @@ export function registerFinanceWizard(
       description: parsed.description || undefined,
       expiresAt: Date.now() + SESSION_TTL_MS,
     });
-    return startWizard(ctx, prisma, fromId, 'donation');
+    try {
+      return await startWizard(ctx, prisma, fromId, 'donation');
+    } catch (err) {
+      return ctx.reply('Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.');
+    }
   });
 
   // /aidat
@@ -814,7 +841,11 @@ export function registerFinanceWizard(
     const fromId = ctx.from?.id;
     if (!fromId) return;
     evictExpired(Date.now());
-    return startWizard(ctx, prisma, fromId, 'fee');
+    try {
+      return await startWizard(ctx, prisma, fromId, 'fee');
+    } catch (err) {
+      return ctx.reply('Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.');
+    }
   });
 
   // /kasa
@@ -822,7 +853,11 @@ export function registerFinanceWizard(
     const fromId = ctx.from?.id;
     if (!fromId) return;
     evictExpired(Date.now());
-    return startWizard(ctx, prisma, fromId, 'summary');
+    try {
+      return await startWizard(ctx, prisma, fromId, 'summary');
+    } catch (err) {
+      return ctx.reply('Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.');
+    }
   });
 
   // /gecmis
@@ -830,7 +865,11 @@ export function registerFinanceWizard(
     const fromId = ctx.from?.id;
     if (!fromId) return;
     evictExpired(Date.now());
-    return startWizard(ctx, prisma, fromId, 'history');
+    try {
+      return await startWizard(ctx, prisma, fromId, 'history');
+    } catch (err) {
+      return ctx.reply('Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.');
+    }
   });
 
   // /ozet
@@ -838,7 +877,11 @@ export function registerFinanceWizard(
     const fromId = ctx.from?.id;
     if (!fromId) return;
     evictExpired(Date.now());
-    return startWizard(ctx, prisma, fromId, 'stats');
+    try {
+      return await startWizard(ctx, prisma, fromId, 'stats');
+    } catch (err) {
+      return ctx.reply('Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.');
+    }
   });
 
   // /iptal (finans akışı için)

@@ -6,7 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService, UserRole } from '@ticketbot/database';
+import { PrismaService, UserRole, PermissionAction } from '@ticketbot/database';
 import {
   CreateMeetingNoteInput,
   ListMeetingNotesQuery,
@@ -15,6 +15,7 @@ import {
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { AiService } from '@ticketbot/ai';
 import { parseTurkishDateText } from './turkish-date-parser';
+import { PermissionService } from '../permissions/permission.service';
 
 const ATTENDEE_INCLUDE = {
   attendees: {
@@ -31,6 +32,7 @@ export class MeetingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
+    private readonly permissionService: PermissionService,
   ) {}
 
   private async assertMeetingAccess(
@@ -48,19 +50,16 @@ export class MeetingsService {
     );
     if (hasRole) return;
 
-    const permission = await this.prisma.meetingPermission.findFirst({
-      where: {
-        associationId,
-        userId: user.id,
-        isActive: true,
-        revokedAt: null,
-      },
-    });
-    if (!permission) {
-      throw new ForbiddenException(
-        'Toplantı işlemleri için yetkiniz yok',
-      );
-    }
+    const hasPermission = await this.permissionService.hasPermission(
+      user.id,
+      associationId,
+      PermissionAction.USE_MEETING_COMMANDS,
+    );
+    if (hasPermission) return;
+
+    throw new ForbiddenException(
+      'Toplantı işlemleri için yetkiniz yok',
+    );
   }
 
   private assertManagerAccess(
@@ -350,83 +349,6 @@ export class MeetingsService {
     }
 
     return meeting;
-  }
-
-  async grantPermission(
-    associationId: string,
-    userId: string,
-    grantedBy: AuthenticatedUser,
-  ) {
-    this.assertManagerAccess(grantedBy, associationId);
-
-    const targetMembership = await this.prisma.associationMembership.findFirst({
-      where: {
-        associationId,
-        userId,
-        isActive: true,
-        deletedAt: null,
-      },
-      select: { id: true },
-    });
-    if (!targetMembership) {
-      throw new BadRequestException('Kullanıcı bu derneğin aktif üyesi değil');
-    }
-
-    const existing = await this.prisma.meetingPermission.findFirst({
-      where: { associationId, userId },
-    });
-    if (existing) {
-      if (existing.isActive && !existing.revokedAt) {
-        throw new BadRequestException('Bu kullanıcıya zaten toplantı yetkisi verilmiş');
-      }
-      return this.prisma.meetingPermission.update({
-        where: { id: existing.id },
-        data: { isActive: true, revokedAt: null, grantedById: grantedBy.id },
-        include: {
-          user: { select: { id: true, fullName: true } },
-        },
-      });
-    }
-
-    return this.prisma.meetingPermission.create({
-      data: {
-        associationId,
-        userId,
-        grantedById: grantedBy.id,
-      },
-      include: {
-        user: { select: { id: true, fullName: true } },
-      },
-    });
-  }
-
-  async revokePermission(
-    associationId: string,
-    userId: string,
-    revokedBy: AuthenticatedUser,
-  ) {
-    this.assertManagerAccess(revokedBy, associationId);
-
-    const permission = await this.prisma.meetingPermission.findFirst({
-      where: { associationId, userId, isActive: true },
-    });
-    if (!permission) throw new NotFoundException('Yetki bulunamadı');
-
-    return this.prisma.meetingPermission.update({
-      where: { id: permission.id },
-      data: { isActive: false, revokedAt: new Date() },
-    });
-  }
-
-  async listPermissions(associationId: string) {
-    return this.prisma.meetingPermission.findMany({
-      where: { associationId, isActive: true },
-      include: {
-        user: { select: { id: true, fullName: true } },
-        grantedBy: { select: { id: true, fullName: true } },
-      },
-      orderBy: { grantedAt: 'desc' },
-    });
   }
 
   private async ensureAllAreMembers(

@@ -187,9 +187,9 @@ export function AddMemberDialog({
 
     mutation.mutate({
       fullName: values.fullName,
-      email: values.email || undefined,
-      phone: values.phone || undefined,
-      address: values.address || undefined,
+      email: (values.email || undefined) as string,
+      phone: (values.phone || undefined) as string,
+      address: (values.address || undefined) as string,
       role,
       titleId: titleIdValue,
       customTitle: useCustom ? values.customTitle?.trim() : undefined,

@@ -5,7 +5,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Plus } from 'lucide-react';
 import { z } from 'zod';
-import { createMemberTitleSchema } from '@ticketbot/shared-validation';
 import type { CreateMemberTitleInput } from '@ticketbot/shared-validation';
 import { Button } from '@/components/ui/button';
 import {

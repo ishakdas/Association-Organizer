@@ -32,12 +32,46 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     this.bot = new Telegraf(token);
   }
 
-  onModuleInit() {
+  async onModuleInit() {
     registerStartCommand(this.bot, this.config, this.prisma);
     registerLinkCommand(this.bot, this.prisma, this.config);
     registerHelpCommand(this.bot);
     registerMeetingWizard(this.bot, this.prisma);
     registerFinanceWizard(this.bot, this.prisma);
+
+    // iPhone/Android'da bot menüsünün görünmesi için komut listesini ayarla
+    try {
+      await this.bot.telegram.setMyCommands([
+        { command: 'start', description: 'Botu başlat' },
+        { command: 'help', description: 'Yardım ve komutlar' },
+        { command: 'link', description: 'Hesap bağlama' },
+        { command: 'toplanti', description: 'Toplantı notu ekle' },
+        { command: 'finans', description: 'Finans menüsü' },
+        { command: 'gider', description: 'Gider ekle' },
+        { command: 'bagis', description: 'Bağış kaydet' },
+        { command: 'aidat', description: 'Aidat al' },
+        { command: 'kasa', description: 'Kasa durumu' },
+        { command: 'gecmis', description: 'İşlem geçmişi' },
+        { command: 'ozet', description: 'Aylık özet' },
+        { command: 'iptal', description: 'İşlemi iptal et' },
+      ]);
+      this.logger.log('Bot command menu set');
+    } catch (err) {
+      this.logger.warn(
+        `Failed to set bot command menu: ${(err as Error).message}`,
+      );
+    }
+
+    this.bot.on('text', async (ctx, next) => {
+      const text = ctx.message?.text;
+      if (text?.startsWith('/')) {
+        return ctx.reply(
+          '⚠️ Böyle bir komut bulunmamaktadır. Kullanılabilir komutları ' +
+            'görmek için /help yazabilirsin.',
+        );
+      }
+      return next();
+    });
 
     this.bot.catch((err: unknown, ctx: Context) => {
       this.logger.error(`Bot error for ${ctx.updateType}`, err);

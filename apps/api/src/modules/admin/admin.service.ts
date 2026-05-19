@@ -372,11 +372,7 @@ export class AdminService {
         where: { associationId: id },
       });
 
-      await tx.financePermission.deleteMany({
-        where: { associationId: id },
-      });
-
-      await tx.meetingPermission.deleteMany({
+      await tx.permission.deleteMany({
         where: { associationId: id },
       });
 

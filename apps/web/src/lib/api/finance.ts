@@ -131,8 +131,8 @@ export function grantPermission(
   data: GrantFinancePermissionInput,
 ) {
   return apiClient<void>(
-    `/associations/${associationId}/finance/permissions`,
-    { token, method: 'POST', body: JSON.stringify(data) },
+    `/associations/${associationId}/permissions/${data.userId}`,
+    { token, method: 'POST', body: JSON.stringify({ action: 'VIEW_FINANCE' }) },
   );
 }
 
@@ -142,14 +142,14 @@ export function revokePermission(
   userId: string,
 ) {
   return apiClient<void>(
-    `/associations/${associationId}/finance/permissions/${userId}`,
+    `/associations/${associationId}/permissions/${userId}/VIEW_FINANCE`,
     { token, method: 'DELETE' },
   );
 }
 
 export function listPermissions(token: string, associationId: string) {
   return apiClient<Array<{ id: string; user: { id: string; fullName: string }; grantedAt: string; isActive: boolean }>>(
-    `/associations/${associationId}/finance/permissions`,
+    `/associations/${associationId}/permissions`,
     { token },
   );
 }

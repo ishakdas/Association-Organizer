@@ -3,7 +3,6 @@
 import { format, formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import {
-  AlertTriangle,
   Bell,
   CheckCircle2,
   Clock,

@@ -1,5 +1,5 @@
 import { Telegraf, Markup, Context } from 'telegraf';
-import { PrismaService, UserRole } from '@ticketbot/database';
+import { PrismaService, UserRole, PermissionAction } from '@ticketbot/database';
 
 type Step =
   | 'pickAssoc'
@@ -135,12 +135,11 @@ async function assertMeetingAccess(
   });
   if (membership) return true;
 
-  const permission = await prisma.meetingPermission.findFirst({
+  const permission = await prisma.permission.findFirst({
     where: {
       associationId,
       userId,
-      isActive: true,
-      revokedAt: null,
+      action: PermissionAction.USE_MEETING_COMMANDS,
     },
   });
   return !!permission;
@@ -249,10 +248,22 @@ async function startWizard(
 
   const assocs = await loadEligibleAssociations(prisma, account.userId);
   if (assocs.length === 0) {
-    return ctx.reply(
-      '📝 Toplantı işlemleri için yetkin yok. Sadece başkan, sekreter veya ' +
-        'yetki verilmiş kullanıcılar toplantı notu ekleyebilir.',
-    );
+    const hasAnyMembership = await prisma.associationMembership.findFirst({
+      where: {
+        userId: account.userId,
+        isActive: true,
+        deletedAt: null,
+        association: { deletedAt: null },
+      },
+    });
+    if (hasAnyMembership) {
+      return ctx.reply(
+        '📝 Toplantı işlemleri için yetkiniz bulunmamaktadır. Sadece başkan, ' +
+          'sekreter veya toplantı yetkisi verilmiş kullanıcılar toplantı ' +
+          'notu ekleyebilir.',
+      );
+    }
+    return ctx.reply('Aktif bir dernek üyeliğin bulunamadı.');
   }
 
   if (assocs.length === 1) {
@@ -317,7 +328,11 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService) {
     const fromId = ctx.from?.id;
     if (!fromId) return;
     evictExpired(Date.now());
-    return startWizard(ctx, prisma, fromId);
+    try {
+      return await startWizard(ctx, prisma, fromId);
+    } catch (err) {
+      return ctx.reply('Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.');
+    }
   });
 
   bot.command('iptal', async (ctx) => {

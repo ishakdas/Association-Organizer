@@ -47,8 +47,6 @@ export function DeleteAssociationDialog({
       await hardDeleteAssociation(token, association.id);
       onSuccess();
       setConfirmText('');
-    } catch (e) {
-      throw e;
     } finally {
       setLoading(false);
     }

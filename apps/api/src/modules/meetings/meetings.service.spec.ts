@@ -8,8 +8,10 @@ import {
 import { PrismaClient, PrismaService } from '@ticketbot/database';
 import { AiService } from '@ticketbot/ai';
 import { MeetingsService } from './meetings.service';
+import { PermissionService } from '../permissions/permission.service';
 
 type PrismaMock = DeepMockProxy<PrismaClient>;
+type PermissionServiceMock = DeepMockProxy<PermissionService>;
 
 const ASSOC = 'assoc-1';
 const ADMIN_USER = {
@@ -62,21 +64,26 @@ const fakeAiService = { extractActionItems: jest.fn().mockResolvedValue({ action
 describe('MeetingsService', () => {
   let service: MeetingsService;
   let prisma: PrismaMock;
+  let permissionService: PermissionServiceMock;
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
+    permissionService = mockDeep<PermissionService>();
+
     prisma.$transaction.mockImplementation(async (input: any) => {
       if (Array.isArray(input)) return Promise.all(input);
       return input(prisma);
     });
     prisma.meetingNote.count.mockResolvedValue(0 as never);
     fakeAiService.extractActionItems.mockResolvedValue({ actionItems: [] });
+    permissionService.hasAnyPermission.mockResolvedValue(true);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         MeetingsService,
         { provide: PrismaService, useValue: prisma },
         { provide: AiService, useValue: fakeAiService },
+        { provide: PermissionService, useValue: permissionService },
       ],
     }).compile();
     service = moduleRef.get(MeetingsService);

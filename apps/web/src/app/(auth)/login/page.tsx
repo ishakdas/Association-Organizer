@@ -275,7 +275,6 @@ type BranchStep =
 function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
   const [step, setStep] = useState<BranchStep>('email');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
@@ -284,7 +283,6 @@ function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetLoading, setResetLoading] = useState(false);
-  const [resetSent, setResetSent] = useState(false);
   const [resetCooldown, setResetCooldown] = useState(0);
 
   const provinces = getProvinceNames();
@@ -332,39 +330,6 @@ function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
     } finally {
       setLoading(false);
     }
-  }
-
-  async function handlePasswordSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    const supabase = createClient();
-    const { data: { session }, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (signInError) {
-      setError(
-        signInError.message === 'Invalid login credentials'
-          ? 'E-posta veya şifre hatalı.'
-          : signInError.message,
-      );
-      setLoading(false);
-    } else {
-      window.location.href = '/associations';
-    }
-  }
-
-  async function handleForgotPassword() {
-    if (resetLoading || resetCooldown > 0) return;
-    setResetLoading(true);
-    setError(null);
-    const supabase = createClient();
-    await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/callback?next=/reset-password`,
-    });
-    setResetLoading(false);
-    setResetSent(true);
-    startResetCooldown();
   }
 
   async function handleRegisterSubmit(e: React.FormEvent) {

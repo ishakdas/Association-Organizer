@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import {
   BarChart3,
   BookOpen,
@@ -147,7 +146,6 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
   const [current, setCurrent] = useState(0);
   const [visible, setVisible] = useState(true);
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   const isLast = current === slides.length - 1;
 

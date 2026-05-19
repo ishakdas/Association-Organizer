@@ -30,7 +30,6 @@ import { getMe } from '@/lib/api/me';
 import {
   listAdminAssociations,
   restoreAssociation,
-  softDeleteAssociation,
 } from '@/lib/api/admin';
 import { isSystemAdmin } from '@/lib/permissions';
 import { DeleteAssociationDialog } from './_components/delete-association-dialog';
@@ -97,22 +96,6 @@ export default function AssociationsAdminPage() {
       await refresh({ includeDeleted: next });
     } catch (e) {
       toast.error((e as Error).message);
-    }
-  }
-
-  async function handleSoftDelete(row: AdminAssociationResponse) {
-    if (!confirm(`"${row.name}" derneği silinsin mi? (Geri alınabilir.)`))
-      return;
-    setBusyId(row.id);
-    try {
-      const token = await getToken();
-      await softDeleteAssociation(token, row.id);
-      toast.success(`"${row.name}" silindi`);
-      await refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusyId(null);
     }
   }
 

@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService, Prisma, UserRole } from '@ticketbot/database';
+import { PrismaService, Prisma, UserRole, PermissionAction } from '@ticketbot/database';
 import type {
   CreateTransactionInput,
   CreateTransactionCategoryInput,
@@ -15,10 +15,14 @@ import type {
   AssociationSettingsInput,
 } from '@ticketbot/shared-validation';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
+import { PermissionService } from '../permissions/permission.service';
 
 @Injectable()
 export class FinanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly permissionService: PermissionService,
+  ) {}
 
   // -------------------------------------------------------------------------
   // Authorization
@@ -39,15 +43,12 @@ export class FinanceService {
     );
     if (hasRole) return;
 
-    const permission = await this.prisma.financePermission.findFirst({
-      where: {
-        associationId,
-        userId: user.id,
-        isActive: true,
-        revokedAt: null,
-      },
-    });
-    if (permission) return;
+    const hasPermission = await this.permissionService.hasPermission(
+      user.id,
+      associationId,
+      PermissionAction.USE_FINANCE_COMMANDS,
+    );
+    if (hasPermission) return;
 
     throw new ForbiddenException('Finans işlemleri için yetkiniz yok');
   }
@@ -678,90 +679,6 @@ export class FinanceService {
     );
 
     return report.filter((r) => r.totalAmountKurus > 0);
-  }
-
-  // -------------------------------------------------------------------------
-  // Permissions
-  // -------------------------------------------------------------------------
-
-  async grantPermission(
-    associationId: string,
-    userId: string,
-    grantedBy: AuthenticatedUser,
-  ) {
-    this.assertManagerAccess(grantedBy, associationId);
-
-    // Hedef kullanıcı derneğin aktif üyesi mi?
-    const targetMembership = await this.prisma.associationMembership.findFirst({
-      where: {
-        userId,
-        associationId,
-        isActive: true,
-        deletedAt: null,
-      },
-      select: { id: true },
-    });
-    if (!targetMembership) {
-      throw new BadRequestException('Kullanıcı bu derneğin aktif üyesi değil');
-    }
-
-    // Zaten yetkisi var mı?
-    const existing = await this.prisma.financePermission.findFirst({
-      where: { associationId, userId },
-    });
-    if (existing) {
-      if (existing.isActive && !existing.revokedAt) {
-        throw new BadRequestException('Bu kullanıcıya zaten finans yetkisi verilmiş');
-      }
-      // Eski pasif yetkiyi aktif et
-      return this.prisma.financePermission.update({
-        where: { id: existing.id },
-        data: { isActive: true, revokedAt: null, grantedById: grantedBy.id },
-        include: {
-          user: { select: { id: true, fullName: true } },
-        },
-      });
-    }
-
-    return this.prisma.financePermission.create({
-      data: {
-        associationId,
-        userId,
-        grantedById: grantedBy.id,
-      },
-      include: {
-        user: { select: { id: true, fullName: true } },
-      },
-    });
-  }
-
-  async revokePermission(
-    associationId: string,
-    userId: string,
-    revokedBy: AuthenticatedUser,
-  ) {
-    this.assertManagerAccess(revokedBy, associationId);
-
-    const permission = await this.prisma.financePermission.findFirst({
-      where: { associationId, userId, isActive: true },
-    });
-    if (!permission) throw new NotFoundException('Yetki bulunamadı');
-
-    return this.prisma.financePermission.update({
-      where: { id: permission.id },
-      data: { isActive: false, revokedAt: new Date() },
-    });
-  }
-
-  async listPermissions(associationId: string) {
-    return this.prisma.financePermission.findMany({
-      where: { associationId, isActive: true },
-      include: {
-        user: { select: { id: true, fullName: true } },
-        grantedBy: { select: { id: true, fullName: true } },
-      },
-      orderBy: { grantedAt: 'desc' },
-    });
   }
 
   // -------------------------------------------------------------------------

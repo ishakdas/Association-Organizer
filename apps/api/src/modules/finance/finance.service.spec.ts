@@ -3,8 +3,10 @@ import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient, PrismaService } from '@ticketbot/database';
 import { FinanceService } from './finance.service';
+import { PermissionService } from '../permissions/permission.service';
 
 type PrismaMock = DeepMockProxy<PrismaClient>;
+type PermissionServiceMock = DeepMockProxy<PermissionService>;
 
 const ASSOC = 'assoc-1';
 const MANAGER = {
@@ -31,27 +33,29 @@ const FINANCE_PERM_USER = {
 describe('FinanceService', () => {
   let service: FinanceService;
   let prisma: PrismaMock;
+  let permissionService: PermissionServiceMock;
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
+    permissionService = mockDeep<PermissionService>();
+
     prisma.$transaction.mockImplementation(async (input: any) => {
       if (Array.isArray(input)) return Promise.all(input);
       return input(prisma);
     });
 
+    permissionService.hasPermission.mockResolvedValue(true);
+
     const module = await Test.createTestingModule({
       providers: [
         FinanceService,
         { provide: PrismaService, useValue: prisma },
+        { provide: PermissionService, useValue: permissionService },
       ],
     }).compile();
 
     service = module.get<FinanceService>(FinanceService);
   });
-
-  // ---------------------------------------------------------------------------
-  // Categories
-  // ---------------------------------------------------------------------------
 
   describe('createCategory', () => {
     it('creates a category when manager', async () => {
@@ -65,15 +69,13 @@ describe('FinanceService', () => {
     });
 
     it('throws ForbiddenException for member without finance permission', async () => {
+      permissionService.hasPermission.mockResolvedValue(false);
+
       await expect(
         service.createCategory(ASSOC, { name: 'Kira', type: 'EXPENSE' }, MEMBER),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
-
-  // ---------------------------------------------------------------------------
-  // Transactions
-  // ---------------------------------------------------------------------------
 
   describe('createTransaction', () => {
     it('creates income transaction for secretary', async () => {
@@ -92,9 +94,7 @@ describe('FinanceService', () => {
     });
 
     it('creates transaction for finance permission user', async () => {
-      prisma.financePermission.findFirst.mockResolvedValue({
-        id: 'perm-1', associationId: ASSOC, userId: FINANCE_PERM_USER.id, isActive: true,
-      } as never);
+      permissionService.hasPermission.mockResolvedValue(true);
       prisma.transactionCategory.findFirst.mockResolvedValue({
         id: 'cat-1', type: 'EXPENSE',
       } as never);
@@ -146,57 +146,6 @@ describe('FinanceService', () => {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // Permissions
-  // ---------------------------------------------------------------------------
-
-  describe('grantPermission', () => {
-    it('grants permission to a member', async () => {
-      prisma.associationMembership.findFirst.mockResolvedValue({ id: 'mem-1' } as never);
-      prisma.financePermission.findFirst.mockResolvedValue(null as never);
-      prisma.financePermission.create.mockResolvedValue({
-        id: 'perm-1', userId: MEMBER.id, associationId: ASSOC, isActive: true,
-      } as never);
-
-      const result = await service.grantPermission(ASSOC, MEMBER.id, MANAGER);
-      expect(result.isActive).toBe(true);
-    });
-
-    it('throws BadRequestException if user is not a member', async () => {
-      prisma.associationMembership.findFirst.mockResolvedValue(null as never);
-
-      await expect(
-        service.grantPermission(ASSOC, 'non-member', MANAGER),
-      ).rejects.toBeInstanceOf(BadRequestException);
-    });
-  });
-
-  describe('revokePermission', () => {
-    it('revokes active permission', async () => {
-      prisma.financePermission.findFirst.mockResolvedValue({
-        id: 'perm-1', isActive: true,
-      } as never);
-      prisma.financePermission.update.mockResolvedValue({
-        id: 'perm-1', isActive: false,
-      } as never);
-
-      const result = await service.revokePermission(ASSOC, MEMBER.id, MANAGER);
-      expect(result.isActive).toBe(false);
-    });
-
-    it('throws NotFoundException if no active permission', async () => {
-      prisma.financePermission.findFirst.mockResolvedValue(null as never);
-
-      await expect(
-        service.revokePermission(ASSOC, MEMBER.id, MANAGER),
-      ).rejects.toBeInstanceOf(NotFoundException);
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // Summary
-  // ---------------------------------------------------------------------------
-
   describe('getSummary', () => {
     it('returns correct balance', async () => {
       prisma.transaction.aggregate
@@ -211,10 +160,6 @@ describe('FinanceService', () => {
       expect(result.balanceKurus).toBe(30000);
     });
   });
-
-  // ---------------------------------------------------------------------------
-  // Event expense
-  // ---------------------------------------------------------------------------
 
   describe('recordEventExpense', () => {
     it('records expense and creates transaction', async () => {

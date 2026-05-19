@@ -91,6 +91,11 @@ enum EmailStatus {
   FAILED
 }
 
+enum PermissionAction {
+  USE_MEETING_COMMANDS
+  USE_FINANCE_COMMANDS
+}
+
 // -----------------------------------------------------------------------------
 // Reference: assignable titles (admin-managed)
 // -----------------------------------------------------------------------------
@@ -141,10 +146,7 @@ model User {
   telegramAccount     TelegramAccount?
   aiSuggestions       AiSuggestion[]
   savedSuggestions    SavedSuggestion[]
-  financePermissionsGranted  FinancePermission[] @relation("FinancePermissionGranter")
-  financePermissionsReceived FinancePermission[] @relation("FinancePermissionUser")
-  meetingPermissionsGranted  MeetingPermission[] @relation("MeetingPermissionGranter")
-  meetingPermissionsReceived MeetingPermission[] @relation("MeetingPermissionUser")
+  permissions         Permission[]
   createdTransactions Transaction[]
 
   @@index([isActive])
@@ -235,8 +237,7 @@ model Association {
   aiSuggestions       AiSuggestion[]
   transactionCategories TransactionCategory[]
   transactions        Transaction[]
-  financePermissions  FinancePermission[]
-  meetingPermissions  MeetingPermission[]
+  permissions         Permission[]
   associationSettings AssociationSettings?
 
   @@index([city])
@@ -656,40 +657,19 @@ model Transaction {
   @@map("transactions")
 }
 
-model FinancePermission {
-  id            String    @id @default(cuid())
+model Permission {
+  id            String           @id @default(cuid())
   associationId String
   userId        String
-  grantedById   String
-  grantedAt     DateTime  @default(now())
-  revokedAt     DateTime?
-  isActive      Boolean   @default(true)
+  action        PermissionAction
+  grantedAt     DateTime         @default(now())
 
-  association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
-  user          User        @relation("FinancePermissionUser", fields: [userId], references: [id])
-  grantedBy     User        @relation("FinancePermissionGranter", fields: [grantedById], references: [id])
+  association   Association      @relation(fields: [associationId], references: [id], onDelete: Cascade)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([associationId, userId])
-  @@index([associationId, isActive])
-  @@map("finance_permissions")
-}
-
-model MeetingPermission {
-  id            String    @id @default(cuid())
-  associationId String
-  userId        String
-  grantedById   String
-  grantedAt     DateTime  @default(now())
-  revokedAt     DateTime?
-  isActive      Boolean   @default(true)
-
-  association   Association @relation(fields: [associationId], references: [id], onDelete: Cascade)
-  user          User        @relation("MeetingPermissionUser", fields: [userId], references: [id])
-  grantedBy     User        @relation("MeetingPermissionGranter", fields: [grantedById], references: [id])
-
-  @@unique([associationId, userId])
-  @@index([associationId, isActive])
-  @@map("meeting_permissions")
+  @@unique([associationId, userId, action])
+  @@index([associationId, userId])
+  @@map("permissions")
 }
 
 model AssociationSettings {
