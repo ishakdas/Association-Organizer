@@ -199,3 +199,35 @@ export function getReport(
     }>
   >(`/associations/${associationId}/finance/report${q ? `?${q}` : ''}`, { token });
 }
+
+export function bulkFeePayment(
+  token: string,
+  associationId: string,
+  data: { payments: Array<{ membershipId: string; amountInKurus: number; month: string; description?: string }> },
+) {
+  return apiClient<{ successCount: number; skippedCount: number; skipped: Array<{ membershipId: string; memberName: string; month: string; reason: string }>; totalAmountKurus: number }>(
+    `/associations/${associationId}/finance/fees/bulk`,
+    { token, method: 'POST', body: JSON.stringify(data) },
+  );
+}
+
+export function getUnpaidMembers(
+  token: string,
+  associationId: string,
+  month: string,
+) {
+  return apiClient<Array<{ membershipId: string; userId: string; fullName: string; hasPaid: boolean; monthlyFeeAmountKurus: number | null }>>(
+    `/associations/${associationId}/finance/fees/unpaid?month=${month}`,
+    { token },
+  );
+}
+
+export function getFrequentCategories(
+  token: string,
+  associationId: string,
+) {
+  return apiClient<Array<{ id: string; name: string; type: 'INCOME' | 'EXPENSE'; count: number }>>(
+    `/associations/${associationId}/finance/frequent-categories`,
+    { token },
+  );
+}

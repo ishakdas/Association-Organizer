@@ -86,7 +86,10 @@ export class MeetingsService {
       where: { associationId, isActive: true, deletedAt: null },
       include: {
         user: { select: { id: true, fullName: true } },
-        title: { select: { name: true, description: true } },
+        titleAssignments: {
+          include: { title: { select: { name: true, description: true } } },
+          orderBy: { sortOrder: 'asc' },
+        },
       },
     });
 
@@ -97,16 +100,32 @@ export class MeetingsService {
       SYSTEM_ADMIN: 'MANAGER (Başkan)',
     };
 
+    const formatTitle = (ta: {
+      title?: { name: string; description: string | null } | null;
+      customTitle?: string | null;
+    }): string => {
+      if (ta.customTitle) return ta.customTitle;
+      if (ta.title) {
+        return ta.title.description
+          ? `${ta.title.name} — ${ta.title.description}`
+          : ta.title.name;
+      }
+      return 'Atanmamış';
+    };
+
     const membersContext = members
       .map((m) => {
         const roleLabel = ROLE_LABEL[m.role] ?? m.role;
-        const titlePart = m.title
-          ? m.title.description
-            ? `${m.title.name} — ${m.title.description}`
-            : m.title.name
-          : 'Atanmamış';
-        const customPart = m.customTitle ? `\n  Özel Unvan: ${m.customTitle}` : '';
-        return `- User ID: ${m.user.id}\n  İsim: ${m.user.fullName}\n  Sistem Rolü: ${roleLabel}\n  Unvan: ${titlePart}${customPart}`;
+        const primary = m.titleAssignments.find((t) => t.isPrimary);
+        const secondaries = m.titleAssignments.filter((t) => !t.isPrimary);
+
+        const primaryPart = primary ? formatTitle(primary) : 'Atanmamış';
+        const secondaryPart =
+          secondaries.length > 0
+            ? `\n  📌 İKİNCİL ÜNVANLAR:\n${secondaries.map((s) => `    - ${formatTitle(s)}`).join('\n')}`
+            : '';
+
+        return `- User ID: ${m.user.id}\n  İsim: ${m.user.fullName}\n  Sistem Rolü: ${roleLabel}\n  🎯 BİRİNCİL ÜNVAN: ${primaryPart}${secondaryPart}`;
       })
       .join('\n');
 
@@ -114,7 +133,7 @@ export class MeetingsService {
       const result = await this.aiService.extractActionItems(content, membersContext);
 
       const memberMap = new Map(
-        members.map((m) => [m.user.id, { fullName: m.user.fullName, title: m.title?.name ?? null }]),
+        members.map((m) => [m.user.id, { fullName: m.user.fullName, title: m.titleAssignments.find((t) => t.isPrimary)?.title?.name ?? null }]),
       );
 
       const now = new Date();

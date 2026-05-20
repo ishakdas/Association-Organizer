@@ -86,6 +86,25 @@ const formSchema = z
 
 type FormValues = z.infer<typeof formSchema>;
 
+function buildTitleAssignments(values: FormValues) {
+  const isSecretary = values.mode === 'secretary';
+  if (isSecretary) return [{ isPrimary: true, sortOrder: 0 }];
+
+  const useCustom = values.titleId === CUSTOM_TITLE;
+  const hasTitle =
+    values.titleId &&
+    values.titleId !== NO_TITLE &&
+    values.titleId !== CUSTOM_TITLE;
+
+  if (useCustom) {
+    return [{ customTitle: values.customTitle?.trim(), isPrimary: true, sortOrder: 0 }];
+  }
+  if (hasTitle) {
+    return [{ titleId: values.titleId, isPrimary: true, sortOrder: 0 }];
+  }
+  return [{ isPrimary: true, sortOrder: 0 }];
+}
+
 export function AddMemberDialog({
   associationId,
   defaultRole = 'ASSOCIATION_MEMBER',
@@ -170,14 +189,6 @@ export function AddMemberDialog({
 
   function onSubmit(values: FormValues) {
     const isSecretary = values.mode === 'secretary';
-    const useCustom = !isSecretary && values.titleId === CUSTOM_TITLE;
-    const titleIdValue =
-      !isSecretary &&
-      values.titleId &&
-      values.titleId !== NO_TITLE &&
-      values.titleId !== CUSTOM_TITLE
-        ? values.titleId
-        : undefined;
 
     const role: MembershipRole = isSecretary
       ? 'ASSOCIATION_SECRETARY'
@@ -191,8 +202,7 @@ export function AddMemberDialog({
       phone: (values.phone || undefined) as string,
       address: (values.address || undefined) as string,
       role,
-      titleId: titleIdValue,
-      customTitle: useCustom ? values.customTitle?.trim() : undefined,
+      titleAssignments: buildTitleAssignments(values),
       password: isSecretary ? values.password : undefined,
     });
   }

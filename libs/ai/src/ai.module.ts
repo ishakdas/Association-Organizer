@@ -65,7 +65,7 @@ const PROVIDER_PRESETS: Record<string, { baseURL: string; defaultModel: string }
           preset?.defaultModel ??
           'llama-3.3-70b-versatile';
 
-        const config: GenericAiProviderConfig = {
+        const aiConfig: GenericAiProviderConfig = {
           apiKey,
           baseURL,
           model,
@@ -74,7 +74,7 @@ const PROVIDER_PRESETS: Record<string, { baseURL: string; defaultModel: string }
         };
 
         logger.log(`AI provider: ${presetName} (${baseURL}) — model: ${model}`);
-        return new GenericAiProvider(config);
+        return new GenericAiProvider(aiConfig);
       },
     },
     AiService,

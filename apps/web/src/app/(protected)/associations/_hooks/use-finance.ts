@@ -20,6 +20,9 @@ import {
   getMemberFeeHistory,
   listFeePayments,
   getReport,
+  bulkFeePayment,
+  getUnpaidMembers,
+  getFrequentCategories,
 } from '@/lib/api/finance';
 import type {
   CreateTransactionInput,
@@ -292,5 +295,54 @@ export function useFinanceReport(associationId: string, fromDate?: string, toDat
   return useQuery({
     queryKey: financeReportKey(associationId, fromDate, toDate),
     queryFn: async () => getReport(await getAccessToken(), associationId, fromDate, toDate),
+  });
+}
+
+// --- Bulk Fee Payment ---
+
+export function useBulkFeePayment(associationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { payments: Array<{ membershipId: string; amountInKurus: number; month: string; description?: string }> }) =>
+      bulkFeePayment(await getAccessToken(), associationId, input),
+    onSuccess: (result) => {
+      if (result.successCount > 0) {
+        toast.success(`${result.successCount} aidat kaydedildi`);
+      }
+      if (result.skippedCount > 0) {
+        toast.warning(`${result.skippedCount} aidat atlandı (zaten kayıtlı)`);
+      }
+      queryClient.invalidateQueries({
+        queryKey: feePaymentsKey(associationId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: financeSummaryKey(associationId),
+      });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+// --- Unpaid Members ---
+
+export const unpaidMembersKey = (associationId: string, month: string) =>
+  ['finance', 'fees', 'unpaid', associationId, month] as const;
+
+export function useUnpaidMembers(associationId: string, month: string) {
+  return useQuery({
+    queryKey: unpaidMembersKey(associationId, month),
+    queryFn: async () => getUnpaidMembers(await getAccessToken(), associationId, month),
+  });
+}
+
+// --- Frequent Categories ---
+
+export const frequentCategoriesKey = (associationId: string) =>
+  ['finance', 'frequent-categories', associationId] as const;
+
+export function useFrequentCategories(associationId: string) {
+  return useQuery({
+    queryKey: frequentCategoriesKey(associationId),
+    queryFn: async () => getFrequentCategories(await getAccessToken(), associationId),
   });
 }

@@ -3,7 +3,15 @@
   "compilerOptions": {
     "outDir": "./dist",
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "baseUrl": ".",
+    "paths": {
+      "@ticketbot/shared-types": ["../shared-types/src/index.ts"],
+      "@ticketbot/shared-validation": ["../shared-validation/src/index.ts"],
+      "@ticketbot/database": ["../database/src/index.ts"],
+      "@ticketbot/core": ["../core/src/index.ts"],
+      "@ticketbot/ai": ["./src/index.ts"]
+    }
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

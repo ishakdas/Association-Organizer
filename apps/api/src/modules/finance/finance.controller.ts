@@ -27,6 +27,7 @@ import { CreateTransactionCategoryDto } from './dto/create-category.dto';
 import { UpdateTransactionCategoryDto } from './dto/update-category.dto';
 import { ListTransactionsQueryDto } from './dto/list-transactions-query.dto';
 import { RecordFeePaymentDto } from './dto/record-fee.dto';
+import { BulkFeePaymentDto } from './dto/bulk-fee-payment.dto';
 import { AssociationSettingsDto } from './dto/settings.dto';
 import { RecordEventExpenseDto } from './dto/record-event-expense.dto';
 
@@ -181,6 +182,33 @@ export class FinanceController {
     return this.service.getMemberFeeHistory(associationId, membershipId);
   }
 
+  @Post('fees/bulk')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
+  bulkFeePayment(
+    @Param('associationId') associationId: string,
+    @Body() body: BulkFeePaymentDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.bulkFeePayment(associationId, body, user);
+  }
+
+  @Get('fees/unpaid')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
+  getUnpaidMembers(
+    @Param('associationId') associationId: string,
+    @Query('month') month: string,
+  ) {
+    return this.service.getUnpaidMembers(associationId, month);
+  }
+
   // --- Donations ---
 
   @Post('donations')
@@ -258,5 +286,15 @@ export class FinanceController {
   )
   getSettings(@Param('associationId') associationId: string) {
     return this.service.getSettings(associationId);
+  }
+
+  @Get('frequent-categories')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
+  getFrequentCategories(@Param('associationId') associationId: string) {
+    return this.service.getFrequentCategories(associationId);
   }
 }

@@ -271,16 +271,20 @@ export function AnalyzeMeetingDialog({
                               <SelectItem value="__none__">
                                 <span className="text-muted-foreground">Atanmamış</span>
                               </SelectItem>
-                              {members?.map((m) => (
-                                <SelectItem key={m.user.id} value={m.user.id}>
-                                  <span>{m.user.fullName}</span>
-                                  {(m.customTitle || m.title?.name) && (
-                                    <span className="ml-1.5 text-muted-foreground">
-                                      — {m.customTitle ?? m.title?.name}
-                                    </span>
-                                  )}
-                                </SelectItem>
-                              ))}
+                              {members?.map((m) => {
+                                const primary = m.titleAssignments?.find((t) => t.isPrimary);
+                                const titleName = primary?.customTitle ?? primary?.title?.name;
+                                return (
+                                  <SelectItem key={m.user.id} value={m.user.id}>
+                                    <span>{m.user.fullName}</span>
+                                    {titleName && (
+                                      <span className="ml-1.5 text-muted-foreground">
+                                        — {titleName}
+                                      </span>
+                                    )}
+                                  </SelectItem>
+                                );
+                              })}
                             </SelectContent>
                           </Select>
                           {needsAssignee && (

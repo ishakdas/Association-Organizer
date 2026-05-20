@@ -110,7 +110,7 @@ model MemberTitleDefinition {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  memberships AssociationMembership[]
+  assignments  MemberTitleAssignment[]
 
   @@map("member_title_definitions")
 }
@@ -252,16 +252,14 @@ model AssociationMembership {
   userId        String
   associationId String
   role          UserRole
-  titleId       String?
-  customTitle   String?
   joinedAt      DateTime  @default(now())
   leftAt        DateTime?
   isActive      Boolean   @default(true)
   deletedAt     DateTime?
 
-  user        User                   @relation(fields: [userId], references: [id])
-  association Association            @relation(fields: [associationId], references: [id])
-  title       MemberTitleDefinition? @relation(fields: [titleId], references: [id])
+  user             User                    @relation(fields: [userId], references: [id])
+  association      Association             @relation(fields: [associationId], references: [id])
+  titleAssignments MemberTitleAssignment[]
 
   eventAssignments EventAssignment[]
 
@@ -270,6 +268,27 @@ model AssociationMembership {
   @@index([userId])
   @@index([deletedAt])
   @@map("association_memberships")
+}
+
+// -----------------------------------------------------------------------------
+// Member Title Assignments (primary + secondary titles per membership)
+// -----------------------------------------------------------------------------
+
+model MemberTitleAssignment {
+  id            String   @id @default(cuid())
+  membershipId  String
+  titleId       String?
+  customTitle   String?
+  isPrimary     Boolean  @default(false)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  membership  AssociationMembership   @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+  title       MemberTitleDefinition?  @relation(fields: [titleId], references: [id])
+
+  @@index([membershipId, isPrimary])
+  @@index([membershipId, sortOrder])
+  @@map("member_title_assignments")
 }
 
 // -----------------------------------------------------------------------------

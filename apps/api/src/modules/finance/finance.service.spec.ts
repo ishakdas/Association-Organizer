@@ -194,4 +194,119 @@ describe('FinanceService', () => {
       ).rejects.toBeInstanceOf(BadRequestException);
     });
   });
+
+  describe('bulkFeePayment', () => {
+    it('creates multiple fee payments and returns result', async () => {
+      permissionService.hasPermission.mockResolvedValue(true);
+      prisma.transactionCategory.findFirst.mockResolvedValue({
+        id: 'cat-aidat', name: 'Aidat Geliri', type: 'INCOME',
+      } as never);
+      prisma.associationMembership.findFirst
+        .mockResolvedValueOnce({
+          id: 'mem-1', user: { id: 'u1', fullName: 'Ahmet Yılmaz' },
+        } as never)
+        .mockResolvedValueOnce({
+          id: 'mem-2', user: { id: 'u2', fullName: 'Fatma Demir' },
+        } as never);
+      prisma.transaction.findFirst.mockResolvedValue(null as never);
+      prisma.transaction.createMany.mockResolvedValue({ count: 2 } as never);
+
+      const result = await service.bulkFeePayment(ASSOC, {
+        payments: [
+          { membershipId: 'mem-1', amountInKurus: 50000, month: '2026-05' },
+          { membershipId: 'mem-2', amountInKurus: 50000, month: '2026-05' },
+        ],
+      }, MANAGER);
+
+      expect(result.successCount).toBe(2);
+      expect(result.skippedCount).toBe(0);
+      expect(result.totalAmountKurus).toBe(100000);
+    });
+
+    it('skips duplicate payments for same month', async () => {
+      permissionService.hasPermission.mockResolvedValue(true);
+      prisma.transactionCategory.findFirst.mockResolvedValue({
+        id: 'cat-aidat', name: 'Aidat Geliri', type: 'INCOME',
+      } as never);
+      prisma.associationMembership.findFirst.mockResolvedValue({
+        id: 'mem-1', user: { id: 'u1', fullName: 'Ahmet Yılmaz' },
+      } as never);
+      prisma.transaction.findFirst.mockResolvedValue({ id: 'existing-tx' } as never);
+
+      const result = await service.bulkFeePayment(ASSOC, {
+        payments: [
+          { membershipId: 'mem-1', amountInKurus: 50000, month: '2026-05' },
+        ],
+      }, MANAGER);
+
+      expect(result.successCount).toBe(0);
+      expect(result.skippedCount).toBe(1);
+      expect(result.skipped[0].reason).toBe('Bu ay için zaten kayıt var');
+    });
+
+    it('skips inactive memberships', async () => {
+      permissionService.hasPermission.mockResolvedValue(true);
+      prisma.transactionCategory.findFirst.mockResolvedValue({
+        id: 'cat-aidat', name: 'Aidat Geliri', type: 'INCOME',
+      } as never);
+      prisma.associationMembership.findFirst.mockResolvedValue(null as never);
+
+      const result = await service.bulkFeePayment(ASSOC, {
+        payments: [
+          { membershipId: 'mem-inactive', amountInKurus: 50000, month: '2026-05' },
+        ],
+      }, MANAGER);
+
+      expect(result.successCount).toBe(0);
+      expect(result.skippedCount).toBe(1);
+      expect(result.skipped[0].reason).toBe('Üyelik bulunamadı veya aktif değil');
+    });
+  });
+
+  describe('getUnpaidMembers', () => {
+    it('returns all members with paid/unpaid status', async () => {
+      prisma.associationMembership.findMany.mockResolvedValue([
+        { id: 'mem-1', user: { id: 'u1', fullName: 'Ahmet Yılmaz' } },
+        { id: 'mem-2', user: { id: 'u2', fullName: 'Fatma Demir' } },
+      ] as never);
+      prisma.transaction.findMany.mockResolvedValue([
+        { description: 'Aidat - 2026-05 - Ahmet Yılmaz' },
+      ] as never);
+      prisma.associationSettings.findUnique.mockResolvedValue({
+        monthlyFeeAmountKurus: 50000,
+      } as never);
+
+      const result = await service.getUnpaidMembers(ASSOC, '2026-05');
+
+      expect(result).toHaveLength(2);
+      expect(result[0].hasPaid).toBe(true);
+      expect(result[0].fullName).toBe('Ahmet Yılmaz');
+      expect(result[1].hasPaid).toBe(false);
+      expect(result[1].fullName).toBe('Fatma Demir');
+      expect(result[0].monthlyFeeAmountKurus).toBe(50000);
+    });
+  });
+
+  describe('getFrequentCategories', () => {
+    it('returns most used categories from last 30 days', async () => {
+      prisma.transactionCategory.findMany.mockResolvedValue([
+        {
+          id: 'cat-1', name: 'Kira', type: 'EXPENSE',
+          _count: { transactions: 5 },
+        },
+        {
+          id: 'cat-2', name: 'Fatura', type: 'EXPENSE',
+          _count: { transactions: 3 },
+        },
+      ] as never);
+
+      const result = await service.getFrequentCategories(ASSOC, 5);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].name).toBe('Kira');
+      expect(result[0].count).toBe(5);
+      expect(result[1].name).toBe('Fatura');
+      expect(result[1].count).toBe(3);
+    });
+  });
 });

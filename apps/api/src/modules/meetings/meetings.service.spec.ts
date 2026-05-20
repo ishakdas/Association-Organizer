@@ -219,19 +219,29 @@ describe('MeetingsService', () => {
   });
 
   describe('analyzeContent — member context', () => {
-    it('passes role label, title description and customTitle to AI service', async () => {
+    it('passes role label, primary title and secondary titles to AI service', async () => {
       prisma.associationMembership.findMany.mockResolvedValue([
         {
           user: { id: 'u1', fullName: 'Ali Veli' },
           role: 'ASSOCIATION_MANAGER',
-          customTitle: null,
-          title: { name: 'Teşkilat Başkanı', description: 'Üye kazanımı, koordinasyon' },
+          titleAssignments: [
+            {
+              isPrimary: true,
+              title: { name: 'Teşkilat Başkanı', description: 'Üye kazanımı, koordinasyon' },
+              customTitle: null,
+            },
+          ],
         },
         {
           user: { id: 'u2', fullName: 'Ayşe Demir' },
           role: 'ASSOCIATION_MEMBER',
-          customTitle: 'Bölge Temsilcisi',
-          title: null,
+          titleAssignments: [
+            {
+              isPrimary: false,
+              title: null,
+              customTitle: 'Bölge Temsilcisi',
+            },
+          ],
         },
       ] as never);
 
@@ -249,8 +259,9 @@ describe('MeetingsService', () => {
         {
           user: { id: 'u1', fullName: 'Ali Veli' },
           role: 'ASSOCIATION_MANAGER',
-          customTitle: null,
-          title: null,
+          titleAssignments: [
+            { isPrimary: true, title: null, customTitle: null },
+          ],
         },
       ] as never);
 
@@ -276,8 +287,9 @@ describe('MeetingsService', () => {
         {
           user: { id: 'u1', fullName: 'Ali Veli' },
           role: 'ASSOCIATION_MANAGER',
-          customTitle: null,
-          title: null,
+          titleAssignments: [
+            { isPrimary: true, title: null, customTitle: null },
+          ],
         },
       ] as never);
 

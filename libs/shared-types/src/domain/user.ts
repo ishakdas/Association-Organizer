@@ -11,21 +11,35 @@ export interface UserDto {
   updatedAt: string;
 }
 
+export interface MemberTitleAssignmentDto {
+  id: string;
+  titleId: string | null;
+  customTitle: string | null;
+  isPrimary: boolean;
+  sortOrder: number;
+  createdAt: string;
+  title?: {
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+  } | null;
+}
+
 export interface AssociationMembershipDto {
   id: string;
   userId: string;
   associationId: string;
   role: UserRole;
-  titleId: string | null;
-  customTitle: string | null;
   joinedAt: string;
   leftAt: string | null;
   isActive: boolean;
+  titleAssignments: MemberTitleAssignmentDto[];
 }
 
 export interface TelegramAccountDto {
   id: string;
-  telegramId: string; // BigInt serialized as string
+  telegramId: string;
   username: string | null;
   firstName: string | null;
   userId: string;

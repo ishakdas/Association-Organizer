@@ -35,7 +35,12 @@ export const MEMBER_INCLUDE = {
       },
     },
   },
-  title: true,
+  titleAssignments: {
+    include: {
+      title: true,
+    },
+    orderBy: { sortOrder: 'asc' },
+  },
 } as const;
 
 @Injectable()
@@ -51,10 +56,6 @@ export class AssociationMembersService {
   async create(associationId: string, input: AddMemberInput) {
     await this.ensureAssociation(associationId);
 
-    // --- Re-use existing user if the email is already in our DB ---
-    // This covers the case where a user was a member of an association that
-    // was later deleted: the membership is removed but the User row stays,
-    // so attempting to add the same email again must NOT create a duplicate.
     if (input.email) {
       const existing = await this.prisma.user.findUnique({
         where: { email: input.email },
@@ -62,7 +63,6 @@ export class AssociationMembersService {
       });
 
       if (existing) {
-        // Reactivate if previously deactivated.
         if (!existing.isActive) {
           await this.prisma.user.update({
             where: { id: existing.id },
@@ -76,8 +76,9 @@ export class AssociationMembersService {
               associationId,
               userId: existing.id,
               role: input.role,
-              titleId: input.titleId ?? null,
-              customTitle: input.customTitle ?? null,
+              titleAssignments: {
+                create: this.normalizeTitleAssignments(input.titleAssignments),
+              },
               isActive: true,
             },
             include: MEMBER_INCLUDE,
@@ -96,9 +97,6 @@ export class AssociationMembersService {
       }
     }
 
-    // --- No existing user found: original saga path ---
-    // Saga path: secretaries get a Supabase auth user (web login).
-    // Schema enforces password+email presence for SECRETARY role.
     const provisionsSupabase =
       input.role === 'ASSOCIATION_SECRETARY' && !!input.password;
 
@@ -124,17 +122,14 @@ export class AssociationMembersService {
           associationId,
           userId: createdUser.id,
           role: input.role,
-          titleId: input.titleId ?? null,
-          customTitle: input.customTitle ?? null,
+          titleAssignments: {
+            create: this.normalizeTitleAssignments(input.titleAssignments),
+          },
           isActive: true,
         },
         include: MEMBER_INCLUDE,
       });
     } catch (e) {
-      // Membership insert failed after the user was created — roll the
-      // user back so we don't leave orphans (especially in Supabase).
-      // Mirror `AssociationsService.create`: log rollback failures so
-      // orphaned auth users are observable rather than silently hidden.
       if (createdUser) {
         try {
           await this.users.deleteUser({
@@ -173,7 +168,6 @@ export class AssociationMembersService {
       where.role = query.role;
     }
 
-    // Default = active-only view. isActive=false means audit view (include left/inactive).
     if (query.isActive !== false) {
       where.isActive = true;
       where.leftAt = null;
@@ -194,10 +188,6 @@ export class AssociationMembersService {
   ) {
     const existing = await this.ensureMembership(associationId, membershipId);
 
-    // Yalnızca SYSTEM_ADMIN bir başkanı görevden alabilir veya bir
-    // üyeyi başkan yapabilir. Mevcut rolü MANAGER olan bir üyeliğin
-    // değiştirilmesi (demote) ve yeni rolü MANAGER yapma (promote) bu
-    // kapsamdadır — başkan kendisini de görevden alamaz.
     const touchesManager =
       existing.role === UserRole.ASSOCIATION_MANAGER ||
       input.role === UserRole.ASSOCIATION_MANAGER;
@@ -209,15 +199,15 @@ export class AssociationMembersService {
 
     const data: Prisma.AssociationMembershipUpdateInput = {};
     if (input.role !== undefined) data.role = input.role;
-    if (input.titleId !== undefined) {
-      data.title = input.titleId
-        ? { connect: { id: input.titleId } }
-        : { disconnect: true };
-    }
-    if (input.customTitle !== undefined) data.customTitle = input.customTitle;
     if (input.isActive !== undefined) data.isActive = input.isActive;
     if (input.leftAt !== undefined) {
       data.leftAt = input.leftAt ? new Date(input.leftAt) : null;
+    }
+    if (input.titleAssignments !== undefined) {
+      data.titleAssignments = {
+        deleteMany: {},
+        create: this.normalizeTitleAssignments(input.titleAssignments),
+      };
     }
 
     const userData: Prisma.UserUpdateInput = {};
@@ -225,9 +215,6 @@ export class AssociationMembersService {
     if (input.phone !== undefined) userData.phone = input.phone ?? null;
     if (input.address !== undefined) userData.address = input.address;
 
-    // user fields and membership fields are written atomically: if the
-    // membership update fails (e.g. partial-unique manager index), the
-    // user row must NOT remain half-updated.
     try {
       return await this.prisma.$transaction(async (tx) => {
         if (Object.keys(userData).length > 0) {
@@ -294,10 +281,6 @@ export class AssociationMembersService {
     return this.auth.unlinkTelegram(membership.userId);
   }
 
-  // Admin-issued Telegram link code: a manager (or system admin) generates
-  // a one-time code on behalf of a member, who then sends `/link <code>`
-  // to the bot. Required for DB-only members (no Supabase login = cannot
-  // self-issue from /settings/telegram).
   async generateTelegramLink(
     associationId: string,
     membershipId: string,
@@ -317,6 +300,27 @@ export class AssociationMembersService {
     return this.auth.generateLinkTokenWithEmail(membership.userId, targetEmail);
   }
 
+  private normalizeTitleAssignments(
+    assignments: { titleId?: string | null; customTitle?: string | null; isPrimary?: boolean; sortOrder?: number }[],
+  ): { titleId?: string | null; customTitle?: string | null; isPrimary: boolean; sortOrder: number }[] {
+    let hasPrimary = false;
+    const normalized = assignments.map((a, i) => {
+      if (a.isPrimary) hasPrimary = true;
+      return {
+        titleId: a.titleId ?? null,
+        customTitle: a.customTitle ?? null,
+        isPrimary: a.isPrimary ?? false,
+        sortOrder: a.sortOrder ?? i,
+      };
+    });
+
+    if (!hasPrimary && normalized.length > 0) {
+      normalized[0].isPrimary = true;
+    }
+
+    return normalized;
+  }
+
   private async ensureAssociation(id: string) {
     const exists = await this.prisma.association.findFirst({
       where: { id, deletedAt: null },
@@ -325,11 +329,6 @@ export class AssociationMembersService {
     if (!exists) throw new NotFoundException('Dernek bulunamadı');
   }
 
-  // Scoped by `associationId` + `membershipId`: a membership that exists
-  // but belongs to a different dernek is treated as not-found so the
-  // route guard cannot be bypassed by passing a foreign membershipId.
-  // Returns `role` so callers can enforce role-specific gates (e.g.
-  // only SYSTEM_ADMIN may mutate a MANAGER row).
   private async ensureMembership(associationId: string, membershipId: string) {
     const found = await this.prisma.associationMembership.findFirst({
       where: { id: membershipId, associationId, deletedAt: null },
