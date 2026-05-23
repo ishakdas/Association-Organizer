@@ -18,7 +18,8 @@
       "@ticketbot/shared-validation": ["libs/shared-validation/src/index.ts"],
       "@ticketbot/database": ["libs/database/src/index.ts"],
       "@ticketbot/core": ["libs/core/src/index.ts"],
-      "@ticketbot/ai": ["libs/ai/src/index.ts"]
+      "@ticketbot/ai": ["libs/ai/src/index.ts"],
+      "bot": ["apps/bot/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "dist"]
