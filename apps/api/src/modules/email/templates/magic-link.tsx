@@ -10,13 +10,13 @@ export interface MagicLinkTemplateProps {
 export function MagicLinkTemplate({ fullName, magicLink, associationName }: MagicLinkTemplateProps) {
   const heading = associationName
     ? `${associationName} — Davet`
-    : "Yedimuîn'e Davet Edildiniz!";
+    : "Defter-i Hilal'e Davet Edildiniz!";
 
   const greeting = `Merhaba ${fullName},`;
 
   const bodyText = associationName
-    ? `${associationName} Dernek Yönetim Sistemi'ne davet edildiniz. Aşağıdaki butona tıklayarak hesabınızı aktifleştirebilir ve şubenizi yönetmeye başlayabilirsiniz.`
-    : "Yedimuîn Dernek Yönetim Sistemi'ne davet edildiniz. Aşağıdaki butona tıklayarak hesabınızı aktifleştirebilir ve şubenizi yönetmeye başlayabilirsiniz.";
+    ? `${associationName} Organizasyon Yönetim Sistemi'ne davet edildiniz. Aşağıdaki butona tıklayarak hesabınızı aktifleştirebilir ve şubenizi yönetmeye başlayabilirsiniz.`
+    : "Defter-i Hilal Organizasyon Yönetim Sistemi'ne davet edildiniz. Aşağıdaki butona tıklayarak hesabınızı aktifleştirebilir ve şubenizi yönetmeye başlayabilirsiniz.";
 
   return (
     <BaseTemplate preview="Hesabınızı aktifleştirmek için davet bağlantınız">
@@ -31,7 +31,7 @@ export function MagicLinkTemplate({ fullName, magicLink, associationName }: Magi
 
         <FallbackLink href={magicLink} />
 
-        <Text style={{ fontSize: 14, color: '#374151', margin: '16px 0 0' }}>
+        <Text style={{ fontSize: 14, color: '#555555', margin: '16px 0 0' }}>
           İlk girişin ardından profil bilgilerinizi tamamlamanızı öneririz.
         </Text>
       </ContentBlock>

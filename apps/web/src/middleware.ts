@@ -72,16 +72,38 @@ export async function middleware(request: NextRequest) {
   }
 
   // Onboarding gate: authenticated + not yet onboarded + not on onboarding/auth routes
+  // System admins skip onboarding entirely — they go straight to /dashboard.
   if (
     user &&
     !pathname.startsWith('/onboarding') &&
     !pathname.startsWith('/auth/') &&
     !pathname.startsWith('/callback') &&
     !pathname.startsWith('/login') &&
-    !pathname.startsWith('/reset-password')
+    !pathname.startsWith('/reset-password') &&
+    !pathname.startsWith('/dashboard')
   ) {
     const done = request.cookies.get('onboarding_done')?.value === '1';
     if (!done) {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (session?.access_token) {
+          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+          });
+          if (res.ok) {
+            const me: AuthenticatedUser = await res.json();
+            if (me.systemRole === 'SYSTEM_ADMIN') {
+              const url = request.nextUrl.clone();
+              url.pathname = '/dashboard';
+              return NextResponse.redirect(url);
+            }
+          }
+        }
+      } catch {
+        // If the API call fails, fall through to the normal onboarding redirect.
+      }
       const url = request.nextUrl.clone();
       url.pathname = '/onboarding';
       return NextResponse.redirect(url);

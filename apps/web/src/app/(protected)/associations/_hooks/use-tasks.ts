@@ -8,13 +8,16 @@ import {
 import { toast } from 'sonner';
 import {
   createTask,
+  deleteTask,
   listTaskActivities,
   listTasks,
   resolveTaskDispute,
   updateTask,
   updateTaskStatus,
   prioritizeTasks,
+  extractTasksFromMeeting,
   type TasksListParams,
+  type ExtractTasksFromMeetingInput,
 } from '@/lib/api/tasks';
 import type {
   CreateTaskInput,
@@ -91,6 +94,33 @@ export function useUpdateTask(
         queryKey: taskActivitiesQueryKey(associationId, task.id),
       });
       options?.onSuccess?.(task);
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+export function useDeleteTask(associationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (taskId: string) =>
+      deleteTask(await getAccessToken(), associationId, taskId),
+    onSuccess: (task) => {
+      toast.success(`"${task.title}" görevi silindi`);
+      queryClient.invalidateQueries({ queryKey: ['tasks', associationId] });
+      queryClient.invalidateQueries({ queryKey: ['my-tasks'] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+}
+
+export function useExtractTasksFromMeeting(associationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: ExtractTasksFromMeetingInput) =>
+      extractTasksFromMeeting(await getAccessToken(), associationId, input),
+    onSuccess: (result) => {
+      toast.success(`${result.count} görev toplantıdan çıkarıldı`);
+      queryClient.invalidateQueries({ queryKey: ['tasks', associationId] });
     },
     onError: (err: Error) => toast.error(err.message),
   });

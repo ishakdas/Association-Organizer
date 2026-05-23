@@ -29,6 +29,7 @@ export {
   resolveDisputeSchema,
   listTasksQuerySchema,
   listMyTasksQuerySchema,
+  extractTasksFromMeetingSchema,
   taskResponseSchema,
   myTaskItemSchema,
   taskActivitySchema,
@@ -42,6 +43,7 @@ export {
   type ResolveDisputeInput,
   type ListTasksQuery,
   type ListMyTasksQuery,
+  type ExtractTasksFromMeetingInput,
   type TaskResponse,
   type MyTaskItem,
   type TaskActivity,
@@ -115,8 +117,10 @@ export {
 export {
   extractedActionItemSchema,
   extractionResultSchema,
+  extractTasksFromMeetingResultSchema,
   type ExtractedActionItemOutput,
   type ExtractionResultOutput,
+  type ExtractTasksFromMeetingResultOutput,
   type EnrichedActionItem,
 } from './schemas/extracted-action-item.schema';
 

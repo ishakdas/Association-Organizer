@@ -18,10 +18,10 @@ export default () => {
     telegramBotUsername: env.TELEGRAM_BOT_USERNAME,
     apiUrl: env.API_URL,
     webUrl: env.WEB_URL,
-    brevo: {
-      apiKey: env.BREVO_API_KEY ?? null,
-      fromEmail: env.BREVO_FROM_EMAIL ?? null,
-      fromName: env.BREVO_FROM_NAME,
+    resend: {
+      apiKey: env.RESEND_API_KEY ?? null,
+      fromEmail: env.RESEND_FROM_EMAIL ?? null,
+      fromName: env.RESEND_FROM_NAME,
     },
   };
 };

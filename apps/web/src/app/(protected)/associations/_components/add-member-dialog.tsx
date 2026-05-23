@@ -49,8 +49,8 @@ const formSchema = z
   .object({
     mode: z.enum(['secretary', 'member']),
     fullName: z.string().min(2, 'En az 2 karakter').max(200),
-    email: z.string().email('Geçerli e-posta').optional().or(z.literal('')),
-    phone: z.string().optional(),
+    email: z.string().email('Geçerli bir e-posta girin'),
+    phone: z.string().min(1, 'Telefon numarası zorunlu'),
     address: z.string().max(500).optional(),
     titleId: z.string().optional(),
     customTitle: z.string().optional(),
@@ -58,13 +58,6 @@ const formSchema = z
   })
   .superRefine((v, ctx) => {
     if (v.mode === 'secretary') {
-      if (!v.email || !v.email.includes('@')) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['email'],
-          message: 'Sekreter için geçerli e-posta zorunlu',
-        });
-      }
       if (!v.password || v.password.length < 8) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -293,7 +286,7 @@ export function AddMemberDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      E-posta {mode === 'secretary' && '*'}
+                      E-posta *
                     </FormLabel>
                     <FormControl>
                       <Input type="email" placeholder="ali@..." autoComplete="off" {...field} />
@@ -307,7 +300,7 @@ export function AddMemberDialog({
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Telefon</FormLabel>
+                    <FormLabel>Telefon *</FormLabel>
                     <FormControl>
                       <PhoneInput
                         name={field.name}
@@ -327,7 +320,7 @@ export function AddMemberDialog({
               name="address"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Adres</FormLabel>
+                  <FormLabel>Adres <span className="text-muted-foreground font-normal">(opsiyonel)</span></FormLabel>
                   <FormControl>
                     <Input placeholder="İl, ilçe, mahalle…" {...field} />
                   </FormControl>

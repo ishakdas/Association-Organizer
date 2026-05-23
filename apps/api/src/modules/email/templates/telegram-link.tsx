@@ -36,16 +36,16 @@ export function TelegramLinkTemplate({
         note="Bu bağlantıyı beklemiyorsanız lütfen bu e-postayı dikkate almayın. Herhangi bir sorun için sistem yöneticinizle iletişime geçebilirsiniz."
       >
         <Text style={{ margin: '0 0 14px' }}>
-          Dernek Yönetim Sistemi bildirimlerini Telegram üzerinden alabilmek için
+          Defter-i Hilal bildirimlerini Telegram üzerinden alabilmek için
           aşağıdaki butona tıklayın. Telegram açıldıktan sonra <strong>START</strong> butonuna
           basın ve ardından telefon numaranızı paylaşın.
         </Text>
 
         <CtaButton href={tgDirectUrl}>Telegram'da Bağlantıyı Başlat</CtaButton>
 
-        <Text style={{ fontSize: 14, color: '#374151', margin: '16px 0 8px' }}>
+        <Text style={{ fontSize: 14, color: '#555555', margin: '16px 0 8px' }}>
           <strong>Buton çalışmazsa</strong> Telegram'ı açıp{' '}
-          <Link href={`https://t.me/${botUsername}`} style={{ color: '#2563eb', textDecoration: 'none' }}>
+          <Link href={`https://t.me/${botUsername}`} style={{ color: '#c59600', textDecoration: 'none' }}>
             @{botUsername}
           </Link>{' '}
           botuna aşağıdaki komutu yazın:
@@ -57,18 +57,18 @@ export function TelegramLinkTemplate({
             fontSize: 15,
             fontWeight: 700,
             letterSpacing: '0.04em',
-            backgroundColor: '#f3f4f6',
-            border: '1px solid #e5e7eb',
+            backgroundColor: '#f5f5f0',
+            border: '1px solid #e0ddd5',
             borderRadius: 6,
             padding: '10px 16px',
             margin: '0 0 16px',
-            color: '#111827',
+            color: '#c59600',
           }}
         >
           /link {token}
         </Text>
 
-        <Text style={{ fontSize: 13, color: '#6b7280', margin: '0 0 8px' }}>
+        <Text style={{ fontSize: 13, color: '#555555', margin: '0 0 8px' }}>
           Bu kod tek kullanımlıktır ve <strong>{expiresLabel}</strong> tarihine kadar geçerlidir.
         </Text>
       </ContentBlock>

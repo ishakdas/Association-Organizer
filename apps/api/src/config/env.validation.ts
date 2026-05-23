@@ -24,11 +24,11 @@ export const envSchema = z.object({
   TELEGRAM_BOT_USERNAME: z.string().min(1).default('yedi_hilal_organizator_bot'),
   API_URL: z.string().url().default('http://localhost:3000'),
   WEB_URL: z.string().url().default('http://localhost:3001'),
-  // ─── Brevo (email delivery — magic link, telegram link, etc.) ─────
-  // Free tier: 300 emails/day (~9,000/month). API key from https://app.brevo.com
-  BREVO_API_KEY: z.string().min(1).optional(),
-  BREVO_FROM_EMAIL: z.string().email().optional(),
-  BREVO_FROM_NAME: z.string().default('Dernek Yönetim Sistemi'),
+  // ─── Resend (email delivery — magic link, telegram link, etc.) ─────
+  // Free tier: 3,000 emails/month. API key from https://resend.com
+  RESEND_API_KEY: z.string().min(1).optional(),
+  RESEND_FROM_EMAIL: z.string().email().optional(),
+  RESEND_FROM_NAME: z.string().default('Dernek Yönetim Sistemi'),
 });
 
 export type Env = z.infer<typeof envSchema>;

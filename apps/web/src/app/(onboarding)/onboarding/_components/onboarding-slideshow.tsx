@@ -173,7 +173,7 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
     document.cookie = 'onboarding_done=1; path=/; max-age=31536000; SameSite=Lax';
     setLoading(true);
 
-    let redirectTo = '/dashboard';
+    let redirectTo = isSystemAdmin ? '/dashboard' : '/associations';
     try {
       const supabase = createClient();
       const {
@@ -182,9 +182,11 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
       if (session?.access_token) {
         await completeOnboarding(session.access_token);
         const me = await getMe(session.access_token);
-        const activeMemberships = me.memberships.filter((m) => m.isActive);
-        if (activeMemberships.length === 1) {
-          redirectTo = `/associations/${activeMemberships[0].associationId}`;
+        if (!isSystemAdmin) {
+          const activeMemberships = me.memberships.filter((m) => m.isActive);
+          if (activeMemberships.length === 1) {
+            redirectTo = `/associations/${activeMemberships[0].associationId}`;
+          }
         }
       }
     } catch {
@@ -240,14 +242,14 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
           <div className="flex items-center gap-3">
             <Image
               src="/yedihilal-logo.png"
-              alt="YediHilal"
+              alt="Defter-i Hilal"
               width={32}
               height={45}
               className="h-11 w-auto"
               priority
             />
             <div>
-              <div className="text-sm font-bold tracking-tight text-white">Dernek Organizer</div>
+              <div className="text-sm font-bold tracking-tight text-white">Defter-i Hilal</div>
               <div className="text-[10px] font-medium uppercase tracking-widest text-white/60">
                 Sicil &amp; Üyelik
               </div>

@@ -104,7 +104,7 @@ function LoginInner() {
         </div>
 
         <footer className="text-center text-[11px] uppercase tracking-widest text-muted-foreground lg:hidden">
-          © {new Date().getFullYear()} Dernek Organizer
+          © {new Date().getFullYear()} Defter-i Hilal
         </footer>
       </div>
       <BrandPanel />
@@ -664,7 +664,7 @@ function BrandPanel() {
       </div>
 
       <div className="relative z-10 flex items-center justify-between text-[11px] uppercase tracking-widest text-white/50">
-        <span>© {new Date().getFullYear()} Dernek Organizer</span>
+        <span>© {new Date().getFullYear()} Defter-i Hilal</span>
         <span>TR</span>
       </div>
     </aside>
@@ -676,7 +676,7 @@ function Brand({ dark }: { dark?: boolean }) {
     <div className="flex items-center gap-3">
       <Image
         src="/yedihilal-logo.png"
-        alt="YediHilal"
+        alt="Defter-i Hilal"
         width={32}
         height={45}
         className="h-11 w-auto"
@@ -684,7 +684,7 @@ function Brand({ dark }: { dark?: boolean }) {
       />
       <div className="leading-tight">
         <div className={`text-[13px] font-bold tracking-tight ${dark ? 'text-white' : 'text-foreground'}`}>
-          YediHilal Sekreterya
+          Defter-i Hilal
         </div>
         <div className={`text-[10px] font-medium uppercase tracking-widest ${dark ? 'text-white/60' : 'text-muted-foreground'}`}>
           Şube bazlı sekreterya

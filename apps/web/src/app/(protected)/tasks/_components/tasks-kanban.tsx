@@ -7,11 +7,14 @@ import { tr } from 'date-fns/locale';
 import {
   AlertTriangle,
   Building2,
+  ChevronDown,
   Clock,
   Eye,
   Flag,
   GripVertical,
   Loader2,
+  Pencil,
+  Trash2,
   UserPlus,
 } from 'lucide-react';
 import type {
@@ -19,7 +22,15 @@ import type {
   TaskStatusValue,
 } from '@ticketbot/shared-validation';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import {
   TASK_PRIORITY_CLASS,
@@ -42,6 +53,12 @@ export function TasksKanban({
   showAssociation,
   onStatusChange,
   pendingTaskId,
+  canManage,
+  currentUserId,
+  onDelete,
+  onEdit,
+  isDeleting,
+  deletingTaskId,
 }: {
   isLoading: boolean;
   isError: boolean;
@@ -50,6 +67,12 @@ export function TasksKanban({
   showAssociation: boolean;
   onStatusChange: (taskId: string, status: TaskStatusValue) => void;
   pendingTaskId: string | undefined;
+  canManage?: boolean;
+  currentUserId?: string;
+  onDelete?: (taskId: string) => void;
+  onEdit?: (task: MyTaskItem) => void;
+  isDeleting?: boolean;
+  deletingTaskId?: string;
 }) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
 
@@ -83,6 +106,12 @@ export function TasksKanban({
           showAssociation={showAssociation}
           draggingId={draggingId}
           pendingTaskId={pendingTaskId}
+          canManage={canManage}
+          currentUserId={currentUserId}
+          onDelete={onDelete}
+          onEdit={onEdit}
+          isDeleting={isDeleting}
+          deletingTaskId={deletingTaskId}
           onDragStart={(id) => setDraggingId(id)}
           onDragEnd={() => setDraggingId(null)}
           onDropTask={(taskId, currentStatus) => {
@@ -102,6 +131,12 @@ function KanbanColumn({
   showAssociation,
   draggingId,
   pendingTaskId,
+  canManage,
+  currentUserId,
+  onDelete,
+  onEdit,
+  isDeleting,
+  deletingTaskId,
   onDragStart,
   onDragEnd,
   onDropTask,
@@ -112,6 +147,12 @@ function KanbanColumn({
   showAssociation: boolean;
   draggingId: string | null;
   pendingTaskId: string | undefined;
+  canManage?: boolean;
+  currentUserId?: string;
+  onDelete?: (taskId: string) => void;
+  onEdit?: (task: MyTaskItem) => void;
+  isDeleting?: boolean;
+  deletingTaskId?: string;
   onDragStart: (taskId: string) => void;
   onDragEnd: () => void;
   onDropTask: (taskId: string, currentStatus: TaskStatusValue) => void;
@@ -185,6 +226,11 @@ function KanbanColumn({
               showAssociation={showAssociation}
               isDragging={draggingId === t.id}
               isUpdating={pendingTaskId === t.id}
+              canManage={canManage}
+              currentUserId={currentUserId}
+              onDelete={onDelete}
+              onEdit={onEdit}
+              isDeleting={!!isDeleting && deletingTaskId === t.id}
               onDragStart={(e) => {
                 e.dataTransfer.setData(DRAG_MIME, t.id);
                 e.dataTransfer.setData(DRAG_STATUS_MIME, t.status);
@@ -205,6 +251,11 @@ function KanbanCard({
   showAssociation,
   isDragging,
   isUpdating,
+  canManage,
+  currentUserId,
+  onDelete,
+  onEdit,
+  isDeleting,
   onDragStart,
   onDragEnd,
 }: {
@@ -212,9 +263,15 @@ function KanbanCard({
   showAssociation: boolean;
   isDragging: boolean;
   isUpdating: boolean;
+  canManage?: boolean;
+  currentUserId?: string;
+  onDelete?: (taskId: string) => void;
+  onEdit?: (task: MyTaskItem) => void;
+  isDeleting: boolean;
   onDragStart: (e: React.DragEvent<HTMLDivElement>) => void;
   onDragEnd: () => void;
 }) {
+  const [editOpen, setEditOpen] = useState(false);
   const due = task.dueDate ? new Date(task.dueDate) : null;
   const isOverdue =
     due !== null &&
@@ -227,6 +284,8 @@ function KanbanCard({
     .join('')
     .slice(0, 2)
     .toUpperCase();
+  const isAssignee = !!currentUserId && currentUserId === (task as any).assignedToUserId;
+  const canChangeStatus = canManage || isAssignee;
 
   return (
     <div
@@ -234,12 +293,48 @@ function KanbanCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        'group rounded-md border border-border bg-card p-2.5 shadow-sm transition-all',
+        'group relative rounded-md border border-border bg-card p-2.5 shadow-sm transition-all',
         'hover:border-foreground/20',
         isDragging && 'opacity-40',
         isUpdating ? 'cursor-wait' : 'cursor-grab active:cursor-grabbing',
       )}
     >
+      {canManage && (
+        <div className="absolute right-1.5 top-1.5 z-10 opacity-0 transition-opacity group-hover:opacity-100">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 w-6 p-0 hover:bg-background"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => { setEditOpen(true); onEdit?.(task); }}>
+                <Pencil className="mr-2 h-3.5 w-3.5" />
+                Düzenle
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => onDelete?.(task.id)}
+                disabled={isDeleting}
+                className="text-destructive focus:text-destructive"
+              >
+                {isDeleting ? (
+                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-2 h-3.5 w-3.5" />
+                )}
+                Sil
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+
       <div className="flex items-start gap-1.5">
         <GripVertical className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground/40 group-hover:text-muted-foreground/70" />
         <div className="min-w-0 flex-1 space-y-1.5">

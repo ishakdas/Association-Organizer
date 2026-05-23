@@ -36,7 +36,6 @@ export const createTaskSchema = z
     reminderFrequency: reminderFrequencyEnum.default('NONE'),
   })
   .superRefine((v, ctx) => {
-    // Reminder must precede the due date — otherwise it's pointless.
     if (v.reminderAt && v.dueDate && v.reminderAt > v.dueDate) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -44,7 +43,6 @@ export const createTaskSchema = z
         message: 'Hatırlatma tarihi bitiş tarihinden önce olmalı',
       });
     }
-    // Recurring or one-shot reminders need at least an anchor date.
     if (v.reminderFrequency !== 'NONE' && !v.reminderAt) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -101,24 +99,36 @@ export const resolveDisputeSchema = z.object({
 });
 export type ResolveDisputeInput = z.infer<typeof resolveDisputeSchema>;
 
+const emptyToUndefined = z.literal('').transform(() => undefined);
+
 export const listTasksQuerySchema = z.object({
-  status: taskStatusEnum.optional(),
-  assignedToUserId: z.string().cuid().optional(),
+  status: taskStatusEnum.or(emptyToUndefined).optional(),
+  assignedToUserId: z.string().cuid().or(emptyToUndefined).optional(),
+  priority: taskPriorityEnum.or(emptyToUndefined).optional(),
+  search: z.string().max(200).or(emptyToUndefined).optional(),
+  sortBy: z.enum(['createdAt', 'dueDate', 'priority', 'title']).or(emptyToUndefined).default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc']).or(emptyToUndefined).default('desc'),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  pageSize: z.coerce.number().int().min(1).max(200).default(20),
 });
 export type ListTasksQuery = z.infer<typeof listTasksQuerySchema>;
 
-// Cross-association list for the global /tasks page. The endpoint
-// computes the visible set from the caller's memberships, so the
-// query only carries optional narrowing filters.
 export const listMyTasksQuerySchema = z.object({
-  associationId: z.string().cuid().optional(),
-  status: taskStatusEnum.optional(),
+  associationId: z.string().cuid().or(emptyToUndefined).optional(),
+  status: taskStatusEnum.or(emptyToUndefined).optional(),
+  priority: taskPriorityEnum.or(emptyToUndefined).optional(),
+  search: z.string().max(200).or(emptyToUndefined).optional(),
+  sortBy: z.enum(['createdAt', 'dueDate', 'priority', 'title']).or(emptyToUndefined).default('createdAt'),
+  sortOrder: z.enum(['asc', 'desc']).or(emptyToUndefined).default('desc'),
   page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(50),
+  pageSize: z.coerce.number().int().min(1).max(200).default(50),
 });
 export type ListMyTasksQuery = z.infer<typeof listMyTasksQuerySchema>;
+
+export const extractTasksFromMeetingSchema = z.object({
+  meetingNoteId: z.string().cuid('Geçersiz toplantı'),
+});
+export type ExtractTasksFromMeetingInput = z.infer<typeof extractTasksFromMeetingSchema>;
 
 const taskActorSchema = z.object({
   id: z.string(),
@@ -143,19 +153,15 @@ export const taskResponseSchema = z.object({
   notifiedViaTelegram: z.boolean(),
   lastNotifiedAt: z.string().nullable(),
   completedAt: z.string().nullable(),
-  // Dispute flag — present on responses once Faz B writes the column.
-  // Defaulted so older serializers that haven't been updated still parse.
   disputed: z.boolean().default(false),
   disputedAt: z.string().nullable().default(null),
   createdAt: z.string(),
   updatedAt: z.string(),
+  durationHours: z.number().nullable(),
+  workloadWarning: z.string().nullable(),
 });
 export type TaskResponse = z.infer<typeof taskResponseSchema>;
 
-// Append-only audit trail for a task. Mirrors the Prisma
-// TaskActivityAction enum. The `payload` shape varies by action — kept
-// permissive on the wire (`z.record(...)`) so adding a new action
-// doesn't require a schema change in lock-step.
 export const taskActivityActionEnum = z.enum([
   'CREATED',
   'REASSIGNED',
@@ -170,6 +176,7 @@ export const taskActivityActionEnum = z.enum([
   'ASSIGNMENT_ACCEPTED',
   'REASSIGNMENT_REQUESTED',
   'REASSIGNMENT_RESOLVED',
+  'EXTRACTED_FROM_MEETING',
 ]);
 export type TaskActivityActionValue = z.infer<typeof taskActivityActionEnum>;
 
@@ -183,8 +190,6 @@ export const taskActivitySchema = z.object({
 });
 export type TaskActivity = z.infer<typeof taskActivitySchema>;
 
-// Used by GET /tasks/me. Embeds association name + assignee name so
-// the global Görevler page can group by association without N+1 calls.
 export const myTaskItemSchema = taskResponseSchema.extend({
   association: z.object({
     id: z.string(),

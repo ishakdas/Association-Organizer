@@ -583,7 +583,8 @@ const EDIT_CUSTOM_TITLE = '__custom__';
 const editMemberFormSchema = z
   .object({
     fullName: z.string().min(2, 'En az 2 karakter').max(200),
-    phone: z.string().optional(),
+    email: z.string().email('Geçerli bir e-posta girin'),
+    phone: z.string().min(1, 'Telefon numarası zorunlu'),
     address: z.string().max(500).optional(),
     titleId: z.string().optional(),
     customTitle: z.string().optional(),
@@ -641,6 +642,7 @@ function EditMemberDialog({
     resolver: zodResolver(editMemberFormSchema),
     defaultValues: {
       fullName: member.user.fullName,
+      email: member.user.email ?? '',
       phone: member.user.phone ?? '',
       address: member.user.address ?? '',
       titleId: currentTitleId,
@@ -656,6 +658,7 @@ function EditMemberDialog({
         membershipId: member.id,
         input: {
           fullName: values.fullName.trim(),
+          email: values.email.trim() || undefined,
           phone: values.phone?.trim() || undefined,
           address: values.address?.trim() || null,
           titleAssignments: buildEditTitleAssignments(values),
@@ -691,10 +694,23 @@ function EditMemberDialog({
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>E-posta *</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="ali@..." autoComplete="off" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Telefon</FormLabel>
+                    <FormLabel>Telefon *</FormLabel>
                     <FormControl>
                       <PhoneInput
                         name={field.name}
@@ -707,20 +723,20 @@ function EditMemberDialog({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Adres</FormLabel>
-                    <FormControl>
-                      <Input placeholder="İl, ilçe, mahalle…" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Adres <span className="text-muted-foreground font-normal">(opsiyonel)</span></FormLabel>
+                  <FormControl>
+                    <Input placeholder="İl, ilçe, mahalle…" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             {!isManager && (
               <>
                 <FormField

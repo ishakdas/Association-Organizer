@@ -224,7 +224,7 @@ describe('TasksService', () => {
     it('admin/secretary: returns all dernek tasks (no assignee restriction)', async () => {
       prisma.task.findMany.mockResolvedValue([sampleTask] as never);
 
-      await service.list(ASSOC, { page: 1, pageSize: 20 }, SECRETARY_USER);
+      await service.list(ASSOC, { page: 1, pageSize: 20, sortBy: "createdAt" as const, sortOrder: "desc" as const }, SECRETARY_USER);
 
       const arg = prisma.task.findMany.mock.calls[0][0];
       expect((arg as any).where).toMatchObject({
@@ -237,7 +237,7 @@ describe('TasksService', () => {
     it('member: scopes the list to their own assignments', async () => {
       prisma.task.findMany.mockResolvedValue([] as never);
 
-      await service.list(ASSOC, { page: 1, pageSize: 20 }, MEMBER_USER);
+      await service.list(ASSOC, { page: 1, pageSize: 20, sortBy: "createdAt" as const, sortOrder: "desc" as const }, MEMBER_USER);
 
       const arg = prisma.task.findMany.mock.calls[0][0];
       expect((arg as any).where.assignedToUserId).toBe(MEMBER_USER.id);
@@ -253,6 +253,8 @@ describe('TasksService', () => {
           assignedToUserId: 'mem-1',
           page: 1,
           pageSize: 20,
+          sortBy: "createdAt" as const,
+          sortOrder: "desc" as const,
         },
         ADMIN_USER,
       );

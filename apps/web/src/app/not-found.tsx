@@ -37,7 +37,7 @@ export default function NotFound() {
         <Link href="/" className="flex items-center gap-3">
           <Image
             src="/yedihilal-logo.png"
-            alt="YediHilal"
+            alt="Defter-i Hilal"
             width={32}
             height={45}
             className="h-12 w-auto"
@@ -45,7 +45,7 @@ export default function NotFound() {
           />
           <div className="text-left leading-tight">
             <div className="text-sm font-bold tracking-tight text-white">
-              Dernek Organizer
+              Defter-i Hilal
             </div>
             <div className="text-[10px] font-medium uppercase tracking-widest text-white/60">
               Sicil &amp; Üyelik
@@ -90,7 +90,7 @@ export default function NotFound() {
         </div>
 
         <p className="text-[11px] uppercase tracking-widest text-white/40">
-          © {new Date().getFullYear()} Dernek Organizer
+          © {new Date().getFullYear()} Defter-i Hilal
         </p>
       </div>
     </div>

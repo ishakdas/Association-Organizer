@@ -16,12 +16,17 @@ import {
   Loader2,
   Pencil,
   ShieldAlert,
+  Trash2,
   UserPlus,
+  Search,
+  ArrowUpDown,
+  Filter,
 } from 'lucide-react';
 import type {
   MyTaskItem,
   TaskResponse,
   TaskStatusValue,
+  TaskPriorityValue,
 } from '@ticketbot/shared-validation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -39,6 +44,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import {
   TASK_PRIORITY_CLASS,
@@ -50,7 +63,7 @@ import {
 } from '@/lib/task-display';
 import { TasksKanban } from '@/app/(protected)/tasks/_components/tasks-kanban';
 import { useMembers } from '../../_hooks/use-members';
-import { useTasks, useUpdateTaskStatus } from '../../_hooks/use-tasks';
+import { useTasks, useUpdateTaskStatus, useDeleteTask } from '../../_hooks/use-tasks';
 import { AddTaskDialog } from './add-task-dialog';
 import { EditTaskDialog } from './edit-task-dialog';
 import { ResolveDisputeDialog } from './resolve-dispute-dialog';
@@ -70,6 +83,24 @@ const STATUS_TABS: { value: StatusTab; label: string }[] = [
   { value: 'CANCELLED', label: 'İptal' },
 ];
 
+const PRIORITY_FILTERS: { value: TaskPriorityValue | 'all'; label: string }[] = [
+  { value: 'all', label: 'Tüm Öncelikler' },
+  { value: 'HIGH', label: 'Yüksek' },
+  { value: 'MEDIUM', label: 'Orta' },
+  { value: 'LOW', label: 'Düşük' },
+];
+
+const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'createdAt-desc', label: 'En Yeni' },
+  { value: 'createdAt-asc', label: 'En Eski' },
+  { value: 'dueDate-asc', label: 'Bitiş Tarihi (Yakın)' },
+  { value: 'dueDate-desc', label: 'Bitiş Tarihi (Uzak)' },
+  { value: 'priority-desc', label: 'Öncelik (Yüksek)' },
+  { value: 'priority-asc', label: 'Öncelik (Düşük)' },
+  { value: 'title-asc', label: 'Başlık (A-Z)' },
+  { value: 'title-desc', label: 'Başlık (Z-A)' },
+];
+
 export function TasksSection({
   associationId,
   canManage,
@@ -81,6 +112,10 @@ export function TasksSection({
 }) {
   const [tab, setTab] = useState<StatusTab>('ALL');
   const [view, setView] = useState<ViewMode>('kanban');
+  const [search, setSearch] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriorityValue | 'all'>('all');
+  const [sortBy, setSortBy] = useState('createdAt-desc');
+  const [kanbanEditTask, setKanbanEditTask] = useState<TaskResponse | null>(null);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(VIEW_STORAGE_KEY);
@@ -90,9 +125,18 @@ export function TasksSection({
     window.localStorage.setItem(VIEW_STORAGE_KEY, view);
   }, [view]);
 
-  // Kanban requires all tasks at once; list can filter by status per-tab.
-  const allTasks = useTasks(associationId, { pageSize: 100 });
+  const [sortField, sortOrder] = sortBy.split('-') as [string, 'asc' | 'desc'];
+
+  const allTasks = useTasks(associationId, {
+    pageSize: 200,
+    status: tab === 'ALL' ? undefined : tab,
+    priority: priorityFilter === 'all' ? undefined : priorityFilter,
+    search: search || undefined,
+    sortBy: sortField as any,
+    sortOrder,
+  });
   const updateStatus = useUpdateTaskStatus(associationId);
+  const deleteTask = useDeleteTask(associationId);
   const { data: members } = useMembers(associationId);
 
   const userById = useMemo(() => {
@@ -103,7 +147,6 @@ export function TasksSection({
     return map;
   }, [members]);
 
-  // Adapt TaskResponse[] to MyTaskItem[] so TasksKanban can be reused.
   const kanbanTasks = useMemo<MyTaskItem[]>(() => {
     if (!allTasks.data) return [];
     return allTasks.data.data.map((t) => ({
@@ -128,6 +171,9 @@ export function TasksSection({
           <h2 className="text-[14px] font-semibold tracking-tight">
             Görevler
           </h2>
+          <Badge variant="secondary" className="text-[11px]">
+            {allTasks.data?.meta.total ?? 0}
+          </Badge>
         </div>
         <div className="flex items-center gap-2">
           <ViewToggle value={view} onChange={setView} />
@@ -135,6 +181,42 @@ export function TasksSection({
           {canManage && <AddTaskDialog associationId={associationId} />}
         </div>
       </header>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Görev ara..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 pl-8 text-[12px]"
+          />
+        </div>
+
+        <Select value={priorityFilter} onValueChange={(v) => setPriorityFilter(v as TaskPriorityValue | 'all')}>
+          <SelectTrigger className="h-8 w-[140px] text-[12px]">
+            <Filter className="mr-1.5 h-3 w-3" />
+            <SelectValue placeholder="Öncelik" />
+          </SelectTrigger>
+          <SelectContent>
+            {PRIORITY_FILTERS.map((p) => (
+              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={sortBy} onValueChange={setSortBy}>
+          <SelectTrigger className="h-8 w-[160px] text-[12px]">
+            <ArrowUpDown className="mr-1.5 h-3 w-3" />
+            <SelectValue placeholder="Sırala" />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((s) => (
+              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {view === 'kanban' ? (
         <TasksKanban
@@ -147,6 +229,15 @@ export function TasksSection({
             updateStatus.mutate({ taskId, status })
           }
           pendingTaskId={pendingTaskId}
+          canManage={canManage}
+          currentUserId={currentUserId}
+          onDelete={(taskId) => deleteTask.mutate(taskId)}
+          onEdit={(task) => {
+            const fullTask = allTasks.data?.data.find((t) => t.id === task.id);
+            if (fullTask) setKanbanEditTask(fullTask);
+          }}
+          isDeleting={deleteTask.isPending}
+          deletingTaskId={deleteTask.variables}
         />
       ) : (
         <Tabs
@@ -169,10 +260,26 @@ export function TasksSection({
                 canManage={canManage}
                 userById={userById}
                 currentUserId={currentUserId}
+                search={search}
+                priorityFilter={priorityFilter === 'all' ? undefined : priorityFilter}
+                sortBy={sortField as any}
+                sortOrder={sortOrder}
+                onDelete={(taskId) => deleteTask.mutate(taskId)}
+                isDeleting={deleteTask.isPending}
+                deletingTaskId={deleteTask.variables}
               />
             </TabsContent>
           ))}
         </Tabs>
+      )}
+
+      {kanbanEditTask && (
+        <EditTaskDialog
+          associationId={associationId}
+          task={kanbanEditTask}
+          open={!!kanbanEditTask}
+          onOpenChange={(open) => { if (!open) setKanbanEditTask(null); }}
+        />
       )}
     </section>
   );
@@ -229,15 +336,33 @@ function TasksList({
   canManage,
   userById,
   currentUserId,
+  search,
+  priorityFilter,
+  sortBy,
+  sortOrder,
+  onDelete,
+  isDeleting,
+  deletingTaskId,
 }: {
   associationId: string;
   status: TaskStatusValue | undefined;
   canManage: boolean;
   userById: Map<string, { fullName: string; email: string | null }>;
   currentUserId?: string;
+  search: string;
+  priorityFilter: TaskPriorityValue | undefined;
+  sortBy: 'createdAt' | 'dueDate' | 'priority' | 'title';
+  sortOrder: 'asc' | 'desc';
+  onDelete: (taskId: string) => void;
+  isDeleting: boolean;
+  deletingTaskId: string | undefined;
 }) {
   const { data, isLoading, isError, error } = useTasks(associationId, {
     status,
+    priority: priorityFilter,
+    search: search || undefined,
+    sortBy,
+    sortOrder,
     pageSize: 50,
   });
   const updateStatus = useUpdateTaskStatus(associationId);
@@ -286,6 +411,8 @@ function TasksList({
           isUpdating={
             updateStatus.isPending && updateStatus.variables?.taskId === task.id
           }
+          onDelete={() => onDelete(task.id)}
+          isDeleting={isDeleting && deletingTaskId === task.id}
         />
       ))}
     </ul>
@@ -300,6 +427,8 @@ function TaskCard({
   currentUserId,
   onStatusChange,
   isUpdating,
+  onDelete,
+  isDeleting,
 }: {
   task: TaskResponse;
   assignee: { fullName: string; email: string | null } | undefined;
@@ -308,6 +437,8 @@ function TaskCard({
   currentUserId?: string;
   onStatusChange: (s: TaskStatusValue) => void;
   isUpdating: boolean;
+  onDelete: () => void;
+  isDeleting: boolean;
 }) {
   const due = task.dueDate ? new Date(task.dueDate) : null;
   const isOverdue =
@@ -326,9 +457,6 @@ function TaskCard({
   const [editOpen, setEditOpen] = useState(false);
   const [disputeOpen, setDisputeOpen] = useState(false);
 
-  // Backend ayrıca üyenin kendi görevinin durumunu değiştirmesine izin
-  // veriyor (member-only dernekte). UI'yı buna hizalıyoruz: assignee veya
-  // canManage olan kişi statüyü güncelleyebilir.
   const isAssignee = !!currentUserId && currentUserId === task.assignedToUserId;
   const canChangeStatus = canManage || isAssignee;
   const isClosed = task.status === 'COMPLETED' || task.status === 'CANCELLED';
@@ -489,15 +617,37 @@ function TaskCard({
             </Select>
           )}
           {canManage && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-7 gap-1.5 text-[11px]"
-              onClick={() => setEditOpen(true)}
-            >
-              <Pencil className="h-3 w-3" />
-              Düzenle
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 gap-1.5 text-[11px]"
+                >
+                  <ChevronDown className="h-3 w-3" />
+                  İşlemler
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                  <Pencil className="mr-2 h-3.5 w-3.5" />
+                  Düzenle
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={onDelete}
+                  disabled={isDeleting}
+                  className="text-destructive focus:text-destructive"
+                >
+                  {isDeleting ? (
+                    <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-3.5 w-3.5" />
+                  )}
+                  Sil
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>

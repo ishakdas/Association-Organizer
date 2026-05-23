@@ -6,7 +6,7 @@ const TASKS_PER_PAGE = 5;
 
 const taskSessions = new Map<number, {
   userId: string;
-  step: 'member' | 'tasks';
+  step: 'member' | 'tasks' | 'my-tasks';
   associationId: string;
   memberPage?: number;
   tasksPage?: number;
@@ -38,6 +38,10 @@ function fmtDate(iso: string | null): string {
   return `${dd}.${mm}.${yy}`;
 }
 
+function isManagerOrSecretary(role: string): boolean {
+  return role === 'SYSTEM_ADMIN' || role === 'ASSOCIATION_MANAGER' || role === 'ASSOCIATION_SECRETARY';
+}
+
 export function registerTaskListCommand(bot: Telegraf, prisma: PrismaService) {
   bot.command('gorevlerim', async (ctx) => {
     const fromId = ctx.from?.id;
@@ -64,7 +68,7 @@ export function registerTaskListCommand(bot: Telegraf, prisma: PrismaService) {
     const eligible: typeof memberships = [];
 
     for (const m of memberships) {
-      if (m.role === 'SYSTEM_ADMIN' || m.role === 'ASSOCIATION_MANAGER' || m.role === 'ASSOCIATION_SECRETARY') {
+      if (isManagerOrSecretary(m.role)) {
         eligible.push(m);
         continue;
       }
@@ -87,14 +91,27 @@ export function registerTaskListCommand(bot: Telegraf, prisma: PrismaService) {
     }
 
     const assoc = eligible[0].association;
+    const membership = eligible[0];
+
+    if (isManagerOrSecretary(membership.role)) {
+      taskSessions.set(fromId, {
+        userId: account.userId,
+        step: 'member',
+        associationId: assoc.id,
+        memberPage: 0,
+        expiresAt: Date.now() + SESSION_TTL_MS,
+      });
+      return showMemberSelection(ctx, prisma, fromId, assoc.id, 0);
+    }
+
     taskSessions.set(fromId, {
       userId: account.userId,
-      step: 'member',
+      step: 'my-tasks',
       associationId: assoc.id,
-      memberPage: 0,
+      tasksPage: 0,
       expiresAt: Date.now() + SESSION_TTL_MS,
     });
-    return showMemberSelection(ctx, prisma, fromId, assoc.id, 0);
+    return showMyTasks(ctx, prisma, fromId, assoc.id, account.userId, 0);
   });
 
   bot.action(/^gtl:member:(.+)$/, async (ctx) => {
@@ -162,6 +179,21 @@ export function registerTaskListCommand(bot: Telegraf, prisma: PrismaService) {
     return showMemberSelection(ctx, prisma, fromId, s.associationId, page, true);
   });
 
+  bot.action(/^gtl:mytasks:(\d+)$/, async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return ctx.answerCbQuery();
+
+    const s = taskSessions.get(fromId);
+    if (!s || !s.associationId) return ctx.answerCbQuery('Oturum bulunamadı');
+
+    const page = parseInt(ctx.match[1], 10);
+    s.tasksPage = page;
+    s.expiresAt = Date.now() + SESSION_TTL_MS;
+
+    await ctx.answerCbQuery();
+    return showMyTasks(ctx, prisma, fromId, s.associationId, s.userId, page, true);
+  });
+
   bot.action('gtl:close', async (ctx) => {
     const fromId = ctx.from?.id;
     if (fromId) taskSessions.delete(fromId);
@@ -169,6 +201,104 @@ export function registerTaskListCommand(bot: Telegraf, prisma: PrismaService) {
     await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
     return ctx.reply('👋');
   });
+}
+
+async function showMyTasks(
+  ctx: any,
+  prisma: PrismaService,
+  fromId: number,
+  associationId: string,
+  userId: string,
+  page: number = 0,
+  editMode: boolean = false,
+) {
+  const assoc = await prisma.association.findUnique({
+    where: { id: associationId },
+    select: { name: true },
+  });
+
+  if (!assoc) return ctx.reply('❌ Dernek bulunamadı.');
+
+  const tasks = await prisma.task.findMany({
+    where: { associationId, assignedToUserId: userId, deletedAt: null },
+    orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'desc' }],
+  });
+
+  if (tasks.length === 0) {
+    const keyboard = Markup.inlineKeyboard([
+      [Markup.button.callback('❌ Kapat', 'gtl:close')],
+    ]);
+
+    if (editMode) {
+      await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
+      return ctx.reply(
+        `📋 *${assoc.name}* - Görevlerim\n\nHenüz atanmış görev yok.`,
+        { parse_mode: 'Markdown', ...keyboard },
+      );
+    }
+    return ctx.reply(
+      `📋 *${assoc.name}* - Görevlerim\n\nHenüz atanmış görev yok.`,
+      { parse_mode: 'Markdown', ...keyboard },
+    );
+  }
+
+  const totalPages = Math.ceil(tasks.length / TASKS_PER_PAGE);
+  const startIdx = page * TASKS_PER_PAGE;
+  const endIdx = Math.min(startIdx + TASKS_PER_PAGE, tasks.length);
+  const pageTasks = tasks.slice(startIdx, endIdx);
+
+  const grouped = new Map<string, typeof tasks>();
+  for (const t of pageTasks) {
+    const arr = grouped.get(t.status) ?? [];
+    arr.push(t);
+    grouped.set(t.status, arr);
+  }
+
+  let message = `📋 *${assoc.name}* - Görevlerim\n`;
+  message += `Toplam: *${tasks.length} görev* · Sayfa *${page + 1}/${totalPages}*\n\n`;
+
+  const statusOrder = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
+  let globalNum = startIdx + 1;
+
+  for (const status of statusOrder) {
+    const items = grouped.get(status);
+    if (!items || items.length === 0) continue;
+
+    const icon = STATUS_ICON[status] ?? '📌';
+    const label = STATUS_LABEL[status] ?? status;
+    message += `${icon} *${label}* (${items.length})\n`;
+
+    for (const t of items) {
+      const title = t.title.length > 40 ? t.title.slice(0, 40) + '…' : t.title;
+      message += `  ${globalNum}. ${title}`;
+      if (t.dueDate) {
+        message += ` · 📅 ${fmtDate(t.dueDate.toISOString())}`;
+      }
+      message += '\n';
+      globalNum++;
+    }
+    message += '\n';
+  }
+
+  const navButtons: any[] = [];
+  const row: any[] = [];
+
+  if (page > 0) {
+    row.push(Markup.button.callback('⬅️ Önceki', `gtl:mytasks:${page - 1}`));
+  }
+  if (page < totalPages - 1) {
+    row.push(Markup.button.callback('Sonraki ➡️', `gtl:mytasks:${page + 1}`));
+  }
+  if (row.length > 0) navButtons.push(row);
+
+  navButtons.push([Markup.button.callback('❌ Kapat', 'gtl:close')]);
+
+  const keyboard = Markup.inlineKeyboard(navButtons);
+
+  if (editMode) {
+    return ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
+  }
+  return ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
 }
 
 async function showMemberSelection(

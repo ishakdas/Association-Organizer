@@ -12,15 +12,17 @@ import {
 } from '@react-email/components';
 
 const colors = {
-  primary: '#1e40af',
-  primaryDark: '#1e3a8a',
-  bg: '#f3f4f6',
+  primary: '#FCC200',
+  primaryDark: '#E5AD00',
+  bg: '#f0efe8',
   cardBg: '#ffffff',
-  textPrimary: '#111827',
-  textSecondary: '#6b7280',
-  textMuted: '#9ca3af',
-  border: '#e5e7eb',
-  footerBg: '#f9fafb',
+  headerBg: '#1a1a1a',
+  textPrimary: '#1a1a1a',
+  textSecondary: '#555555',
+  textMuted: '#888888',
+  border: '#e0ddd5',
+  footerBg: '#f5f5f0',
+  accentBar: '#FCC200',
 };
 
 interface BaseTemplateProps {
@@ -36,16 +38,22 @@ export function BaseTemplate({ preview, children }: BaseTemplateProps) {
       <Body style={bodyStyle}>
         <Container style={containerStyle}>
           <Section style={headerStyle}>
-            <Text style={logoStyle}>Dernek Yönetim Sistemi</Text>
+            <Text style={logoStyle}>Defter-i Hilal</Text>
+            <Text style={taglineStyle}>Organizasyon Yönetim Sistemi</Text>
           </Section>
+
+          <Section style={accentBarStyle} />
 
           <Section style={bodyContentStyle}>{children}</Section>
 
           <Section style={footerStyle}>
             <Text style={footerTextStyle}>
-              Bu e-posta Dernek Yönetim Sistemi tarafından otomatik olarak gönderilmiştir.
+              Bu e-posta Defter-i Hilal Organizasyon Yönetim Sistemi tarafından otomatik olarak gönderilmiştir.
               <br />
               Lütfen bu e-postayı yanıtlamayın.
+            </Text>
+            <Text style={footerDomainStyle}>
+              defterihilal.com
             </Text>
           </Section>
         </Container>
@@ -117,22 +125,36 @@ const containerStyle: React.CSSProperties = {
   margin: '0 auto',
   backgroundColor: colors.cardBg,
   borderRadius: 12,
-  boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
   overflow: 'hidden',
 };
 
 const headerStyle: React.CSSProperties = {
-  backgroundColor: colors.primary,
-  padding: '28px 40px',
+  backgroundColor: colors.headerBg,
+  padding: '32px 40px 24px',
   textAlign: 'center',
 };
 
 const logoStyle: React.CSSProperties = {
   margin: 0,
-  color: '#ffffff',
-  fontSize: 20,
-  fontWeight: 700,
-  letterSpacing: '0.02em',
+  color: colors.primary,
+  fontSize: 26,
+  fontWeight: 800,
+  letterSpacing: '0.04em',
+};
+
+const taglineStyle: React.CSSProperties = {
+  margin: '6px 0 0',
+  color: '#cccccc',
+  fontSize: 11,
+  fontWeight: 500,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+};
+
+const accentBarStyle: React.CSSProperties = {
+  height: 4,
+  backgroundColor: colors.accentBar,
 };
 
 const bodyContentStyle: React.CSSProperties = {
@@ -144,7 +166,7 @@ const bodyContentStyle: React.CSSProperties = {
 
 const footerStyle: React.CSSProperties = {
   backgroundColor: colors.footerBg,
-  padding: '20px 40px',
+  padding: '24px 40px',
   borderTop: `1px solid ${colors.border}`,
   textAlign: 'center',
 };
@@ -153,6 +175,14 @@ const footerTextStyle: React.CSSProperties = {
   margin: 0,
   fontSize: 12,
   color: colors.textMuted,
+};
+
+const footerDomainStyle: React.CSSProperties = {
+  margin: '8px 0 0',
+  fontSize: 11,
+  color: colors.primaryDark,
+  fontWeight: 600,
+  letterSpacing: '0.06em',
 };
 
 const headingStyle: React.CSSProperties = {
@@ -186,9 +216,9 @@ const buttonSectionStyle: React.CSSProperties = {
 const buttonStyle: React.CSSProperties = {
   display: 'inline-block',
   backgroundColor: colors.primary,
-  color: '#ffffff',
+  color: '#0E0E0E',
   fontSize: 16,
-  fontWeight: 600,
+  fontWeight: 700,
   textDecoration: 'none',
   padding: '14px 40px',
   borderRadius: 8,
@@ -207,6 +237,6 @@ const linkStyle: React.CSSProperties = {
 
 const linkAnchorStyle: React.CSSProperties = {
   fontSize: 13,
-  color: '#2563eb',
+  color: '#c59600',
   wordBreak: 'break-all',
 };

@@ -196,7 +196,7 @@ function Brand({ homeHref = '/associations' }: { homeHref?: string }) {
     <Link href={homeHref} className="group flex items-center gap-3">
       <Image
         src="/yedihilal-logo.png"
-        alt="YediHilal"
+        alt="Defter-i Hilal"
         width={32}
         height={45}
         className="h-11 w-auto"
@@ -204,7 +204,7 @@ function Brand({ homeHref = '/associations' }: { homeHref?: string }) {
       />
       <div className="leading-tight">
         <div className="text-[13px] font-bold tracking-tight text-foreground">
-          Dernek Organizer
+          Defter-i Hilal
         </div>
         <div className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">
           Sicil &amp; Üyelik

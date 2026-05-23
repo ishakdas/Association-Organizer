@@ -88,6 +88,7 @@ export const updateMemberSchema = z
     isActive: z.boolean().optional(),
     leftAt: z.string().datetime({ offset: true }).nullable().optional(),
     fullName: z.string().min(2).max(200).optional(),
+    email: z.string().email('Geçerli bir e-posta girin').max(200).optional(),
     phone: optionalPhoneSchema,
     address: z.string().max(500).nullable().optional(),
   })

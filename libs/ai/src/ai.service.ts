@@ -276,4 +276,34 @@ export class AiService {
       'suggestIslamicEvents',
     );
   }
+
+  async extractTasksFromMeeting(meetingContent: string): Promise<{
+    tasks: Array<{
+      title: string;
+      description: string | null;
+      assigneeName: string | null;
+      priority: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+      dueDate: string | null;
+      originalText: string | null;
+    }>;
+  }> {
+    const { extractTasksFromMeetingResultSchema } = await import('@ticketbot/shared-validation');
+    const { EXTRACT_TASKS_FROM_MEETING_SYSTEM_PROMPT, buildExtractTasksUserPrompt } = await import('./prompts/extract-tasks-from-meeting.prompt');
+
+    return this.provider.generateStructured({
+      systemPrompt: await this.getSystemPrompt('extract-tasks-from-meeting', EXTRACT_TASKS_FROM_MEETING_SYSTEM_PROMPT),
+      userPrompt: buildExtractTasksUserPrompt(meetingContent),
+      schema: extractTasksFromMeetingResultSchema,
+      schemaName: 'extractTasksFromMeeting',
+    }) as Promise<{
+      tasks: Array<{
+        title: string;
+        description: string | null;
+        assigneeName: string | null;
+        priority: 'LOW' | 'MEDIUM' | 'HIGH' | null;
+        dueDate: string | null;
+        originalText: string | null;
+      }>;
+    }>;
+  }
 }

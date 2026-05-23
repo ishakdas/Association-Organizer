@@ -212,6 +212,7 @@ export class AssociationMembersService {
 
     const userData: Prisma.UserUpdateInput = {};
     if (input.fullName !== undefined) userData.fullName = input.fullName;
+    if (input.email !== undefined) userData.email = input.email;
     if (input.phone !== undefined) userData.phone = input.phone ?? null;
     if (input.address !== undefined) userData.address = input.address;
 

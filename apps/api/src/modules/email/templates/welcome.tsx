@@ -10,7 +10,7 @@ export interface WelcomeTemplateProps {
 export function WelcomeTemplate({ fullName, loginUrl, associationName }: WelcomeTemplateProps) {
   const heading = associationName
     ? `${associationName} — Hoş Geldiniz!`
-    : "Yedimuîn'e Hoş Geldiniz!";
+    : "Defter-i Hilal'e Hoş Geldiniz!";
 
   return (
     <BaseTemplate preview="Sisteme hoş geldiniz — giriş bilgileriniz">
@@ -20,26 +20,27 @@ export function WelcomeTemplate({ fullName, loginUrl, associationName }: Welcome
         note="Bu e-postayı beklemiyordunuz lütfen sistem yöneticinizle iletişime geçin."
       >
         <Text style={{ margin: '0 0 14px' }}>
-          Dernek yönetim sistemine üyelik başvurunuz onaylandı. Aşağıdaki bilgilerle giriş yapabilirsiniz.
+          Defter-i Hilal Organizasyon Yönetim Sistemi'ne üyelik başvurunuz onaylandı. Aşağıdaki bilgilerle giriş yapabilirsiniz.
         </Text>
 
         <Section
           style={{
             margin: '24px 0',
             padding: 20,
-            backgroundColor: '#f3f4f6',
+            backgroundColor: '#f5f5f0',
             borderRadius: 8,
             textAlign: 'center',
+            border: '1px solid #e0ddd5',
           }}
         >
           <Text
             style={{
               margin: '0 0 8px',
               fontSize: 13,
-              color: '#6b7280',
-              fontWeight: 500,
+              color: '#c59600',
+              fontWeight: 600,
               textTransform: 'uppercase',
-              letterSpacing: '0.05em',
+              letterSpacing: '0.08em',
             }}
           >
             Giriş Yap
@@ -50,7 +51,7 @@ export function WelcomeTemplate({ fullName, loginUrl, associationName }: Welcome
 
         <FallbackLink href={loginUrl} />
 
-        <Text style={{ fontSize: 14, color: '#374151', margin: '16px 0 0' }}>
+        <Text style={{ fontSize: 14, color: '#555555', margin: '16px 0 0' }}>
           Giriş yaptıktan sonra <strong>Ayarlar → Hesabım</strong> bölümünden şifrenizi değiştirmenizi öneririz.
         </Text>
       </ContentBlock>

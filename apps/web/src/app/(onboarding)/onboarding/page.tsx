@@ -23,7 +23,7 @@ export default async function OnboardingPage() {
         path: '/',
         sameSite: 'lax',
       });
-      redirect('/associations');
+      redirect(isSystemAdmin(me) ? '/dashboard' : '/associations');
     }
 
     return <OnboardingSlideshow isSystemAdmin={isSystemAdmin(me)} />;

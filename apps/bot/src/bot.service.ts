@@ -15,10 +15,11 @@ import { registerMeetingWizard } from './wizards/meeting.wizard';
 import { registerMeetingListCommand } from './wizards/meeting-list.wizard';
 import { registerTaskListCommand } from './wizards/task-list.wizard';
 import { registerFinanceWizard } from './wizards/finance.wizard';
+import { registerTaskCreateWizard } from './wizards/task-create.wizard';
 
 export interface SendToUserOptions {
   replyMarkup?: unknown;
-  parseMode?: 'MarkdownV2' | 'HTML';
+  parseMode?: 'MarkdownV2' | 'Markdown' | 'HTML';
 }
 
 @Injectable()
@@ -44,6 +45,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     registerMeetingListCommand(this.bot, this.prisma, this.aiService);
     registerTaskListCommand(this.bot, this.prisma);
     registerFinanceWizard(this.bot, this.prisma);
+    registerTaskCreateWizard(this.bot, this.prisma, this);
 
     // iPhone/Android'da bot menüsünün görünmesi için komut listesini ayarla
     try {
@@ -54,6 +56,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
         { command: 'toplanti', description: 'Toplantı notu ekle' },
         { command: 'toplantilarim', description: 'Toplantılarını listele' },
         { command: 'gorevlerim', description: 'Görevleri listele' },
+        { command: 'gorev', description: 'Yeni görev oluştur (Başkan/Sekreter)' },
         { command: 'finans', description: 'Finans menüsü' },
         { command: 'gider', description: 'Gider ekle' },
         { command: 'bagis', description: 'Bağış kaydet' },

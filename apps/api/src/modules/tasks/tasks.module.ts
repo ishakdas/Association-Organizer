@@ -7,6 +7,8 @@ import {
   TaskStatusController,
 } from './tasks.controller';
 import { TasksService } from './tasks.service';
+import { TaskNotificationService } from './task-notification.service';
+import { OverdueTaskChecker } from './overdue-task-checker.service';
 import { JobsModule } from '../jobs/jobs.module';
 import { TasksBotIntegration } from './tasks-bot.integration';
 import { IcsTokenService } from './ics-token.service';
@@ -20,7 +22,7 @@ import { TaskIcsController } from './ics.controller';
     MyTasksController,
     TaskIcsController,
   ],
-  providers: [TasksService, TasksBotIntegration, IcsTokenService],
-  exports: [TasksService],
+  providers: [TasksService, TaskNotificationService, OverdueTaskChecker, TasksBotIntegration, IcsTokenService],
+  exports: [TasksService, TaskNotificationService],
 })
 export class TasksModule {}
