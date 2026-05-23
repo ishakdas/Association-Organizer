@@ -544,61 +544,66 @@ async function main() {
   // AI prompt templates
   await seedPromptTemplates();
 
-  // Dev-only system admin (no Supabase link). Real admins log in via Supabase
-  // and get auto-provisioned by AuthGuard.
-  // ⚠️  Bu kayıt SADECE development ortamı içindir. Production'da kullanmayın.
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@dev.local' },
-    update: { fullName: 'Sistem Yöneticisi', isActive: true },
-    create: {
-      email: 'admin@dev.local',
-      fullName: 'Sistem Yöneticisi',
-      isActive: true,
-    },
-  });
+  // Dev-only system admin. Gated behind SEED_DEV_ADMIN=true so this block
+  // NEVER runs in production. Production admins are created manually via
+  // Supabase Studio + a separate SQL grant (see deployment runbook).
+  if (process.env.SEED_DEV_ADMIN === 'true') {
+    const admin = await prisma.user.upsert({
+      where: { email: 'admin@dev.local' },
+      update: { fullName: 'Sistem Yöneticisi', isActive: true },
+      create: {
+        email: 'admin@dev.local',
+        fullName: 'Sistem Yöneticisi',
+        isActive: true,
+      },
+    });
 
-  // Sentinel "system root" association — its only purpose is to carry the
-  // SYSTEM_ADMIN membership grant. RolesGuard / AssociationRolesGuard derive
-  // systemRole from any active SYSTEM_ADMIN membership row.
-  // ⚠️  Bu kayıt SADECE development/test amaçlıdır. Gerçek bir dernek değildir.
-  const SYSTEM_ROOT_ID = 'ckv_seed_systemroot______';
-  await prisma.association.upsert({
-    where: { id: SYSTEM_ROOT_ID },
-    update: { isActive: true },
-    create: {
-      id: SYSTEM_ROOT_ID,
-      name: '[SYSTEM] Root — DO NOT DELETE',
-      taxNumber: '0000000000',
-      foundedAt: new Date('2020-01-01T00:00:00.000Z'),
-      address: 'System Internal',
-      city: 'System',
-      district: 'System',
-      phone: '+905550000000',
-      email: 'system-root@internal.local',
-      activityArea: 'System Internal',
-      memberCount: 0,
-      isActive: true,
-      notes: 'Bu kayıt sistem içindir, silinmemelidir. SYSTEM_ADMIN rolünün çalışması için gereklidir.',
-      createdById: admin.id,
-    },
-  });
+    // Sentinel "system root" association — its only purpose is to carry the
+    // SYSTEM_ADMIN membership grant. RolesGuard / AssociationRolesGuard derive
+    // systemRole from any active SYSTEM_ADMIN membership row.
+    const SYSTEM_ROOT_ID = 'ckv_seed_systemroot______';
+    await prisma.association.upsert({
+      where: { id: SYSTEM_ROOT_ID },
+      update: { isActive: true },
+      create: {
+        id: SYSTEM_ROOT_ID,
+        name: '[SYSTEM] Root — DO NOT DELETE',
+        taxNumber: '0000000000',
+        foundedAt: new Date('2020-01-01T00:00:00.000Z'),
+        address: 'System Internal',
+        city: 'System',
+        district: 'System',
+        phone: '+905550000000',
+        email: 'system-root@internal.local',
+        activityArea: 'System Internal',
+        memberCount: 0,
+        isActive: true,
+        notes: 'Bu kayıt sistem içindir, silinmemelidir. SYSTEM_ADMIN rolünün çalışması için gereklidir.',
+        createdById: admin.id,
+      },
+    });
 
-  await prisma.associationMembership.upsert({
-    where: {
-      userId_associationId_role: {
+    await prisma.associationMembership.upsert({
+      where: {
+        userId_associationId_role: {
+          userId: admin.id,
+          associationId: SYSTEM_ROOT_ID,
+          role: 'SYSTEM_ADMIN',
+        },
+      },
+      update: { isActive: true },
+      create: {
         userId: admin.id,
         associationId: SYSTEM_ROOT_ID,
         role: 'SYSTEM_ADMIN',
+        isActive: true,
       },
-    },
-    update: { isActive: true },
-    create: {
-      userId: admin.id,
-      associationId: SYSTEM_ROOT_ID,
-      role: 'SYSTEM_ADMIN',
-      isActive: true,
-    },
-  });
+    });
+
+    console.log('Dev admin (admin@dev.local) seeded');
+  } else {
+    console.log('Skipping dev admin block (set SEED_DEV_ADMIN=true to seed it)');
+  }
 
   const titleCount = await prisma.memberTitleDefinition.count();
   const userCount = await prisma.user.count();
