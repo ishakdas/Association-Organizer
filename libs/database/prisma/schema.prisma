@@ -4,8 +4,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  // Migrations use a direct (non-pgBouncer) connection because pooled mode
+  // strips prepared statements and advisory locks that `prisma migrate deploy`
+  // relies on. DIRECT_URL points to port 5432; DATABASE_URL stays on 6543.
+  directUrl = env("DIRECT_URL")
 }
 
 // -----------------------------------------------------------------------------
