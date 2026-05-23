@@ -388,7 +388,7 @@ export class MeetingsService {
           },
         },
         _count: {
-          select: { tasks: true },
+          select: { derivedTasks: true },
         },
       },
     });
@@ -404,7 +404,7 @@ export class MeetingsService {
         district: m.association.district,
       },
       attendeeCount: m.attendees.length,
-      taskCount: m._count.tasks,
+      taskCount: m._count.derivedTasks,
     }));
   }
 
