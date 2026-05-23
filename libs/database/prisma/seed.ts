@@ -546,6 +546,7 @@ async function main() {
 
   // Dev-only system admin (no Supabase link). Real admins log in via Supabase
   // and get auto-provisioned by AuthGuard.
+  // ⚠️  Bu kayıt SADECE development ortamı içindir. Production'da kullanmayın.
   const admin = await prisma.user.upsert({
     where: { email: 'admin@dev.local' },
     update: { fullName: 'Sistem Yöneticisi', isActive: true },
@@ -559,23 +560,25 @@ async function main() {
   // Sentinel "system root" association — its only purpose is to carry the
   // SYSTEM_ADMIN membership grant. RolesGuard / AssociationRolesGuard derive
   // systemRole from any active SYSTEM_ADMIN membership row.
+  // ⚠️  Bu kayıt SADECE development/test amaçlıdır. Gerçek bir dernek değildir.
   const SYSTEM_ROOT_ID = 'ckv_seed_systemroot______';
   await prisma.association.upsert({
     where: { id: SYSTEM_ROOT_ID },
     update: { isActive: true },
     create: {
       id: SYSTEM_ROOT_ID,
-      name: 'Sistem (seed)',
+      name: '[SYSTEM] Root — DO NOT DELETE',
       taxNumber: '0000000000',
       foundedAt: new Date('2020-01-01T00:00:00.000Z'),
-      address: 'Seed',
-      city: 'Seed',
-      district: 'Seed',
+      address: 'System Internal',
+      city: 'System',
+      district: 'System',
       phone: '+905550000000',
-      email: 'system-root@dev.local',
-      activityArea: 'System',
+      email: 'system-root@internal.local',
+      activityArea: 'System Internal',
       memberCount: 0,
       isActive: true,
+      notes: 'Bu kayıt sistem içindir, silinmemelidir. SYSTEM_ADMIN rolünün çalışması için gereklidir.',
       createdById: admin.id,
     },
   });

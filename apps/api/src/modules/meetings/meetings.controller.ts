@@ -135,4 +135,9 @@ export class MeetingDetailController {
   findOne(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.service.findOne(id, user);
   }
+
+  @Get('my')
+  listMyMeetings(@CurrentUser() user: RequestUser) {
+    return this.service.listUserMeetings(user.id);
+  }
 }

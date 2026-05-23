@@ -1,5 +1,70 @@
 import { Telegraf, Markup, Context } from 'telegraf';
 import { PrismaService, UserRole, PermissionAction } from '@ticketbot/database';
+import { AiService } from '@ticketbot/ai';
+
+const AI_DATE_MONTHS: Record<string, number> = {
+  ocak: 0, şubat: 1, mart: 2, nisan: 3, mayıs: 4, haziran: 5,
+  temmuz: 6, ağustos: 7, eylül: 8, ekim: 9, kasım: 10, aralık: 11,
+};
+
+function aiAddDays(base: Date, days: number): Date {
+  const d = new Date(base);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d;
+}
+
+function aiAddMonths(base: Date, months: number): Date {
+  const d = new Date(base);
+  d.setUTCMonth(d.getUTCMonth() + months);
+  return d;
+}
+
+function aiUtcDate(year: number, month: number, day: number): Date {
+  return new Date(Date.UTC(year, month, day, 17, 0, 0));
+}
+
+function parseTurkishDateText(text: string | null | undefined, ref: Date): Date | null {
+  if (!text?.trim()) return null;
+
+  const s = text.toLowerCase().trim();
+  const refYear = ref.getUTCFullYear();
+  const refMonth = ref.getUTCMonth();
+
+  const dayMonthYear = s.match(/(\d{1,2})\s+(ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)(?:\s+(\d{4}))?/);
+  if (dayMonthYear) {
+    const day = parseInt(dayMonthYear[1], 10);
+    const month = AI_DATE_MONTHS[dayMonthYear[2]];
+    const year = dayMonthYear[3] ? parseInt(dayMonthYear[3], 10) : refYear;
+    return aiUtcDate(year, month, day);
+  }
+
+  const monthStart = s.match(/(ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)\s+başı?n?d?a?/);
+  if (monthStart) {
+    const month = AI_DATE_MONTHS[monthStart[1]];
+    const year = month < refMonth ? refYear + 1 : refYear;
+    return aiUtcDate(year, month, 1);
+  }
+
+  if (s.includes('ay son')) {
+    return aiUtcDate(refYear, refMonth + 1, 0);
+  }
+
+  const weeksMatch = s.match(/(\d+)\s*hafta/);
+  if (weeksMatch) {
+    return aiAddDays(ref, parseInt(weeksMatch[1], 10) * 7);
+  }
+
+  if (s.includes('gelecek hafta') || s.includes('önümüzdeki hafta')) {
+    return aiAddDays(ref, 7);
+  }
+
+  const monthsMatch = s.match(/(\d+)\s*ay/);
+  if (monthsMatch) {
+    return aiAddMonths(ref, parseInt(monthsMatch[1], 10));
+  }
+
+  return null;
+}
 
 type Step =
   | 'pickAssoc'
@@ -7,7 +72,10 @@ type Step =
   | 'date'
   | 'attendees'
   | 'content'
-  | 'confirm';
+  | 'confirm'
+  | 'aiPrompt'
+  | 'aiReview'
+  | 'aiAssign';
 
 interface AssocOption {
   id: string;
@@ -17,6 +85,15 @@ interface AssocOption {
 interface MemberOption {
   userId: string;
   fullName: string;
+}
+
+interface AIActionItem {
+  index: number;
+  title: string;
+  description: string | null;
+  assignedToUserId: string | null;
+  dueDate: Date | null;
+  removed: boolean;
 }
 
 interface MeetingWizardSession {
@@ -30,11 +107,12 @@ interface MeetingWizardSession {
   members?: MemberOption[];
   selectedAttendees: Set<string>;
   content?: string;
+  meetingId?: string;
+  aiActionItems?: AIActionItem[];
+  aiAssignTargetIndex?: number;
   expiresAt: number;
 }
 
-// In-memory only: bot runs inside the API process, sessions are short-lived,
-// and a wizard mid-flight on a process restart should just be re-started.
 const sessions = new Map<number, MeetingWizardSession>();
 const SESSION_TTL_MS = 30 * 60 * 1000;
 
@@ -56,7 +134,6 @@ function fmtTrDate(d: Date): string {
 }
 
 function utcDate(year: number, month0: number, day: number): Date {
-  // Anchor to noon UTC so the displayed local date is stable across TZs.
   return new Date(Date.UTC(year, month0, day, 12, 0, 0));
 }
 
@@ -230,6 +307,70 @@ function attendeesKeyboard(s: MeetingWizardSession) {
   return Markup.inlineKeyboard(rows);
 }
 
+function buildAIReviewKeyboard(s: MeetingWizardSession) {
+  const items = s.aiActionItems ?? [];
+  const rows: any[][] = [];
+
+  for (const item of items) {
+    if (item.removed) continue;
+    const member = (s.members ?? []).find((m) => m.userId === item.assignedToUserId);
+    const assigneeLabel = member ? member.fullName : 'Atanmamış';
+    rows.push([
+      Markup.button.callback(
+        `👤 ${assigneeLabel}`,
+        `mtg:ai-assign:${item.index}`,
+      ),
+      Markup.button.callback(
+        '🗑',
+        `mtg:ai-remove:${item.index}`,
+      ),
+    ]);
+  }
+
+  const removedCount = items.filter((i) => i.removed).length;
+  if (removedCount > 0) {
+    rows.push([
+      Markup.button.callback(
+        `↩️ Kaldırılanları geri getir (${removedCount})`,
+        'mtg:ai-restore-all',
+      ),
+    ]);
+  }
+
+  rows.push([
+    Markup.button.callback('✅ Tümünü Kaydet', 'mtg:ai-save'),
+    Markup.button.callback('❌ İptal', 'mtg:ai-cancel'),
+  ]);
+
+  return Markup.inlineKeyboard(rows);
+}
+
+function buildAIAssignKeyboard(s: MeetingWizardSession) {
+  const members = s.members ?? [];
+  const targetIndex = s.aiAssignTargetIndex!;
+  const item = (s.aiActionItems ?? []).find((i) => i.index === targetIndex);
+
+  const rows: any[][] = [];
+  for (const member of members) {
+    const isCurrent = item?.assignedToUserId === member.userId;
+    rows.push([
+      Markup.button.callback(
+        `${isCurrent ? '● ' : ''}${member.fullName}`,
+        `mtg:ai-assign-set:${targetIndex}:${member.userId}`,
+      ),
+    ]);
+  }
+
+  rows.push([
+    Markup.button.callback('🔘 Atamasız bırak', `mtg:ai-assign-set:${targetIndex}:null`),
+  ]);
+  rows.push([
+    Markup.button.callback('↩️ Geri dön', 'mtg:ai-assign-back'),
+  ]);
+
+  return Markup.inlineKeyboard(rows);
+}
+
 async function startWizard(
   ctx: Context,
   prisma: PrismaService,
@@ -322,8 +463,37 @@ async function persistMeeting(
   });
 }
 
-export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService) {
-  // /toplanti or /toplantı (Turkish 'ı' support via regex hears).
+async function persistAITasks(
+  prisma: PrismaService,
+  s: MeetingWizardSession,
+) {
+  const items = (s.aiActionItems ?? []).filter((i) => !i.removed);
+  const tasksToCreate = items
+    .filter((i) => i.assignedToUserId !== null)
+    .map((i) => ({
+      title: i.title,
+      description: i.description ?? '',
+      associationId: s.associationId!,
+      assignedToUserId: i.assignedToUserId!,
+      assignedById: s.userId,
+      dueDate: i.dueDate,
+      priority: 'MEDIUM' as const,
+      status: 'PENDING' as const,
+      sourceMeetingNoteId: s.meetingId!,
+    }));
+
+  if (tasksToCreate.length === 0) return 0;
+
+  await prisma.task.createMany({ data: tasksToCreate });
+  return tasksToCreate.length;
+}
+
+export function registerMeetingWizard(
+  bot: Telegraf,
+  prisma: PrismaService,
+  aiService: AiService,
+) {
+  console.log('[WIZARD] registerMeetingWizard called - AI flow enabled');
   bot.hears(/^\/toplant[ıi](?:@\w+)?(?:\s|$)/i, async (ctx) => {
     const fromId = ctx.from?.id;
     if (!fromId) return;
@@ -344,7 +514,6 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService) {
     return ctx.reply('Aktif bir toplantı ekleme akışın yok.');
   });
 
-  // Free-text input for title / date / content steps.
   bot.on('text', async (ctx, next) => {
     const fromId = ctx.from?.id;
     const text = ctx.message?.text;
@@ -360,7 +529,6 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService) {
       );
     }
 
-    // Kullanıcı zaten bir dernek seçmişse hesabın hâlâ bağlı olduğunu kontrol et
     if (s.userId) {
       const stillLinked = await assertAccountStillLinked(prisma, fromId);
       if (!stillLinked) {
@@ -458,6 +626,12 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService) {
 
     if (s.step === 'pickAssoc') {
       return ctx.reply('Önce yukarıdaki listeden bir dernek seç.');
+    }
+
+    if (s.step === 'aiPrompt' || s.step === 'aiReview' || s.step === 'aiAssign') {
+      return ctx.reply(
+        'Lütfen aşağıdaki butonları kullan. Metin girişi bu adımda kullanılmaz.',
+      );
     }
   });
 
@@ -565,9 +739,11 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService) {
   });
 
   bot.action('mtg:confirm', async (ctx) => {
+    console.log('[WIZARD] mtg:confirm callback triggered');
     const fromId = ctx.from?.id;
     if (!fromId) return ctx.answerCbQuery();
     const s = sessions.get(fromId);
+    console.log('[WIZARD] mtg:confirm - session:', s ? `found, step=${s.step}` : 'NOT FOUND');
     if (!s || s.step !== 'confirm') {
       return ctx.answerCbQuery('Akış güncel değil');
     }
@@ -585,18 +761,466 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService) {
     await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
 
     try {
+      console.log('[WIZARD] mtg:confirm - persisting meeting, userId:', s.userId);
       const created = await persistMeeting(prisma, s);
-      sessions.delete(fromId);
-      return ctx.reply(
+      console.log('[WIZARD] mtg:confirm - meeting created:', created.id);
+      s.meetingId = created.id;
+      s.step = 'aiPrompt';
+      touch(s);
+      console.log('[WIZARD] mtg:confirm - step changed to aiPrompt, sending reply...');
+
+      const replyMsg = await ctx.reply(
         `✅ Toplantı notu kaydedildi.\n\n` +
           `Başlık: ${created.title}\n` +
-          `Tarih: ${fmtTrDate(created.meetingDate)}`,
+          `Tarih: ${fmtTrDate(created.meetingDate)}\n\n` +
+          '🤖 Yapay zeka ile toplantı notundan görev ve aksiyonlar ' +
+          'çıkarmamı ister misin?\n\n' +
+          'Görevleri inceleyip atamaları değiştirebilirsin.',
+        Markup.inlineKeyboard([
+          [
+            Markup.button.callback('✅ Görevleri Çıkar', 'mtg:ai-analyze'),
+            Markup.button.callback('❌ Şimdilik Hayır', 'mtg:ai-skip'),
+          ],
+        ]),
       );
+      console.log('[WIZARD] mtg:confirm - reply sent, messageId:', replyMsg.message_id);
+      console.log('[WIZARD] mtg:confirm - reply text:', replyMsg.text?.slice(0, 100));
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
+      console.error('[WIZARD] mtg:confirm - error:', msg);
+      sessions.delete(fromId);
       return ctx.reply(
         `❌ Kaydedilemedi: ${msg}\n\nTekrar denemek için /toplanti yaz.`,
       );
     }
+  });
+
+  bot.action('mtg:ai-skip', async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return ctx.answerCbQuery();
+    const s = sessions.get(fromId);
+    if (!s || s.step !== 'aiPrompt') {
+      return ctx.answerCbQuery('Akış güncel değil');
+    }
+
+    sessions.delete(fromId);
+    await ctx.answerCbQuery('Tamam');
+    await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
+    return ctx.reply(
+      'Toplantı notu kaydedildi. Yapay zeka analizi atlandı.\n\n' +
+        'Dilersen web panelinden daha sonra analiz yapabilirsin.',
+    );
+  });
+
+  bot.action('mtg:ai-analyze', async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return ctx.answerCbQuery();
+    const s = sessions.get(fromId);
+    if (!s || s.step !== 'aiPrompt') {
+      return ctx.answerCbQuery('Akış güncel değil');
+    }
+
+    console.log('[WIZARD] mtg:ai-analyze - starting AI analysis, userId:', s.userId);
+    await ctx.answerCbQuery('Analiz yapılıyor…');
+
+    try {
+      const members = s.members ?? [];
+      const membersContext = members
+        .map((m) => `- ${m.fullName} (userId: ${m.userId})`)
+        .join('\n');
+
+      console.log('[WIZARD] mtg:ai-analyze - calling aiService.extractActionItems');
+      console.log('[WIZARD] mtg:ai-analyze - content length:', s.content!.length);
+      console.log('[WIZARD] mtg:ai-analyze - members count:', members.length);
+
+      const result = await aiService.extractActionItems(
+        s.content!,
+        membersContext,
+      );
+
+      console.log('[WIZARD] mtg:ai-analyze - AI result:', JSON.stringify(result).slice(0, 500));
+
+      const now = new Date();
+      const aiItems: AIActionItem[] = result.actionItems.map((item, index) => {
+        const dueDate = item.dueDateText
+          ? parseTurkishDateText(item.dueDateText, now)
+          : null;
+        return {
+          index,
+          title: item.title,
+          description: item.description,
+          assignedToUserId: item.assignedToUserId,
+          dueDate,
+          removed: false,
+        };
+      });
+
+      s.aiActionItems = aiItems;
+      s.step = 'aiReview';
+      touch(s);
+
+      await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
+
+      const activeItems = aiItems.filter((i) => !i.removed);
+      const assignedCount = activeItems.filter((i) => i.assignedToUserId).length;
+      const unassignedCount = activeItems.length - assignedCount;
+
+      let message = `🤖 Yapay Zeka Analizi Sonuçları\n\n`;
+      message += `Toplantı notundan *${activeItems.length} görev* çıkarıldı.\n`;
+      message += `✅ ${assignedCount} atanmış`;
+      if (unassignedCount > 0) {
+        message += ` · ⚠️ ${unassignedCount} atanmamış`;
+      }
+      message += '\n\n';
+
+      for (const item of activeItems) {
+        const num = item.index + 1;
+        const member = members.find((m) => m.userId === item.assignedToUserId);
+        const assigneeName = member ? member.fullName : 'Atanmamış';
+        const warnIcon = item.assignedToUserId ? '' : '⚠️ ';
+
+        message += `${num}️⃣ ${item.title}\n`;
+        if (item.description) {
+          message += `   ${item.description.slice(0, 100)}${item.description.length > 100 ? '...' : ''}\n`;
+        }
+        message += `   📅 ${warnIcon}${assigneeName}`;
+        if (item.dueDate) {
+          message += ` · ${fmtTrDate(item.dueDate)}`;
+        }
+        message += '\n\n';
+      }
+
+      message += 'Her görev için 👤 butonuna basarak atamayı değiştirebilirsin.';
+
+      return ctx.reply(message, {
+        parse_mode: 'Markdown',
+        ...buildAIReviewKeyboard(s),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[WIZARD] mtg:ai-analyze - error:', msg);
+      console.error('[WIZARD] mtg:ai-analyze - error stack:', err instanceof Error ? err.stack : 'N/A');
+      console.error('[WIZARD] mtg:ai-analyze - error type:', err?.constructor?.name ?? 'unknown');
+      sessions.delete(fromId);
+      await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
+      return ctx.reply(
+        `❌ Yapay zeka analizi başarısız: ${msg}\n\n` +
+          'Toplantı notun kaydedildi, web panelinden tekrar deneyebilirsin.\n\n' +
+          `Hata detayı: ${err?.constructor?.name ?? 'unknown'}`,
+      );
+    }
+  });
+
+  bot.action(/^mtg:ai-assign:(\d+)$/, async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return ctx.answerCbQuery();
+    const s = sessions.get(fromId);
+    if (!s || s.step !== 'aiReview') {
+      return ctx.answerCbQuery('Akış güncel değil');
+    }
+
+    const itemIndex = parseInt(ctx.match[1], 10);
+    const item = (s.aiActionItems ?? []).find((i) => i.index === itemIndex);
+    if (!item || item.removed) {
+      return ctx.answerCbQuery('Geçersiz görev');
+    }
+
+    s.aiAssignTargetIndex = itemIndex;
+    s.step = 'aiAssign';
+    touch(s);
+
+    const member = (s.members ?? []).find((m) => m.userId === item.assignedToUserId);
+    const currentName = member ? member.fullName : 'Atanmamış';
+
+    await ctx.answerCbQuery(`${item.title} — Atama: ${currentName}`);
+    return ctx.reply(
+      `📋 Görev: *${item.title}*\n\nAtamayı değiştirmek için bir kullanıcı seç:`,
+      {
+        parse_mode: 'Markdown',
+        ...buildAIAssignKeyboard(s),
+      },
+    );
+  });
+
+  bot.action(/^mtg:ai-assign-set:(\d+):(.+)$/, async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return ctx.answerCbQuery();
+    const s = sessions.get(fromId);
+    if (!s || s.step !== 'aiAssign') {
+      return ctx.answerCbQuery('Akış güncel değil');
+    }
+
+    const itemIndex = parseInt(ctx.match[1], 10);
+    const userIdStr = ctx.match[2];
+    const newUserId = userIdStr === 'null' ? null : userIdStr;
+
+    const item = (s.aiActionItems ?? []).find((i) => i.index === itemIndex);
+    if (!item) {
+      return ctx.answerCbQuery('Geçersiz görev');
+    }
+
+    item.assignedToUserId = newUserId;
+    s.step = 'aiReview';
+    s.aiAssignTargetIndex = undefined;
+    touch(s);
+
+    const member = (s.members ?? []).find((m) => m.userId === newUserId);
+    const newName = member ? member.fullName : 'Atanmamış';
+    await ctx.answerCbQuery(`Atama güncellendi: ${newName}`);
+
+    const activeItems = (s.aiActionItems ?? []).filter((i) => !i.removed);
+    const assignedCount = activeItems.filter((i) => i.assignedToUserId).length;
+    const unassignedCount = activeItems.length - assignedCount;
+
+    let message = `🤖 Yapay Zeka Analizi Sonuçları\n\n`;
+    message += `Toplantı notundan *${activeItems.length} görev* çıkarıldı.\n`;
+    message += `✅ ${assignedCount} atanmış`;
+    if (unassignedCount > 0) {
+      message += ` · ⚠️ ${unassignedCount} atanmamış`;
+    }
+    message += '\n\n';
+
+    for (const it of activeItems) {
+      const num = it.index + 1;
+      const m = (s.members ?? []).find((mm) => mm.userId === it.assignedToUserId);
+      const assigneeName = m ? m.fullName : 'Atanmamış';
+      const warnIcon = it.assignedToUserId ? '' : '⚠️ ';
+
+      message += `${num}️⃣ ${it.title}\n`;
+      if (it.description) {
+        message += `   ${it.description.slice(0, 100)}${it.description.length > 100 ? '...' : ''}\n`;
+      }
+      message += `   📅 ${warnIcon}${assigneeName}`;
+      if (it.dueDate) {
+        message += ` · ${fmtTrDate(it.dueDate)}`;
+      }
+      message += '\n\n';
+    }
+
+    message += 'Her görev için 👤 butonuna basarak atamayı değiştirebilirsin.';
+
+    return ctx.reply(message, {
+      parse_mode: 'Markdown',
+      ...buildAIReviewKeyboard(s),
+    });
+  });
+
+  bot.action('mtg:ai-assign-back', async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return ctx.answerCbQuery();
+    const s = sessions.get(fromId);
+    if (!s || s.step !== 'aiAssign') {
+      return ctx.answerCbQuery('Akış güncel değil');
+    }
+
+    s.step = 'aiReview';
+    s.aiAssignTargetIndex = undefined;
+    touch(s);
+
+    await ctx.answerCbQuery('Geri dönüldü');
+
+    const activeItems = (s.aiActionItems ?? []).filter((i) => !i.removed);
+    const assignedCount = activeItems.filter((i) => i.assignedToUserId).length;
+    const unassignedCount = activeItems.length - assignedCount;
+
+    let message = `🤖 Yapay Zeka Analizi Sonuçları\n\n`;
+    message += `Toplantı notundan *${activeItems.length} görev* çıkarıldı.\n`;
+    message += `✅ ${assignedCount} atanmış`;
+    if (unassignedCount > 0) {
+      message += ` · ⚠️ ${unassignedCount} atanmamış`;
+    }
+    message += '\n\n';
+
+    for (const item of activeItems) {
+      const num = item.index + 1;
+      const member = (s.members ?? []).find((m) => m.userId === item.assignedToUserId);
+      const assigneeName = member ? member.fullName : 'Atanmamış';
+      const warnIcon = item.assignedToUserId ? '' : '⚠️ ';
+
+      message += `${num}️⃣ ${item.title}\n`;
+      if (item.description) {
+        message += `   ${item.description.slice(0, 100)}${item.description.length > 100 ? '...' : ''}\n`;
+      }
+      message += `   📅 ${warnIcon}${assigneeName}`;
+      if (item.dueDate) {
+        message += ` · ${fmtTrDate(item.dueDate)}`;
+      }
+      message += '\n\n';
+    }
+
+    message += 'Her görev için 👤 butonuna basarak atamayı değiştirebilirsin.';
+
+    return ctx.reply(message, {
+      parse_mode: 'Markdown',
+      ...buildAIReviewKeyboard(s),
+    });
+  });
+
+  bot.action(/^mtg:ai-remove:(\d+)$/, async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return ctx.answerCbQuery();
+    const s = sessions.get(fromId);
+    if (!s || s.step !== 'aiReview') {
+      return ctx.answerCbQuery('Akış güncel değil');
+    }
+
+    const itemIndex = parseInt(ctx.match[1], 10);
+    const item = (s.aiActionItems ?? []).find((i) => i.index === itemIndex);
+    if (!item || item.removed) {
+      return ctx.answerCbQuery('Geçersiz görev');
+    }
+
+    item.removed = true;
+    touch(s);
+
+    await ctx.answerCbQuery('Görev listeden kaldırıldı');
+
+    const activeItems = (s.aiActionItems ?? []).filter((i) => !i.removed);
+    if (activeItems.length === 0) {
+      sessions.delete(fromId);
+      await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
+      return ctx.reply(
+        'Tüm görevler kaldırıldı. Toplantı notu kaydedildi, görev oluşturulmadı.',
+      );
+    }
+
+    const assignedCount = activeItems.filter((i) => i.assignedToUserId).length;
+    const unassignedCount = activeItems.length - assignedCount;
+
+    let message = `🤖 Yapay Zeka Analizi Sonuçları\n\n`;
+    message += `Toplantı notundan *${activeItems.length} görev* çıkarıldı.\n`;
+    message += `✅ ${assignedCount} atanmış`;
+    if (unassignedCount > 0) {
+      message += ` · ⚠️ ${unassignedCount} atanmamış`;
+    }
+    message += '\n\n';
+
+    for (const it of activeItems) {
+      const num = it.index + 1;
+      const m = (s.members ?? []).find((mm) => mm.userId === it.assignedToUserId);
+      const assigneeName = m ? m.fullName : 'Atanmamış';
+      const warnIcon = it.assignedToUserId ? '' : '⚠️ ';
+
+      message += `${num}️⃣ ${it.title}\n`;
+      if (it.description) {
+        message += `   ${it.description.slice(0, 100)}${it.description.length > 100 ? '...' : ''}\n`;
+      }
+      message += `   📅 ${warnIcon}${assigneeName}`;
+      if (it.dueDate) {
+        message += ` · ${fmtTrDate(it.dueDate)}`;
+      }
+      message += '\n\n';
+    }
+
+    message += 'Her görev için 👤 butonuna basarak atamayı değiştirebilirsin.';
+
+    return ctx.reply(message, {
+      parse_mode: 'Markdown',
+      ...buildAIReviewKeyboard(s),
+    });
+  });
+
+  bot.action('mtg:ai-restore-all', async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return ctx.answerCbQuery();
+    const s = sessions.get(fromId);
+    if (!s || s.step !== 'aiReview') {
+      return ctx.answerCbQuery('Akış güncel değil');
+    }
+
+    let restored = 0;
+    for (const item of s.aiActionItems ?? []) {
+      if (item.removed) {
+        item.removed = false;
+        restored++;
+      }
+    }
+    touch(s);
+
+    await ctx.answerCbQuery(`${restored} görev geri getirildi`);
+
+    const activeItems = (s.aiActionItems ?? []).filter((i) => !i.removed);
+    const assignedCount = activeItems.filter((i) => i.assignedToUserId).length;
+    const unassignedCount = activeItems.length - assignedCount;
+
+    let message = `🤖 Yapay Zeka Analizi Sonuçları\n\n`;
+    message += `Toplantı notundan *${activeItems.length} görev* çıkarıldı.\n`;
+    message += `✅ ${assignedCount} atanmış`;
+    if (unassignedCount > 0) {
+      message += ` · ⚠️ ${unassignedCount} atanmamış`;
+    }
+    message += '\n\n';
+
+    for (const item of activeItems) {
+      const num = item.index + 1;
+      const member = (s.members ?? []).find((m) => m.userId === item.assignedToUserId);
+      const assigneeName = member ? member.fullName : 'Atanmamış';
+      const warnIcon = item.assignedToUserId ? '' : '⚠️ ';
+
+      message += `${num}️⃣ ${item.title}\n`;
+      if (item.description) {
+        message += `   ${item.description.slice(0, 100)}${item.description.length > 100 ? '...' : ''}\n`;
+      }
+      message += `   📅 ${warnIcon}${assigneeName}`;
+      if (item.dueDate) {
+        message += ` · ${fmtTrDate(item.dueDate)}`;
+      }
+      message += '\n\n';
+    }
+
+    message += 'Her görev için 👤 butonuna basarak atamayı değiştirebilirsin.';
+
+    return ctx.reply(message, {
+      parse_mode: 'Markdown',
+      ...buildAIReviewKeyboard(s),
+    });
+  });
+
+  bot.action('mtg:ai-save', async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return ctx.answerCbQuery();
+    const s = sessions.get(fromId);
+    if (!s || s.step !== 'aiReview') {
+      return ctx.answerCbQuery('Akış güncel değil');
+    }
+
+    await ctx.answerCbQuery('Görevler kaydediliyor…');
+    await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
+
+    try {
+      const count = await persistAITasks(prisma, s);
+      sessions.delete(fromId);
+
+      const activeItems = (s.aiActionItems ?? []).filter((i) => !i.removed);
+      const assignedCount = activeItems.filter((i) => i.assignedToUserId).length;
+
+      return ctx.reply(
+        `✅ ${count} görev başarıyla oluşturuldu.\n\n` +
+          `${assignedCount} kişiye atandı, ${activeItems.length - assignedCount} atanmadı (web panelinden atayabilirsin).`,
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      sessions.delete(fromId);
+      return ctx.reply(
+        `❌ Görevler kaydedilemedi: ${msg}\n\n` +
+          'Toplantı notun kaydedildi, web panelinden görev oluşturabilirsin.',
+      );
+    }
+  });
+
+  bot.action('mtg:ai-cancel', async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return ctx.answerCbQuery();
+    const s = sessions.get(fromId);
+    if (!s || (s.step !== 'aiReview' && s.step !== 'aiAssign' && s.step !== 'aiPrompt')) {
+      return ctx.answerCbQuery('Akış güncel değil');
+    }
+
+    sessions.delete(fromId);
+    await ctx.answerCbQuery('İptal edildi');
+    await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
+    return ctx.reply(
+      'Yapay zeka analizi iptal edildi. Toplantı notun kaydedildi.',
+    );
   });
 }

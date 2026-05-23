@@ -370,6 +370,44 @@ export class MeetingsService {
     return meeting;
   }
 
+  async listUserMeetings(userId: string, limit = 20) {
+    const meetings = await this.prisma.meetingNote.findMany({
+      where: {
+        deletedAt: null,
+        attendees: {
+          some: { userId },
+        },
+      },
+      take: limit,
+      orderBy: { meetingDate: 'desc' },
+      include: {
+        association: { select: { id: true, name: true, city: true, district: true } },
+        attendees: {
+          include: {
+            user: { select: { id: true, fullName: true } },
+          },
+        },
+        _count: {
+          select: { tasks: true },
+        },
+      },
+    });
+
+    return meetings.map((m) => ({
+      id: m.id,
+      title: m.title,
+      meetingDate: m.meetingDate.toISOString(),
+      association: {
+        id: m.association.id,
+        name: m.association.name,
+        city: m.association.city,
+        district: m.association.district,
+      },
+      attendeeCount: m.attendees.length,
+      taskCount: m._count.tasks,
+    }));
+  }
+
   private async ensureAllAreMembers(
     associationId: string,
     attendeeUserIds: string[],

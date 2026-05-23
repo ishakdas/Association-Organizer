@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, Loader2, Shield, X, MessageSquare, Wallet } from 'lucide-react';
+import { Check, Loader2, Shield, X, MessageSquare, Wallet, ClipboardList } from 'lucide-react';
 import { usePermissions, useSyncPermissions, type PermissionAction } from '../../_hooks/use-permissions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 const PERMISSIONS: { action: PermissionAction; label: string; icon: typeof MessageSquare; description: string }[] = [
   { action: 'USE_MEETING_COMMANDS', label: 'Toplantı Komutları', icon: MessageSquare, description: '/toplanti komutunu kullanabilir' },
   { action: 'USE_FINANCE_COMMANDS', label: 'Finans Komutları', icon: Wallet, description: '/finans, /gider, /bagis, /aidat, /kasa komutlarını kullanabilir' },
+  { action: 'USE_TASK_COMMANDS', label: 'Görev Komutları', icon: ClipboardList, description: '/gorevlerim komutunu kullanabilir' },
 ];
 
 const AVATAR_COLORS = ['bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500', 'bg-fuchsia-500', 'bg-indigo-500'];

@@ -464,7 +464,7 @@ export class AdminService {
     });
     if (existing) return existing.associationId;
     throw new NotFoundException(
-      'Sistem kökü dernek kaydı bulunamadı — `pnpm db:seed` çalıştırın',
+      'Sistem kökü dernek kaydı bulunamadı — `pnpm db:seed` çalıştırın (SYSTEM_ROOT association)',
     );
   }
 }

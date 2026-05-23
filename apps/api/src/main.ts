@@ -62,11 +62,46 @@ async function bootstrap() {
 
   // Mount Telegram webhook outside the /api/v1 prefix
   const botService = app.get(BotService);
+  console.log('### [MAIN] BotService instance:', botService?.constructor?.name);
+  console.log('### [MAIN] Has handleUpdate method:', typeof botService?.handleUpdate === 'function');
+  console.log('### [MAIN] BotService prototype methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(botService)));
   const fastify = app.getHttpAdapter().getInstance();
 
   fastify.post('/telegram/webhook', async (request: any, reply: any) => {
-    await botService.handleUpdate(request.body);
-    return reply.send({ ok: true });
+    process.stdout.write('\n### [WEBHOOK] START ###\n');
+    console.log('[WEBHOOK] === Telegram Webhook Received ===');
+    console.log('[WEBHOOK] Request body type:', typeof request.body);
+    
+    const body = request.body;
+    if (!body) {
+      console.error('[WEBHOOK] Empty body received');
+      return reply.send({ ok: false });
+    }
+    
+    const updateType = body.callback_query ? 'callback_query' : body.message ? 'message' : 'unknown';
+    console.log('[WEBHOOK] Update type:', updateType);
+    if (body.callback_query) {
+      console.log('[WEBHOOK] Callback data:', body.callback_query.data);
+    }
+    
+    process.stdout.write('### [WEBHOOK] About to call botService.handleUpdate ###\n');
+    process.stdout.write('### [WEBHOOK] botService type: ' + typeof botService + ' ###\n');
+    process.stdout.write('### [WEBHOOK] handleUpdate type: ' + typeof botService?.handleUpdate + ' ###\n');
+    
+    // DEBUG: Remove this after testing
+    if (body?.callback_query?.data?.startsWith('mtg:')) {
+      process.stdout.write('### [WEBHOOK] MEETING CALLBACK DETECTED: ' + body.callback_query.data + ' ###\n');
+    }
+    
+    try {
+      await botService.handleUpdate(body);
+      process.stdout.write('### [WEBHOOK] handleUpdate returned ###\n');
+      console.log('[WEBHOOK] Update processed successfully');
+      return reply.send({ ok: true });
+    } catch (err) {
+      console.error('[WEBHOOK] Error handling update:', err);
+      return reply.send({ ok: true });
+    }
   });
 
   const port = config.get<number>('port') ?? 3000;
