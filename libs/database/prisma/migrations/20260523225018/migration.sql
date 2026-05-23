@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "TaskActivityAction" ADD VALUE 'EXTRACTED_FROM_MEETING';
