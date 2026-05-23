@@ -50,17 +50,17 @@ export function listRejectedRegistrations(token: string) {
 }
 
 export function resendInvite(token: string, id: string) {
-  return apiClient<{ sent: boolean }>(
+  return apiClient<{ emailSent: boolean; magicLink: string | null }>(
     `/auth/pending-registrations/${id}/resend`,
     { token, method: 'POST' },
   );
 }
 
 export function approveBranchRegistration(token: string, id: string) {
-  return apiClient<object>(`/auth/pending-registrations/${id}/approve`, {
-    token,
-    method: 'POST',
-  });
+  return apiClient<{ emailSent: boolean; magicLink: string | null }>(
+    `/auth/pending-registrations/${id}/approve`,
+    { token, method: 'POST' },
+  );
 }
 
 export function rejectBranchRegistration(token: string, id: string) {
@@ -83,4 +83,19 @@ export function resendInviteForUser(token: string, userId: string) {
     method: 'POST',
     body: JSON.stringify({ userId }),
   });
+}
+
+export interface EmailLogEntry {
+  id: string;
+  templateKey: string;
+  status: 'SENT' | 'DELIVERED' | 'BOUNCED' | 'FAILED';
+  error: string | null;
+  sentAt: string;
+}
+
+export function getEmailLogs(token: string, email: string) {
+  return apiClient<EmailLogEntry[]>(
+    `/auth/registrations/${encodeURIComponent(email)}/email-logs`,
+    { token },
+  );
 }

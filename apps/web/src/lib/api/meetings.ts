@@ -1,23 +1,26 @@
 import { apiClient } from './client';
 import type {
-  CreateMeetingNoteInput,
   MeetingNoteResponse,
+  CreateMeetingNoteInput,
   UpdateMeetingNoteInput,
 } from '@ticketbot/shared-validation';
 
-export interface MeetingsListParams {
+export interface ListMeetingsParams {
   page?: number;
   pageSize?: number;
 }
 
 export interface MeetingsListResponse {
   data: MeetingNoteResponse[];
-  total: number;
-  page: number;
-  pageSize: number;
+  meta: {
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  };
 }
 
-function buildQuery(params: MeetingsListParams): string {
+function buildQuery(params: ListMeetingsParams): string {
   const sp = new URLSearchParams();
   if (params.page) sp.set('page', String(params.page));
   if (params.pageSize) sp.set('pageSize', String(params.pageSize));
@@ -28,12 +31,20 @@ function buildQuery(params: MeetingsListParams): string {
 export function listMeetings(
   token: string,
   associationId: string,
-  params: MeetingsListParams = {},
+  params: ListMeetingsParams = {},
 ) {
   return apiClient<MeetingsListResponse>(
     `/associations/${associationId}/meetings${buildQuery(params)}`,
     { token },
   );
+}
+
+export function listMyMeetings(token: string) {
+  return apiClient<MeetingSummaryItem[]>('/meetings/my', { token });
+}
+
+export function getMeeting(token: string, meetingId: string) {
+  return apiClient<MeetingNoteResponse>(`/meetings/${meetingId}`, { token });
 }
 
 export function createMeeting(
@@ -49,10 +60,6 @@ export function createMeeting(
       body: JSON.stringify(input),
     },
   );
-}
-
-export function getMeeting(token: string, meetingId: string) {
-  return apiClient<MeetingNoteResponse>(`/meetings/${meetingId}`, { token });
 }
 
 export function updateMeeting(
@@ -98,6 +105,20 @@ export function analyzeMeeting(
       body: JSON.stringify({ content }),
     },
   );
+}
+
+export interface MeetingSummaryItem {
+  id: string;
+  title: string;
+  meetingDate: string;
+  association: {
+    id: string;
+    name: string;
+    city: string;
+    district: string;
+  };
+  attendeeCount: number;
+  taskCount: number;
 }
 
 export interface MeetingSummaryResponse {

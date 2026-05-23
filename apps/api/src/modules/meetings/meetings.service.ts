@@ -6,7 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService, UserRole } from '@ticketbot/database';
+import { PrismaService, UserRole, PermissionAction } from '@ticketbot/database';
 import {
   CreateMeetingNoteInput,
   ListMeetingNotesQuery,
@@ -15,6 +15,7 @@ import {
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { AiService } from '@ticketbot/ai';
 import { parseTurkishDateText } from './turkish-date-parser';
+import { PermissionService } from '../permissions/permission.service';
 
 const ATTENDEE_INCLUDE = {
   attendees: {
@@ -31,6 +32,7 @@ export class MeetingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
+    private readonly permissionService: PermissionService,
   ) {}
 
   private async assertMeetingAccess(
@@ -48,19 +50,16 @@ export class MeetingsService {
     );
     if (hasRole) return;
 
-    const permission = await this.prisma.meetingPermission.findFirst({
-      where: {
-        associationId,
-        userId: user.id,
-        isActive: true,
-        revokedAt: null,
-      },
-    });
-    if (!permission) {
-      throw new ForbiddenException(
-        'Toplantı işlemleri için yetkiniz yok',
-      );
-    }
+    const hasPermission = await this.permissionService.hasPermission(
+      user.id,
+      associationId,
+      PermissionAction.USE_MEETING_COMMANDS,
+    );
+    if (hasPermission) return;
+
+    throw new ForbiddenException(
+      'Toplantı işlemleri için yetkiniz yok',
+    );
   }
 
   private assertManagerAccess(
@@ -87,7 +86,10 @@ export class MeetingsService {
       where: { associationId, isActive: true, deletedAt: null },
       include: {
         user: { select: { id: true, fullName: true } },
-        title: { select: { name: true, description: true } },
+        titleAssignments: {
+          include: { title: { select: { name: true, description: true } } },
+          orderBy: { sortOrder: 'asc' },
+        },
       },
     });
 
@@ -98,16 +100,32 @@ export class MeetingsService {
       SYSTEM_ADMIN: 'MANAGER (Başkan)',
     };
 
+    const formatTitle = (ta: {
+      title?: { name: string; description: string | null } | null;
+      customTitle?: string | null;
+    }): string => {
+      if (ta.customTitle) return ta.customTitle;
+      if (ta.title) {
+        return ta.title.description
+          ? `${ta.title.name} — ${ta.title.description}`
+          : ta.title.name;
+      }
+      return 'Atanmamış';
+    };
+
     const membersContext = members
       .map((m) => {
         const roleLabel = ROLE_LABEL[m.role] ?? m.role;
-        const titlePart = m.title
-          ? m.title.description
-            ? `${m.title.name} — ${m.title.description}`
-            : m.title.name
-          : 'Atanmamış';
-        const customPart = m.customTitle ? `\n  Özel Unvan: ${m.customTitle}` : '';
-        return `- User ID: ${m.user.id}\n  İsim: ${m.user.fullName}\n  Sistem Rolü: ${roleLabel}\n  Unvan: ${titlePart}${customPart}`;
+        const primary = m.titleAssignments.find((t) => t.isPrimary);
+        const secondaries = m.titleAssignments.filter((t) => !t.isPrimary);
+
+        const primaryPart = primary ? formatTitle(primary) : 'Atanmamış';
+        const secondaryPart =
+          secondaries.length > 0
+            ? `\n  📌 İKİNCİL ÜNVANLAR:\n${secondaries.map((s) => `    - ${formatTitle(s)}`).join('\n')}`
+            : '';
+
+        return `- User ID: ${m.user.id}\n  İsim: ${m.user.fullName}\n  Sistem Rolü: ${roleLabel}\n  🎯 BİRİNCİL ÜNVAN: ${primaryPart}${secondaryPart}`;
       })
       .join('\n');
 
@@ -115,7 +133,7 @@ export class MeetingsService {
       const result = await this.aiService.extractActionItems(content, membersContext);
 
       const memberMap = new Map(
-        members.map((m) => [m.user.id, { fullName: m.user.fullName, title: m.title?.name ?? null }]),
+        members.map((m) => [m.user.id, { fullName: m.user.fullName, title: m.titleAssignments.find((t) => t.isPrimary)?.title?.name ?? null }]),
       );
 
       const now = new Date();
@@ -352,81 +370,42 @@ export class MeetingsService {
     return meeting;
   }
 
-  async grantPermission(
-    associationId: string,
-    userId: string,
-    grantedBy: AuthenticatedUser,
-  ) {
-    this.assertManagerAccess(grantedBy, associationId);
-
-    const targetMembership = await this.prisma.associationMembership.findFirst({
+  async listUserMeetings(userId: string, limit = 20) {
+    const meetings = await this.prisma.meetingNote.findMany({
       where: {
-        associationId,
-        userId,
-        isActive: true,
         deletedAt: null,
-      },
-      select: { id: true },
-    });
-    if (!targetMembership) {
-      throw new BadRequestException('Kullanıcı bu derneğin aktif üyesi değil');
-    }
-
-    const existing = await this.prisma.meetingPermission.findFirst({
-      where: { associationId, userId },
-    });
-    if (existing) {
-      if (existing.isActive && !existing.revokedAt) {
-        throw new BadRequestException('Bu kullanıcıya zaten toplantı yetkisi verilmiş');
-      }
-      return this.prisma.meetingPermission.update({
-        where: { id: existing.id },
-        data: { isActive: true, revokedAt: null, grantedById: grantedBy.id },
-        include: {
-          user: { select: { id: true, fullName: true } },
+        attendees: {
+          some: { userId },
         },
-      });
-    }
-
-    return this.prisma.meetingPermission.create({
-      data: {
-        associationId,
-        userId,
-        grantedById: grantedBy.id,
       },
+      take: limit,
+      orderBy: { meetingDate: 'desc' },
       include: {
-        user: { select: { id: true, fullName: true } },
+        association: { select: { id: true, name: true, city: true, district: true } },
+        attendees: {
+          include: {
+            user: { select: { id: true, fullName: true } },
+          },
+        },
+        _count: {
+          select: { tasks: true },
+        },
       },
     });
-  }
 
-  async revokePermission(
-    associationId: string,
-    userId: string,
-    revokedBy: AuthenticatedUser,
-  ) {
-    this.assertManagerAccess(revokedBy, associationId);
-
-    const permission = await this.prisma.meetingPermission.findFirst({
-      where: { associationId, userId, isActive: true },
-    });
-    if (!permission) throw new NotFoundException('Yetki bulunamadı');
-
-    return this.prisma.meetingPermission.update({
-      where: { id: permission.id },
-      data: { isActive: false, revokedAt: new Date() },
-    });
-  }
-
-  async listPermissions(associationId: string) {
-    return this.prisma.meetingPermission.findMany({
-      where: { associationId, isActive: true },
-      include: {
-        user: { select: { id: true, fullName: true } },
-        grantedBy: { select: { id: true, fullName: true } },
+    return meetings.map((m) => ({
+      id: m.id,
+      title: m.title,
+      meetingDate: m.meetingDate.toISOString(),
+      association: {
+        id: m.association.id,
+        name: m.association.name,
+        city: m.association.city,
+        district: m.association.district,
       },
-      orderBy: { grantedAt: 'desc' },
-    });
+      attendeeCount: m.attendees.length,
+      taskCount: m._count.tasks,
+    }));
   }
 
   private async ensureAllAreMembers(

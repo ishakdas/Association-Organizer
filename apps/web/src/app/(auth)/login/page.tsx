@@ -104,7 +104,7 @@ function LoginInner() {
         </div>
 
         <footer className="text-center text-[11px] uppercase tracking-widest text-muted-foreground lg:hidden">
-          © {new Date().getFullYear()} Dernek Organizer
+          © {new Date().getFullYear()} Defter-i Hilal
         </footer>
       </div>
       <BrandPanel />
@@ -275,7 +275,6 @@ type BranchStep =
 function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
   const [step, setStep] = useState<BranchStep>('email');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [city, setCity] = useState('');
@@ -284,7 +283,6 @@ function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resetLoading, setResetLoading] = useState(false);
-  const [resetSent, setResetSent] = useState(false);
   const [resetCooldown, setResetCooldown] = useState(0);
 
   const provinces = getProvinceNames();
@@ -332,39 +330,6 @@ function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
     } finally {
       setLoading(false);
     }
-  }
-
-  async function handlePasswordSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    const supabase = createClient();
-    const { data: { session }, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (signInError) {
-      setError(
-        signInError.message === 'Invalid login credentials'
-          ? 'E-posta veya şifre hatalı.'
-          : signInError.message,
-      );
-      setLoading(false);
-    } else {
-      window.location.href = '/associations';
-    }
-  }
-
-  async function handleForgotPassword() {
-    if (resetLoading || resetCooldown > 0) return;
-    setResetLoading(true);
-    setError(null);
-    const supabase = createClient();
-    await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/callback?next=/reset-password`,
-    });
-    setResetLoading(false);
-    setResetSent(true);
-    startResetCooldown();
   }
 
   async function handleRegisterSubmit(e: React.FormEvent) {
@@ -699,7 +664,7 @@ function BrandPanel() {
       </div>
 
       <div className="relative z-10 flex items-center justify-between text-[11px] uppercase tracking-widest text-white/50">
-        <span>© {new Date().getFullYear()} Dernek Organizer</span>
+        <span>© {new Date().getFullYear()} Defter-i Hilal</span>
         <span>TR</span>
       </div>
     </aside>
@@ -711,7 +676,7 @@ function Brand({ dark }: { dark?: boolean }) {
     <div className="flex items-center gap-3">
       <Image
         src="/yedihilal-logo.png"
-        alt="YediHilal"
+        alt="Defter-i Hilal"
         width={32}
         height={45}
         className="h-11 w-auto"
@@ -719,7 +684,7 @@ function Brand({ dark }: { dark?: boolean }) {
       />
       <div className="leading-tight">
         <div className={`text-[13px] font-bold tracking-tight ${dark ? 'text-white' : 'text-foreground'}`}>
-          YediHilal Sekreterya
+          Defter-i Hilal
         </div>
         <div className={`text-[10px] font-medium uppercase tracking-widest ${dark ? 'text-white/60' : 'text-muted-foreground'}`}>
           Şube bazlı sekreterya

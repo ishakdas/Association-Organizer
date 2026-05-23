@@ -1,4 +1,4 @@
-import { Telegraf, Markup } from 'telegraf';
+import { Telegraf, Markup, Context } from 'telegraf';
 import { PrismaService } from '@ticketbot/database';
 import { ConfigService } from '@nestjs/config';
 import { parsePhoneE164 } from '@ticketbot/shared-validation';
@@ -23,12 +23,96 @@ function evictExpired(now: number) {
 
 const removeKeyboard = { reply_markup: { remove_keyboard: true as const } };
 
+export async function startPendingLink(
+  ctx: Context,
+  prisma: PrismaService,
+  token: string,
+): Promise<void> {
+  const from = ctx.from;
+  if (!from) return;
+
+  try {
+    const linkToken = await prisma.telegramLinkToken.findUnique({
+      where: { token },
+    });
+
+    if (!linkToken) {
+      await ctx.reply('Geçersiz kod. Lütfen panelden yenisini alın.');
+      return;
+    }
+    if (linkToken.usedAt) {
+      await ctx.reply(
+        'Bu kod zaten kullanılmış. Lütfen panelden yenisini alın.',
+      );
+      return;
+    }
+    if (linkToken.expiresAt < new Date()) {
+      await ctx.reply(
+        'Bu kodun süresi dolmuş. Lütfen panelden yenisini alın.',
+      );
+      return;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: linkToken.userId },
+      select: { id: true, phone: true, fullName: true },
+    });
+    if (!user) {
+      await ctx.reply('Kullanıcı bulunamadı. Destek ekibiyle görüşün.');
+      return;
+    }
+
+    if (!user.phone) {
+      await ctx.reply(
+        'Hesabınızda kayıtlı telefon yok.\n\n' +
+          'Lütfen önce web panelinden Profil → Telefon ile numaranızı ekleyin, ' +
+          'sonra yeni bir bağlantı kodu alarak tekrar deneyin.',
+      );
+      return;
+    }
+
+    const expectedPhone = parsePhoneE164(user.phone);
+    if (!expectedPhone) {
+      await ctx.reply(
+        'Hesabınızdaki telefon biçimi okunamadı. Destek ekibiyle görüşün.',
+      );
+      return;
+    }
+
+    const now = Date.now();
+    evictExpired(now);
+    pendingLinks.set(from.id, {
+      token,
+      userId: user.id,
+      expectedPhoneE164: expectedPhone,
+      expiresAt: Math.min(now + PENDING_TTL_MS, linkToken.expiresAt.getTime()),
+    });
+
+    await ctx.reply(
+      `Merhaba ${user.fullName}!\n\n` +
+        'Hesabınızı bağlamadan önce, kayıtlı telefonunuzla aynı olduğunu ' +
+        'doğrulamak için telefon numaranızı paylaşmanız gerekiyor.\n\n' +
+        '👉 Aşağıdaki "📱 Telefonu paylaş" butonuna dokunun.\n' +
+        '⚠️ Telefonu elle yazmak çalışmaz — güvenlik için Telegram\'ın ' +
+        'paylaşım butonu zorunludur.',
+      Markup.keyboard([
+        [Markup.button.contactRequest('📱 Telefonu paylaş')],
+      ])
+        .oneTime()
+        .resize(),
+    );
+  } catch (err) {
+    console.error('[link.command] startPendingLink failed:', err);
+    await ctx.reply(
+      'Bir hata oluştu. Lütfen tekrar deneyin veya destekle iletişime geçin.',
+    );
+  }
+}
+
 export function registerLinkCommand(
   bot: Telegraf,
   prisma: PrismaService,
-  // ConfigService is part of the public signature for parity with other
-  // command registrars; not used directly here.
-  _config: ConfigService,
+  config: ConfigService,
 ) {
   bot.command('link', async (ctx) => {
     const args = ctx.message.text.split(' ').slice(1);
@@ -40,76 +124,7 @@ export function registerLinkCommand(
       );
     }
 
-    try {
-      const linkToken = await prisma.telegramLinkToken.findUnique({
-        where: { token },
-      });
-
-      if (!linkToken) {
-        return ctx.reply('Geçersiz kod. Lütfen panelden yenisini alın.');
-      }
-      if (linkToken.usedAt) {
-        return ctx.reply(
-          'Bu kod zaten kullanılmış. Lütfen panelden yenisini alın.',
-        );
-      }
-      if (linkToken.expiresAt < new Date()) {
-        return ctx.reply(
-          'Bu kodun süresi dolmuş. Lütfen panelden yenisini alın.',
-        );
-      }
-
-      const user = await prisma.user.findUnique({
-        where: { id: linkToken.userId },
-        select: { id: true, phone: true, fullName: true },
-      });
-      if (!user) {
-        return ctx.reply('Kullanıcı bulunamadı. Destek ekibiyle görüşün.');
-      }
-
-      if (!user.phone) {
-        return ctx.reply(
-          'Hesabınızda kayıtlı telefon yok.\n\n' +
-            'Lütfen önce web panelinden Profil → Telefon ile numaranızı ekleyin, ' +
-            'sonra yeni bir bağlantı kodu alarak tekrar deneyin.',
-        );
-      }
-
-      const expectedPhone = parsePhoneE164(user.phone);
-      if (!expectedPhone) {
-        return ctx.reply(
-          'Hesabınızdaki telefon biçimi okunamadı. Destek ekibiyle görüşün.',
-        );
-      }
-
-      const now = Date.now();
-      evictExpired(now);
-      pendingLinks.set(ctx.from.id, {
-        token,
-        userId: user.id,
-        expectedPhoneE164: expectedPhone,
-        expiresAt: Math.min(now + PENDING_TTL_MS, linkToken.expiresAt.getTime()),
-      });
-
-      return ctx.reply(
-        `Merhaba ${user.fullName}!\n\n` +
-          'Hesabınızı bağlamadan önce, kayıtlı telefonunuzla aynı olduğunu ' +
-          'doğrulamak için telefon numaranızı paylaşmanız gerekiyor.\n\n' +
-          '👉 Aşağıdaki "📱 Telefonu paylaş" butonuna dokunun.\n' +
-          '⚠️ Telefonu elle yazmak çalışmaz — güvenlik için Telegram\'ın ' +
-          'paylaşım butonu zorunludur.',
-        Markup.keyboard([
-          [Markup.button.contactRequest('📱 Telefonu paylaş')],
-        ])
-          .oneTime()
-          .resize(),
-      );
-    } catch (err) {
-      console.error('[link.command] /link failed:', err);
-      return ctx.reply(
-        'Bir hata oluştu. Lütfen tekrar deneyin veya destekle iletişime geçin.',
-      );
-    }
+    return startPendingLink(ctx, prisma, token);
   });
 
   bot.on('contact', async (ctx) => {

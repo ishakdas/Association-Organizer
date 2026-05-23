@@ -51,6 +51,11 @@ RUN for pkg in database ai shared-types shared-validation; do \
 ENV NODE_ENV=production
 EXPOSE 3000
 
-# tini -> node so SIGTERM cleanly shuts the API down
-ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["node", "apps/api/dist/apps/api/src/main.js"]
+# Install entrypoint that runs `prisma migrate deploy` + `prisma db seed`
+# before exec'ing node. Keeps container start as a single atomic boot step;
+# fail-fast if migrations error so Coolify surfaces a red deploy.
+COPY scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# tini -> entrypoint -> node so SIGTERM cleanly shuts the API down
+ENTRYPOINT ["/usr/bin/tini", "--", "/entrypoint.sh"]

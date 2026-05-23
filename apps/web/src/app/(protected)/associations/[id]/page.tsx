@@ -15,13 +15,14 @@ import { TasksSection } from '../_components/detail/tasks-section';
 import { MeetingsSection } from '../_components/detail/meetings-section';
 import { TelegramSection } from '../_components/detail/telegram-section';
 import { FinanceSection } from '../_components/detail/finance-section';
+import { PermissionsSection } from '../_components/detail/permissions-section';
 
 interface Props {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ section?: string }>;
 }
 
-const VALID_SECTIONS = ['dashboard', 'finans', 'uyeler', 'gorevler', 'toplantilar', 'telegram', 'ayarlar'] as const;
+const VALID_SECTIONS = ['dashboard', 'finans', 'uyeler', 'gorevler', 'toplantilar', 'telegram', 'yetkiler', 'ayarlar'] as const;
 type Section = (typeof VALID_SECTIONS)[number];
 
 export default async function AssociationDetailPage({ params, searchParams }: Props) {
@@ -69,6 +70,7 @@ export default async function AssociationDetailPage({ params, searchParams }: Pr
               gorevler={<TasksSection associationId={a.id} canManage={canCreateWork} currentUserId={me?.id} />}
               toplantilar={<MeetingsSection associationId={a.id} canManage={canCreateWork} />}
               telegram={<TelegramSection associationId={a.id} canManage={canManageRoster} />}
+              yetkiler={<PermissionsSection associationId={a.id} />}
             />
           </div>
         </div>
@@ -101,6 +103,9 @@ export default async function AssociationDetailPage({ params, searchParams }: Pr
           )}
           {activeSection === 'telegram' && (
             <TelegramSection associationId={a.id} canManage={canManageRoster} />
+          )}
+          {activeSection === 'yetkiler' && (
+            <PermissionsSection associationId={a.id} />
           )}
           {activeSection === 'ayarlar' && <GeneralSection a={a} />}
         </div>

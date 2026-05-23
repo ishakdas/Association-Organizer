@@ -8,8 +8,8 @@
     "test": "jest --passWithNoTests",
     "lint": "eslint src/"
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./src/index.ts",
+  "types": "./dist/apps/bot/src/index.d.ts",
   "dependencies": {
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",

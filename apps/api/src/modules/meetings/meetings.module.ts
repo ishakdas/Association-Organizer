@@ -5,9 +5,10 @@ import {
   MeetingDetailController,
 } from './meetings.controller';
 import { MeetingsService } from './meetings.service';
+import { PermissionsModule } from '../permissions/permissions.module';
 
 @Module({
-  imports: [AiModule],
+  imports: [AiModule, PermissionsModule],
   controllers: [MeetingsController, MeetingDetailController],
   providers: [MeetingsService],
   exports: [MeetingsService],

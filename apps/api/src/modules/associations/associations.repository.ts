@@ -19,10 +19,41 @@ export class AssociationsRepository {
     return this.prisma.association.create({ data });
   }
 
-  findById(id: string) {
-    return this.prisma.association.findFirst({
+  async findById(id: string) {
+    const a = await this.prisma.association.findFirst({
       where: { id, deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        shortName: true,
+        taxNumber: true,
+        foundedAt: true,
+        address: true,
+        city: true,
+        district: true,
+        phone: true,
+        email: true,
+        website: true,
+        logoUrl: true,
+        activityArea: true,
+        memberCount: true,
+        isActive: true,
+        notes: true,
+        createdById: true,
+        createdAt: true,
+        updatedAt: true,
+        deletedAt: true,
+        _count: {
+          select: {
+            memberships: {
+              where: { isActive: true, deletedAt: null },
+            },
+          },
+        },
+      },
     });
+    if (!a) return null;
+    return { ...a, memberCount: a._count.memberships };
   }
 
   async findMany(filters: FindManyFilters) {
@@ -56,11 +87,45 @@ export class AssociationsRepository {
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          name: true,
+          shortName: true,
+          taxNumber: true,
+          foundedAt: true,
+          address: true,
+          city: true,
+          district: true,
+          phone: true,
+          email: true,
+          website: true,
+          logoUrl: true,
+          activityArea: true,
+          memberCount: true,
+          isActive: true,
+          notes: true,
+          createdById: true,
+          createdAt: true,
+          updatedAt: true,
+          deletedAt: true,
+          _count: {
+            select: {
+              memberships: {
+                where: { isActive: true, deletedAt: null },
+              },
+            },
+          },
+        },
       }),
       this.prisma.association.count({ where }),
     ]);
 
-    return { data, total };
+    const enriched = data.map((a) => ({
+      ...a,
+      memberCount: a._count.memberships,
+    }));
+
+    return { data: enriched, total };
   }
 
   async existsByTaxNumber(taxNumber: string): Promise<boolean> {

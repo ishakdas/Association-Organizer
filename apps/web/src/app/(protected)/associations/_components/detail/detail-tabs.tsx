@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   MessageSquare,
   Settings,
+  Shield,
   Users,
   Wallet,
   type LucideIcon,
@@ -27,6 +28,7 @@ interface DetailTabsProps {
   toplantilar: React.ReactNode;
   telegram: React.ReactNode;
   finans: React.ReactNode;
+  yetkiler: React.ReactNode;
 }
 
 interface TabDef {
@@ -42,6 +44,7 @@ const TABS: readonly TabDef[] = [
   { value: 'gorevler', label: 'Görevler', icon: ClipboardList },
   { value: 'toplantilar', label: 'Toplantılar', icon: BookOpen },
   { value: 'telegram', label: 'Telegram', icon: MessageSquare },
+  { value: 'yetkiler', label: 'Yetkiler', icon: Shield },
   { value: 'ayarlar', label: 'Ayarlar', icon: Settings },
 ];
 
@@ -54,6 +57,7 @@ export function DetailTabs({
   toplantilar,
   telegram,
   finans,
+  yetkiler,
 }: DetailTabsProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -72,6 +76,7 @@ export function DetailTabs({
     gorevler,
     toplantilar,
     telegram,
+    yetkiler,
   };
 
   function handleTabChange(value: string) {

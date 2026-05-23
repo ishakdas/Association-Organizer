@@ -27,7 +27,6 @@ import { AnalyzeMeetingContentDto } from './dto/analyze-meeting-content.dto';
 import { SummarizeMeetingContentDto } from './dto/summarize-meeting-content.dto';
 import { SuggestAgendaDto } from './dto/suggest-agenda.dto';
 import { ListMeetingNotesQueryDto } from './dto/list-meeting-notes-query.dto';
-import { GrantMeetingPermissionDto } from './dto/grant-permission.dto';
 
 /**
  * Per-association meeting endpoints. AssociationRolesGuard enforces
@@ -119,33 +118,6 @@ export class MeetingsController {
     return this.service.list(associationId, query);
   }
 
-  // --- Permissions (sadece MANAGER) ---
-
-  @Post('permissions')
-  @AssociationRoles(UserRole.ASSOCIATION_MANAGER)
-  grantPermission(
-    @Param('associationId') associationId: string,
-    @Body() body: GrantMeetingPermissionDto,
-    @CurrentUser() user: RequestUser,
-  ) {
-    return this.service.grantPermission(associationId, body.userId, user);
-  }
-
-  @Delete('permissions/:userId')
-  @AssociationRoles(UserRole.ASSOCIATION_MANAGER)
-  revokePermission(
-    @Param('associationId') associationId: string,
-    @Param('userId') userId: string,
-    @CurrentUser() user: RequestUser,
-  ) {
-    return this.service.revokePermission(associationId, userId, user);
-  }
-
-  @Get('permissions')
-  @AssociationRoles(UserRole.ASSOCIATION_MANAGER)
-  listPermissions(@Param('associationId') associationId: string) {
-    return this.service.listPermissions(associationId);
-  }
 }
 
 /**
@@ -162,5 +134,10 @@ export class MeetingDetailController {
   @Get(':id')
   findOne(@Param('id') id: string, @CurrentUser() user: RequestUser) {
     return this.service.findOne(id, user);
+  }
+
+  @Get('my')
+  listMyMeetings(@CurrentUser() user: RequestUser) {
+    return this.service.listUserMeetings(user.id);
   }
 }

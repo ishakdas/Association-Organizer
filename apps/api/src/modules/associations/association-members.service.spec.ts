@@ -77,8 +77,6 @@ const sampleMembership = {
   userId: sampleUser.id,
   associationId: sampleAssociation.id,
   role: 'ASSOCIATION_MEMBER' as const,
-  titleId: null,
-  customTitle: null,
   joinedAt: new Date('2026-04-24T00:00:00.000Z'),
   leftAt: null,
   isActive: true,
@@ -90,7 +88,16 @@ const sampleMembership = {
     phone: sampleUser.phone,
     telegramAccount: null,
   },
-  title: null,
+  titleAssignments: [
+    {
+      id: 'ta-1',
+      titleId: null,
+      customTitle: null,
+      isPrimary: true,
+      sortOrder: 0,
+      title: null,
+    },
+  ],
 };
 
 const validInput = {
@@ -98,6 +105,9 @@ const validInput = {
   email: 'ali@dernek.local',
   phone: '+905551112233',
   role: 'ASSOCIATION_MEMBER' as const,
+  titleAssignments: [
+    { titleId: null, customTitle: 'Genel Üye', isPrimary: true, sortOrder: 0 },
+  ],
 };
 
 describe('AssociationMembersService', () => {
@@ -108,8 +118,6 @@ describe('AssociationMembersService', () => {
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
-    // Run callback transactions against the same mock so existing
-    // `prisma.X.update.mockResolvedValue(...)` setups apply to `tx.X`.
     (prisma.$transaction as unknown as jest.Mock).mockImplementation(
       async (arg: unknown) => {
         if (typeof arg === 'function') return (arg as (tx: PrismaMock) => unknown)(prisma);
@@ -169,6 +177,14 @@ describe('AssociationMembersService', () => {
           userId: sampleUser.id,
           role: 'ASSOCIATION_MEMBER',
           isActive: true,
+          titleAssignments: {
+            create: expect.arrayContaining([
+              expect.objectContaining({
+                isPrimary: true,
+                customTitle: 'Genel Üye',
+              }),
+            ]),
+          },
         }),
         include: MEMBER_INCLUDE,
       });
@@ -241,10 +257,67 @@ describe('AssociationMembersService', () => {
         }),
       ).rejects.toBeInstanceOf(ConflictException);
     });
+
+    it('creates membership with multiple titleAssignments (primary + secondary)', async () => {
+      prisma.association.findFirst.mockResolvedValue(sampleAssociation as never);
+      users.createDbOnlyUser.mockResolvedValue(sampleUser as never);
+      prisma.associationMembership.create.mockResolvedValue({
+        ...sampleMembership,
+        titleAssignments: [
+          { id: 'ta-1', titleId: 'title-1', customTitle: null, isPrimary: true, sortOrder: 0, title: { id: 'title-1', name: 'Lise Başkanı', slug: 'lise-baskani', description: 'Lise öğrencileri' } },
+          { id: 'ta-2', titleId: 'title-2', customTitle: null, isPrimary: false, sortOrder: 1, title: { id: 'title-2', name: 'Ortaokul Başkanı', slug: 'ortaokul-baskani', description: 'Ortaokul öğrencileri' } },
+        ],
+      } as never);
+
+      const result = await service.create(sampleAssociation.id, {
+        ...validInput,
+        titleAssignments: [
+          { titleId: 'title-1', isPrimary: true, sortOrder: 0 },
+          { titleId: 'title-2', isPrimary: false, sortOrder: 1 },
+        ],
+      });
+
+      expect(prisma.associationMembership.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          titleAssignments: {
+            create: expect.arrayContaining([
+              expect.objectContaining({ titleId: 'title-1', isPrimary: true }),
+              expect.objectContaining({ titleId: 'title-2', isPrimary: false }),
+            ]),
+          },
+        }),
+        include: MEMBER_INCLUDE,
+      });
+      expect(result.titleAssignments).toHaveLength(2);
+    });
+
+    it('sets first assignment as primary if none marked', async () => {
+      prisma.association.findFirst.mockResolvedValue(sampleAssociation as never);
+      users.createDbOnlyUser.mockResolvedValue(sampleUser as never);
+      prisma.associationMembership.create.mockResolvedValue(sampleMembership as never);
+
+      await service.create(sampleAssociation.id, {
+        ...validInput,
+        titleAssignments: [
+          { titleId: 'title-1', isPrimary: false, sortOrder: 0 },
+        ],
+      });
+
+      expect(prisma.associationMembership.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          titleAssignments: {
+            create: expect.arrayContaining([
+              expect.objectContaining({ titleId: 'title-1', isPrimary: true }),
+            ]),
+          },
+        }),
+        include: MEMBER_INCLUDE,
+      });
+    });
   });
 
   describe('list', () => {
-    it('defaults to active memberships only and includes user + title', async () => {
+    it('defaults to active memberships only and includes user + titleAssignments', async () => {
       prisma.association.findFirst.mockResolvedValue(sampleAssociation as never);
       prisma.associationMembership.findMany.mockResolvedValue([sampleMembership] as never);
 
@@ -316,9 +389,6 @@ describe('AssociationMembersService', () => {
     });
 
     it('rejects a membershipId belonging to a different dernek (cross-tenant)', async () => {
-      // Simulates Prisma returning null because the narrowed filter
-      // `{ id, associationId, deletedAt: null }` does not match when
-      // the supplied associationId is foreign to the membership.
       prisma.associationMembership.findFirst.mockResolvedValue(null);
 
       await expect(
@@ -339,7 +409,7 @@ describe('AssociationMembersService', () => {
       expect(prisma.associationMembership.update).not.toHaveBeenCalled();
     });
 
-    it('updates only provided fields and includes user + title', async () => {
+    it('updates only provided fields and includes user + titleAssignments', async () => {
       prisma.associationMembership.findFirst.mockResolvedValue(
         sampleMembership as never,
       );
@@ -361,6 +431,44 @@ describe('AssociationMembersService', () => {
         include: MEMBER_INCLUDE,
       });
       expect(result.role).toBe('ASSOCIATION_SECRETARY');
+    });
+
+    it('updates titleAssignments by replacing all', async () => {
+      prisma.associationMembership.findFirst.mockResolvedValue(
+        sampleMembership as never,
+      );
+      const updated = {
+        ...sampleMembership,
+        titleAssignments: [
+          { id: 'ta-new', titleId: 'title-2', customTitle: null, isPrimary: true, sortOrder: 0, title: null },
+        ],
+      };
+      prisma.associationMembership.update.mockResolvedValue(updated as never);
+
+      const result = await service.update(
+        sampleAssociation.id,
+        sampleMembership.id,
+        {
+          titleAssignments: [
+            { titleId: 'title-2', isPrimary: true, sortOrder: 0 },
+          ],
+        },
+        MANAGER_ACTOR,
+      );
+
+      expect(prisma.associationMembership.update).toHaveBeenCalledWith({
+        where: { id: sampleMembership.id },
+        data: expect.objectContaining({
+          titleAssignments: {
+            deleteMany: {},
+            create: expect.arrayContaining([
+              expect.objectContaining({ titleId: 'title-2', isPrimary: true }),
+            ]),
+          },
+        }),
+        include: MEMBER_INCLUDE,
+      });
+      expect(result.titleAssignments).toHaveLength(1);
     });
 
     it('translates Prisma P2002 into ConflictException on role change', async () => {

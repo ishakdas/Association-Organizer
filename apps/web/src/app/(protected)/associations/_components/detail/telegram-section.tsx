@@ -1,15 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+
 import {
   Briefcase,
   Crown,
   Loader2,
+  Mail,
   MessageSquare,
-  Send,
   Unlink,
   Users,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import {
   Table,
   TableBody,
@@ -22,8 +23,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
-import { useMembers, useUnlinkMemberTelegram } from '../../_hooks/use-members';
-import { TelegramLinkDialog } from './telegram-link-dialog';
+import {
+  useMembers,
+  useUnlinkMemberTelegram,
+  useGenerateMemberTelegramLinkWithEmail,
+} from '../../_hooks/use-members';
 import type { MemberResponse, MembershipRole } from '@ticketbot/shared-validation';
 
 const ROLE_LABEL: Record<MembershipRole, { label: string; icon: typeof Users }> = {
@@ -42,7 +46,7 @@ export function TelegramSection({
 }) {
   const { data, isLoading, isError, error } = useMembers(associationId, {});
   const unlinkMutation = useUnlinkMemberTelegram(associationId);
-  const [dialogMember, setDialogMember] = useState<MemberResponse | null>(null);
+  const sendLinkMutation = useGenerateMemberTelegramLinkWithEmail(associationId);
 
   const linked = data?.filter((m) => !!m.user.telegramAccount) ?? [];
   const unlinked = data?.filter((m) => !m.user.telegramAccount) ?? [];
@@ -53,6 +57,21 @@ export function TelegramSection({
     );
     if (!ok) return;
     unlinkMutation.mutate(m.id);
+  }
+
+  function handleSendLink(m: MemberResponse) {
+    if (!m.user.email) {
+      toast.error(`${m.user.fullName} adlı üyenin kayıtlı e-posta adresi yok`);
+      return;
+    }
+    sendLinkMutation.mutate(
+      { membershipId: m.id, email: m.user.email },
+      {
+        onSuccess: () => {
+          toast.success(`${m.user.email} adresine Telegram bağlantı e-postası gönderildi`);
+        },
+      },
+    );
   }
 
   return (
@@ -155,32 +174,21 @@ export function TelegramSection({
                     </TableCell>
                     {canManage && (
                       <TableCell className="text-right">
-                        <div className="inline-flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDialogMember(m)}
-                            title="Telegram bağlantısını yönet"
-                            aria-label={`${m.user.fullName} Telegram yönet`}
-                          >
-                            <Send className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleUnlink(m)}
-                            disabled={isUnlinking}
-                            title="Telegram bağlantısını kaldır"
-                            aria-label={`${m.user.fullName} bağlantıyı kaldır`}
-                            className="text-destructive hover:text-destructive"
-                          >
-                            {isUnlinking ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Unlink className="h-3.5 w-3.5" />
-                            )}
-                          </Button>
-                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleUnlink(m)}
+                          disabled={isUnlinking}
+                          title="Telegram bağlantısını kaldır"
+                          aria-label={`${m.user.fullName} bağlantıyı kaldır`}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          {isUnlinking ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Unlink className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
                       </TableCell>
                     )}
                   </TableRow>
@@ -248,12 +256,21 @@ export function TelegramSection({
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => setDialogMember(m)}
-                          title="Telegram bağlantı kodu üret"
-                          aria-label={`${m.user.fullName} için bağlantı kodu üret`}
+                          onClick={() => handleSendLink(m)}
+                          disabled={
+                            sendLinkMutation.isPending &&
+                            sendLinkMutation.variables?.membershipId === m.id
+                          }
+                          title="Telegram bağlantı e-postası gönder"
+                          aria-label={`${m.user.fullName} için Telegram bağlantı e-postası gönder`}
                         >
-                          <Send className="h-3.5 w-3.5" />
-                          <span className="ml-1 text-[12px]">Bağla</span>
+                          {sendLinkMutation.isPending &&
+                          sendLinkMutation.variables?.membershipId === m.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Mail className="h-3.5 w-3.5" />
+                          )}
+                          <span className="ml-1 text-[12px]">Bağlantı gönder</span>
                         </Button>
                       </TableCell>
                     )}
@@ -265,14 +282,6 @@ export function TelegramSection({
         )}
       </div>
 
-      <TelegramLinkDialog
-        associationId={associationId}
-        member={dialogMember}
-        open={dialogMember !== null}
-        onOpenChange={(open) => {
-          if (!open) setDialogMember(null);
-        }}
-      />
     </section>
   );
 }

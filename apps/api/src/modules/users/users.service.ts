@@ -44,8 +44,9 @@ export class UsersService {
           password: input.password,
           email_confirm: true,
         })
-      : await auth.inviteUserByEmail(input.email, {
-          data: { full_name: input.fullName },
+      : await auth.createUser({
+          email: input.email,
+          email_confirm: true,
         });
 
     if (error || !data?.user) {

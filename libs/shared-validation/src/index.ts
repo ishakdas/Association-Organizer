@@ -29,6 +29,7 @@ export {
   resolveDisputeSchema,
   listTasksQuerySchema,
   listMyTasksQuerySchema,
+  extractTasksFromMeetingSchema,
   taskResponseSchema,
   myTaskItemSchema,
   taskActivitySchema,
@@ -42,6 +43,7 @@ export {
   type ResolveDisputeInput,
   type ListTasksQuery,
   type ListMyTasksQuery,
+  type ExtractTasksFromMeetingInput,
   type TaskResponse,
   type MyTaskItem,
   type TaskActivity,
@@ -54,19 +56,23 @@ export {
 // Auth
 export {
   telegramLinkRequestSchema,
+  telegramLinkGenerateSchema,
   telegramLinkRedeemSchema,
   botAuthPayloadSchema,
   requestBranchRegistrationSchema,
   approveBranchRegistrationSchema,
   checkBranchEmailSchema,
   resendInviteForUserSchema,
+  sendMagicLinkSchema,
   type TelegramLinkRequestInput,
+  type TelegramLinkGenerateInput,
   type TelegramLinkRedeemInput,
   type BotAuthPayload,
   type RequestBranchRegistrationInput,
   type ApproveBranchRegistrationInput,
   type CheckBranchEmailInput,
   type ResendInviteForUserInput,
+  type SendMagicLinkInput,
 } from './schemas/auth.schema';
 
 // Associations (Dernek Sicili)
@@ -111,8 +117,10 @@ export {
 export {
   extractedActionItemSchema,
   extractionResultSchema,
+  extractTasksFromMeetingResultSchema,
   type ExtractedActionItemOutput,
   type ExtractionResultOutput,
+  type ExtractTasksFromMeetingResultOutput,
   type EnrichedActionItem,
 } from './schemas/extracted-action-item.schema';
 
@@ -204,6 +212,9 @@ export {
   listTransactionsQuerySchema,
   recordEventExpenseSchema,
   recordFeePaymentSchema,
+  bulkFeePaymentSchema,
+  bulkFeePaymentItemSchema,
+  bulkFeePaymentResultSchema,
   grantFinancePermissionSchema,
   associationSettingsSchema,
   transactionCategoryResponseSchema,
@@ -219,6 +230,8 @@ export {
   type ListTransactionsQuery,
   type RecordEventExpenseInput,
   type RecordFeePaymentInput,
+  type BulkFeePaymentInput,
+  type BulkFeePaymentResult,
   type GrantFinancePermissionInput,
   type AssociationSettingsInput,
   type TransactionCategoryResponse,

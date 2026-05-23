@@ -16,7 +16,7 @@ import {
   type AnalyzeMeetingResponse,
   type MeetingSummaryResponse,
   type AgendaSuggestionResponse,
-  type MeetingsListParams,
+  type ListMeetingsParams,
 } from '@/lib/api/meetings';
 import type {
   CreateMeetingNoteInput,
@@ -27,12 +27,12 @@ import { getAccessToken } from './use-associations';
 
 export const meetingsQueryKey = (
   associationId: string,
-  params: MeetingsListParams,
+  params: ListMeetingsParams,
 ) => ['meetings', associationId, params] as const;
 
 export function useMeetings(
   associationId: string,
-  params: MeetingsListParams = {},
+  params: ListMeetingsParams = {},
 ) {
   return useQuery({
     queryKey: meetingsQueryKey(associationId, params),

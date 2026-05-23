@@ -8,8 +8,10 @@ import {
 import { PrismaClient, PrismaService } from '@ticketbot/database';
 import { AiService } from '@ticketbot/ai';
 import { MeetingsService } from './meetings.service';
+import { PermissionService } from '../permissions/permission.service';
 
 type PrismaMock = DeepMockProxy<PrismaClient>;
+type PermissionServiceMock = DeepMockProxy<PermissionService>;
 
 const ASSOC = 'assoc-1';
 const ADMIN_USER = {
@@ -62,21 +64,26 @@ const fakeAiService = { extractActionItems: jest.fn().mockResolvedValue({ action
 describe('MeetingsService', () => {
   let service: MeetingsService;
   let prisma: PrismaMock;
+  let permissionService: PermissionServiceMock;
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
+    permissionService = mockDeep<PermissionService>();
+
     prisma.$transaction.mockImplementation(async (input: any) => {
       if (Array.isArray(input)) return Promise.all(input);
       return input(prisma);
     });
     prisma.meetingNote.count.mockResolvedValue(0 as never);
     fakeAiService.extractActionItems.mockResolvedValue({ actionItems: [] });
+    permissionService.hasAnyPermission.mockResolvedValue(true);
 
     const moduleRef = await Test.createTestingModule({
       providers: [
         MeetingsService,
         { provide: PrismaService, useValue: prisma },
         { provide: AiService, useValue: fakeAiService },
+        { provide: PermissionService, useValue: permissionService },
       ],
     }).compile();
     service = moduleRef.get(MeetingsService);
@@ -212,19 +219,29 @@ describe('MeetingsService', () => {
   });
 
   describe('analyzeContent — member context', () => {
-    it('passes role label, title description and customTitle to AI service', async () => {
+    it('passes role label, primary title and secondary titles to AI service', async () => {
       prisma.associationMembership.findMany.mockResolvedValue([
         {
           user: { id: 'u1', fullName: 'Ali Veli' },
           role: 'ASSOCIATION_MANAGER',
-          customTitle: null,
-          title: { name: 'Teşkilat Başkanı', description: 'Üye kazanımı, koordinasyon' },
+          titleAssignments: [
+            {
+              isPrimary: true,
+              title: { name: 'Teşkilat Başkanı', description: 'Üye kazanımı, koordinasyon' },
+              customTitle: null,
+            },
+          ],
         },
         {
           user: { id: 'u2', fullName: 'Ayşe Demir' },
           role: 'ASSOCIATION_MEMBER',
-          customTitle: 'Bölge Temsilcisi',
-          title: null,
+          titleAssignments: [
+            {
+              isPrimary: false,
+              title: null,
+              customTitle: 'Bölge Temsilcisi',
+            },
+          ],
         },
       ] as never);
 
@@ -242,8 +259,9 @@ describe('MeetingsService', () => {
         {
           user: { id: 'u1', fullName: 'Ali Veli' },
           role: 'ASSOCIATION_MANAGER',
-          customTitle: null,
-          title: null,
+          titleAssignments: [
+            { isPrimary: true, title: null, customTitle: null },
+          ],
         },
       ] as never);
 
@@ -269,8 +287,9 @@ describe('MeetingsService', () => {
         {
           user: { id: 'u1', fullName: 'Ali Veli' },
           role: 'ASSOCIATION_MANAGER',
-          customTitle: null,
-          title: null,
+          titleAssignments: [
+            { isPrimary: true, title: null, customTitle: null },
+          ],
         },
       ] as never);
 

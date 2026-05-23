@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Loader2, MapPin } from 'lucide-react';
+import { Copy, Loader2, Mail, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -43,15 +43,16 @@ export function ApproveDialog({
   onApproved,
 }: Props) {
   const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{ emailSent: boolean; magicLink: string | null } | null>(null);
 
   async function handleApprove() {
     setLoading(true);
     try {
       const token = await getToken();
-      await approveBranchRegistration(token, registrationId);
+      const res = await approveBranchRegistration(token, registrationId);
+      setResult(res);
       toast.success('Şube onaylandı, davet e-postası gönderildi.');
       onApproved();
-      onOpenChange(false);
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : 'Onay başarısız oldu.');
     } finally {
@@ -59,8 +60,18 @@ export function ApproveDialog({
     }
   }
 
+  function handleClose() {
+    setResult(null);
+    onOpenChange(false);
+  }
+
+  function copyToClipboard(text: string) {
+    navigator.clipboard.writeText(text);
+    toast.success('Panoya kopyalandı');
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Şubeyi Onayla</DialogTitle>
@@ -87,22 +98,55 @@ export function ApproveDialog({
             Onay sonrası <strong>{city} - {district} Şubesi</strong> adıyla yeni bir şube oluşturulacak
             ve başvuran kişi şube başkanı olarak atanacaktır.
           </p>
+
+          {result?.magicLink && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-blue-700">
+                Davet Linki (Yedek)
+              </p>
+              <p className="text-[13px] text-blue-800">
+                E-posta ulaşmazsa bu linki kullanıcıya gönderebilirsiniz:
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 truncate text-[12px] text-blue-900">
+                  {result.magicLink}
+                </code>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0"
+                  onClick={() => copyToClipboard(result.magicLink!)}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
-            İptal
-          </Button>
-          <Button onClick={handleApprove} disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Onaylanıyor...
-              </>
-            ) : (
-              'Onayla'
-            )}
-          </Button>
+          {!result ? (
+            <>
+              <Button variant="outline" onClick={handleClose} disabled={loading}>
+                İptal
+              </Button>
+              <Button onClick={handleApprove} disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Onaylanıyor...
+                  </>
+                ) : (
+                  <>
+                    <Mail className="mr-1.5 h-4 w-4" />
+                    Onayla ve Davet Gönder
+                  </>
+                )}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={handleClose}>Kapat</Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

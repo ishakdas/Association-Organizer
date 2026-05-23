@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -26,6 +27,7 @@ import { ListMyTasksQueryDto } from './dto/list-my-tasks-query.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
+import { ExtractTasksFromMeetingDto } from './dto/extract-tasks-from-meeting.dto';
 
 /**
  * Per-association task endpoints. AssociationRolesGuard enforces that
@@ -65,6 +67,20 @@ export class TasksController {
     return this.service.list(associationId, query, user);
   }
 
+  @Get(':taskId')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
+  getOne(
+    @Param('associationId') associationId: string,
+    @Param('taskId') taskId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.getOne(associationId, taskId, user);
+  }
+
   @Post('prioritize')
   @AssociationRoles(
     UserRole.ASSOCIATION_MANAGER,
@@ -74,6 +90,32 @@ export class TasksController {
     @Param('associationId') associationId: string,
   ) {
     return this.service.prioritizeTasks(associationId);
+  }
+
+  @Post('extract-from-meeting')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+  )
+  extractFromMeeting(
+    @Param('associationId') associationId: string,
+    @Body() body: ExtractTasksFromMeetingDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.extractTasksFromMeeting(associationId, body, user);
+  }
+
+  @Delete(':taskId')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+  )
+  softDelete(
+    @Param('associationId') associationId: string,
+    @Param('taskId') taskId: string,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.softDelete(associationId, taskId, user);
   }
 
   @Get(':taskId/activities')

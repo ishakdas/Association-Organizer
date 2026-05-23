@@ -6,28 +6,39 @@ import type {
   TaskActivity,
   TaskResponse,
   TaskStatusValue,
+  TaskPriorityValue,
   UpdateTaskInput,
 } from '@ticketbot/shared-validation';
 
 export interface TasksListParams {
   status?: TaskStatusValue;
+  priority?: TaskPriorityValue;
   assignedToUserId?: string;
+  search?: string;
+  sortBy?: 'createdAt' | 'dueDate' | 'priority' | 'title';
+  sortOrder?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
 }
 
 export interface TasksListResponse {
   data: TaskResponse[];
-  total: number;
-  page: number;
-  pageSize: number;
+  meta: {
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  };
 }
 
 function buildQuery(params: TasksListParams): string {
   const sp = new URLSearchParams();
   if (params.status) sp.set('status', params.status);
-  if (params.assignedToUserId)
-    sp.set('assignedToUserId', params.assignedToUserId);
+  if (params.priority) sp.set('priority', params.priority);
+  if (params.assignedToUserId) sp.set('assignedToUserId', params.assignedToUserId);
+  if (params.search) sp.set('search', params.search);
+  if (params.sortBy) sp.set('sortBy', params.sortBy);
+  if (params.sortOrder) sp.set('sortOrder', params.sortOrder);
   if (params.page) sp.set('page', String(params.page));
   if (params.pageSize) sp.set('pageSize', String(params.pageSize));
   const q = sp.toString();
@@ -41,6 +52,17 @@ export function listTasks(
 ) {
   return apiClient<TasksListResponse>(
     `/associations/${associationId}/tasks${buildQuery(params)}`,
+    { token },
+  );
+}
+
+export function getTask(
+  token: string,
+  associationId: string,
+  taskId: string,
+) {
+  return apiClient<TaskResponse>(
+    `/associations/${associationId}/tasks/${taskId}`,
     { token },
   );
 }
@@ -81,6 +103,20 @@ export function updateTask(
   });
 }
 
+export function deleteTask(
+  token: string,
+  associationId: string,
+  taskId: string,
+) {
+  return apiClient<TaskResponse>(
+    `/associations/${associationId}/tasks/${taskId}`,
+    {
+      token,
+      method: 'DELETE',
+    },
+  );
+}
+
 export function resolveTaskDispute(
   token: string,
   taskId: string,
@@ -96,6 +132,10 @@ export function resolveTaskDispute(
 export interface MyTasksListParams {
   associationId?: string;
   status?: TaskStatusValue;
+  priority?: TaskPriorityValue;
+  search?: string;
+  sortBy?: 'createdAt' | 'dueDate' | 'priority' | 'title';
+  sortOrder?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
 }
@@ -114,6 +154,10 @@ function buildMyQuery(params: MyTasksListParams): string {
   const sp = new URLSearchParams();
   if (params.associationId) sp.set('associationId', params.associationId);
   if (params.status) sp.set('status', params.status);
+  if (params.priority) sp.set('priority', params.priority);
+  if (params.search) sp.set('search', params.search);
+  if (params.sortBy) sp.set('sortBy', params.sortBy);
+  if (params.sortOrder) sp.set('sortOrder', params.sortOrder);
   if (params.page) sp.set('page', String(params.page));
   if (params.pageSize) sp.set('pageSize', String(params.pageSize));
   const q = sp.toString();
@@ -156,6 +200,30 @@ export function prioritizeTasks(
     {
       token,
       method: 'POST',
+    },
+  );
+}
+
+export interface ExtractTasksFromMeetingInput {
+  meetingNoteId: string;
+}
+
+export interface ExtractTasksFromMeetingResponse {
+  extractedTasks: TaskResponse[];
+  count: number;
+}
+
+export function extractTasksFromMeeting(
+  token: string,
+  associationId: string,
+  input: ExtractTasksFromMeetingInput,
+) {
+  return apiClient<ExtractTasksFromMeetingResponse>(
+    `/associations/${associationId}/tasks/extract-from-meeting`,
+    {
+      token,
+      method: 'POST',
+      body: JSON.stringify(input),
     },
   );
 }

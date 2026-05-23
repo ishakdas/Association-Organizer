@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService, Prisma, UserRole } from '@ticketbot/database';
+import { PrismaService, Prisma, UserRole, PermissionAction } from '@ticketbot/database';
 import type {
   CreateTransactionInput,
   CreateTransactionCategoryInput,
@@ -12,13 +12,19 @@ import type {
   ListTransactionsQuery,
   RecordEventExpenseInput,
   RecordFeePaymentInput,
+  BulkFeePaymentInput,
+  BulkFeePaymentResult,
   AssociationSettingsInput,
 } from '@ticketbot/shared-validation';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
+import { PermissionService } from '../permissions/permission.service';
 
 @Injectable()
 export class FinanceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly permissionService: PermissionService,
+  ) {}
 
   // -------------------------------------------------------------------------
   // Authorization
@@ -39,15 +45,12 @@ export class FinanceService {
     );
     if (hasRole) return;
 
-    const permission = await this.prisma.financePermission.findFirst({
-      where: {
-        associationId,
-        userId: user.id,
-        isActive: true,
-        revokedAt: null,
-      },
-    });
-    if (permission) return;
+    const hasPermission = await this.permissionService.hasPermission(
+      user.id,
+      associationId,
+      PermissionAction.USE_FINANCE_COMMANDS,
+    );
+    if (hasPermission) return;
 
     throw new ForbiddenException('Finans işlemleri için yetkiniz yok');
   }
@@ -509,6 +512,169 @@ export class FinanceService {
     });
   }
 
+  async bulkFeePayment(
+    associationId: string,
+    input: BulkFeePaymentInput,
+    user: AuthenticatedUser,
+  ): Promise<BulkFeePaymentResult> {
+    await this.assertFinanceAccess(user, associationId);
+
+    const result: BulkFeePaymentResult = {
+      successCount: 0,
+      skippedCount: 0,
+      skipped: [],
+      totalAmountKurus: 0,
+    };
+
+    const createdTransactions: Array<{
+      associationId: string;
+      categoryId: string;
+      type: 'INCOME';
+      amountInKurus: number;
+      description: string;
+      transactionDate: Date;
+      createdById: string;
+    }> = [];
+
+    let category = await this.prisma.transactionCategory.findFirst({
+      where: {
+        associationId,
+        name: 'Aidat Geliri',
+        type: 'INCOME',
+        deletedAt: null,
+      },
+    });
+    if (!category) {
+      category = await this.prisma.transactionCategory.create({
+        data: {
+          associationId,
+          name: 'Aidat Geliri',
+          type: 'INCOME',
+        },
+      });
+    }
+
+    for (const payment of input.payments) {
+      const membership = await this.prisma.associationMembership.findFirst({
+        where: {
+          id: payment.membershipId,
+          associationId,
+          isActive: true,
+          deletedAt: null,
+        },
+        include: { user: { select: { id: true, fullName: true } } },
+      });
+
+      if (!membership) {
+        result.skippedCount++;
+        result.skipped.push({
+          membershipId: payment.membershipId,
+          memberName: 'Bilinmeyen',
+          month: payment.month,
+          reason: 'Üyelik bulunamadı veya aktif değil',
+        });
+        continue;
+      }
+
+      const [year, month] = payment.month.split('-').map(Number);
+      const periodStart = new Date(year, month - 1, 1);
+      const periodEnd = new Date(year, month, 0, 23, 59, 59);
+
+      const existing = await this.prisma.transaction.findFirst({
+        where: {
+          associationId,
+          type: 'INCOME',
+          createdById: user.id,
+          transactionDate: { gte: periodStart, lte: periodEnd },
+          description: { startsWith: `Aidat - ${payment.month}` },
+        },
+      });
+
+      if (existing) {
+        result.skippedCount++;
+        result.skipped.push({
+          membershipId: payment.membershipId,
+          memberName: membership.user.fullName,
+          month: payment.month,
+          reason: 'Bu ay için zaten kayıt var',
+        });
+        continue;
+      }
+
+      createdTransactions.push({
+        associationId,
+        categoryId: category.id,
+        type: 'INCOME',
+        amountInKurus: payment.amountInKurus,
+        description:
+          payment.description ||
+          `Aidat - ${payment.month} - ${membership.user.fullName}`,
+        transactionDate: new Date(),
+        createdById: user.id,
+      });
+    }
+
+    if (createdTransactions.length > 0) {
+      await this.prisma.transaction.createMany({
+        data: createdTransactions,
+      });
+    }
+
+    result.successCount = createdTransactions.length;
+    result.totalAmountKurus = createdTransactions.reduce(
+      (sum, t) => sum + t.amountInKurus,
+      0,
+    );
+
+    return result;
+  }
+
+  async getUnpaidMembers(associationId: string, month: string) {
+    const [year, monthNum] = month.split('-').map(Number);
+    const periodStart = new Date(year, monthNum - 1, 1);
+    const periodEnd = new Date(year, monthNum, 0, 23, 59, 59);
+
+    const activeMembers = await this.prisma.associationMembership.findMany({
+      where: {
+        associationId,
+        isActive: true,
+        deletedAt: null,
+      },
+      include: { user: { select: { id: true, fullName: true } } },
+      orderBy: { user: { fullName: 'asc' } },
+    });
+
+    const paidDescriptions = await this.prisma.transaction.findMany({
+      where: {
+        associationId,
+        type: 'INCOME',
+        deletedAt: null,
+        transactionDate: { gte: periodStart, lte: periodEnd },
+        description: { startsWith: `Aidat - ${month}` },
+      },
+      select: { description: true },
+    });
+
+    const paidMemberNames = new Set(
+      paidDescriptions
+        .map((t) => t.description?.match(/^Aidat - \d{4}-\d{2} - (.+)$/)?.[1])
+        .filter(Boolean),
+    );
+
+    const settings = await this.prisma.associationSettings.findUnique({
+      where: { associationId },
+      select: { monthlyFeeAmountKurus: true },
+    });
+
+    return activeMembers.map((m) => ({
+      membershipId: m.id,
+      userId: m.user.id,
+      fullName: m.user.fullName,
+      hasPaid: paidMemberNames.has(m.user.fullName),
+      monthlyFeeAmountKurus: settings?.monthlyFeeAmountKurus ?? null,
+    }));
+  }
+
   // -------------------------------------------------------------------------
   // Donations
   // -------------------------------------------------------------------------
@@ -681,90 +847,6 @@ export class FinanceService {
   }
 
   // -------------------------------------------------------------------------
-  // Permissions
-  // -------------------------------------------------------------------------
-
-  async grantPermission(
-    associationId: string,
-    userId: string,
-    grantedBy: AuthenticatedUser,
-  ) {
-    this.assertManagerAccess(grantedBy, associationId);
-
-    // Hedef kullanıcı derneğin aktif üyesi mi?
-    const targetMembership = await this.prisma.associationMembership.findFirst({
-      where: {
-        userId,
-        associationId,
-        isActive: true,
-        deletedAt: null,
-      },
-      select: { id: true },
-    });
-    if (!targetMembership) {
-      throw new BadRequestException('Kullanıcı bu derneğin aktif üyesi değil');
-    }
-
-    // Zaten yetkisi var mı?
-    const existing = await this.prisma.financePermission.findFirst({
-      where: { associationId, userId },
-    });
-    if (existing) {
-      if (existing.isActive && !existing.revokedAt) {
-        throw new BadRequestException('Bu kullanıcıya zaten finans yetkisi verilmiş');
-      }
-      // Eski pasif yetkiyi aktif et
-      return this.prisma.financePermission.update({
-        where: { id: existing.id },
-        data: { isActive: true, revokedAt: null, grantedById: grantedBy.id },
-        include: {
-          user: { select: { id: true, fullName: true } },
-        },
-      });
-    }
-
-    return this.prisma.financePermission.create({
-      data: {
-        associationId,
-        userId,
-        grantedById: grantedBy.id,
-      },
-      include: {
-        user: { select: { id: true, fullName: true } },
-      },
-    });
-  }
-
-  async revokePermission(
-    associationId: string,
-    userId: string,
-    revokedBy: AuthenticatedUser,
-  ) {
-    this.assertManagerAccess(revokedBy, associationId);
-
-    const permission = await this.prisma.financePermission.findFirst({
-      where: { associationId, userId, isActive: true },
-    });
-    if (!permission) throw new NotFoundException('Yetki bulunamadı');
-
-    return this.prisma.financePermission.update({
-      where: { id: permission.id },
-      data: { isActive: false, revokedAt: new Date() },
-    });
-  }
-
-  async listPermissions(associationId: string) {
-    return this.prisma.financePermission.findMany({
-      where: { associationId, isActive: true },
-      include: {
-        user: { select: { id: true, fullName: true } },
-        grantedBy: { select: { id: true, fullName: true } },
-      },
-      orderBy: { grantedAt: 'desc' },
-    });
-  }
-
-  // -------------------------------------------------------------------------
   // Settings
   // -------------------------------------------------------------------------
 
@@ -830,5 +912,56 @@ export class FinanceService {
         createdById: userId,
       },
     });
+  }
+
+  // -------------------------------------------------------------------------
+  // Frequent categories (sık kullanılan kategoriler)
+  // -------------------------------------------------------------------------
+
+  async getFrequentCategories(associationId: string, limit = 5) {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const frequentCategories = await this.prisma.transactionCategory.findMany({
+      where: {
+        associationId,
+        deletedAt: null,
+        isActive: true,
+        transactions: {
+          some: {
+            deletedAt: null,
+            transactionDate: { gte: thirtyDaysAgo },
+          },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        _count: {
+          select: {
+            transactions: {
+              where: {
+                deletedAt: null,
+                transactionDate: { gte: thirtyDaysAgo },
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        transactions: {
+          _count: 'desc',
+        },
+      },
+      take: limit,
+    });
+
+    return frequentCategories.map((cat) => ({
+      id: cat.id,
+      name: cat.name,
+      type: cat.type,
+      count: cat._count.transactions,
+    }));
   }
 }

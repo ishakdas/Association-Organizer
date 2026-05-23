@@ -26,6 +26,7 @@ import { AssociationMembersService } from './association-members.service';
 import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { ListMembersQueryDto } from './dto/list-members-query.dto';
+import { telegramLinkGenerateSchema, type TelegramLinkGenerateInput } from '@ticketbot/shared-validation';
 
 // `AssociationRolesGuard` binds role metadata to the `:id` param; the
 // service additionally scopes `ensureMembership` by associationId so a
@@ -82,8 +83,9 @@ export class AssociationMembersController {
   generateTelegramLink(
     @Param('id') associationId: string,
     @Param('membershipId') membershipId: string,
+    @Body(new ZodValidationPipe(telegramLinkGenerateSchema)) body?: TelegramLinkGenerateInput,
   ) {
-    return this.service.generateTelegramLink(associationId, membershipId);
+    return this.service.generateTelegramLink(associationId, membershipId, body?.email);
   }
 
   @Delete(':membershipId/telegram-link')

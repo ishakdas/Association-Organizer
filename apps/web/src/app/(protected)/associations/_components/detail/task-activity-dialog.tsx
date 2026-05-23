@@ -3,7 +3,6 @@
 import { format, formatDistanceToNow } from 'date-fns';
 import { tr } from 'date-fns/locale';
 import {
-  AlertTriangle,
   Bell,
   CheckCircle2,
   Clock,
@@ -16,6 +15,7 @@ import {
   Send,
   ShieldAlert,
   ShieldCheck,
+  Sparkles,
   type LucideIcon,
 } from 'lucide-react';
 import type {
@@ -48,6 +48,7 @@ const ACTION_ICON: Record<TaskActivityActionValue, LucideIcon> = {
   ASSIGNMENT_ACCEPTED: ShieldCheck,
   REASSIGNMENT_REQUESTED: ShieldAlert,
   REASSIGNMENT_RESOLVED: ShieldCheck,
+  EXTRACTED_FROM_MEETING: Sparkles,
 };
 
 // Ikon dairesinin renk paleti aksiyona göre değişir; metnin anlamına
@@ -107,6 +108,10 @@ const ACTION_TONE: Record<
   REASSIGNMENT_RESOLVED: {
     ring: 'border-emerald-300 bg-emerald-50 dark:border-emerald-900/40 dark:bg-emerald-950/30',
     icon: 'text-emerald-700 dark:text-emerald-400',
+  },
+  EXTRACTED_FROM_MEETING: {
+    ring: 'border-violet-300 bg-violet-50 dark:border-violet-900/40 dark:bg-violet-950/30',
+    icon: 'text-violet-700 dark:text-violet-400',
   },
 };
 
@@ -269,6 +274,9 @@ function buildVisual(activity: TaskActivity): ActivityVisual {
 
     case 'REASSIGNED':
       return { summary: 'Görevi yeniden atadı', badge };
+
+    case 'EXTRACTED_FROM_MEETING':
+      return { summary: 'Toplantı notundan görev çıkarıldı', badge };
 
     default:
       // Şemada olmayan ya da ileride eklenecek bir aksiyon ham enum

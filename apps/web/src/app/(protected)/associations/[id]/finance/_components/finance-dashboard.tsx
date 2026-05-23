@@ -17,6 +17,8 @@ import { Button } from '@/components/ui/button';
 import { MonthlyTrendChart } from './monthly-trend-chart';
 import { CategoryChart } from './category-chart';
 import { FeeTracking } from './fee-tracking';
+import { BulkFeeCollection } from './bulk-fee-collection';
+import { FrequentActions } from './frequent-actions';
 import { TransactionsTable } from './transactions-table';
 import { exportReportToExcel, exportToPDF } from './export-utils';
 import { useTransactions, useFeePayments, useFinanceReport, useFinanceSettings } from '../../../_hooks/use-finance';
@@ -230,6 +232,18 @@ export function FinanceDashboard({
         </motion.div>
       </div>
 
+      {/* Frequent Actions */}
+      <motion.div variants={itemVariants}>
+        <FrequentActions
+          associationId={associationId}
+          onQuickAction={(categoryId, type) => {
+            // Quick action: Telegram bot'ta hızlı işlem başlatmak için kullanılabilir
+            // Şimdilik sadece kategori seçimi yapıyor
+            console.log('Quick action:', categoryId, type);
+          }}
+        />
+      </motion.div>
+
       {/* Charts Row */}
       <motion.div variants={itemVariants} className="grid gap-3 md:grid-cols-2">
         <MonthlyTrendChart data={monthlyStats} />
@@ -242,6 +256,11 @@ export function FinanceDashboard({
           feePayments={feePayments || []}
           monthlyFeeAmountKurus={settings?.monthlyFeeAmountKurus}
         />
+      </motion.div>
+
+      {/* Bulk Fee Collection */}
+      <motion.div variants={itemVariants}>
+        <BulkFeeCollection associationId={associationId} />
       </motion.div>
 
       {/* Transactions Table */}

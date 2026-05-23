@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, Loader2, MessageSquare, RefreshCcw, Unlink, Zap } from 'lucide-react';
+import { Check, Copy, Loader2, Mail, MessageSquare, RefreshCcw, Unlink, Zap } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -11,12 +11,17 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { useGenerateMemberTelegramLink, useUnlinkMemberTelegram } from '../../_hooks/use-members';
+import {
+  useGenerateMemberTelegramLink,
+  useGenerateMemberTelegramLinkWithEmail,
+  useUnlinkMemberTelegram,
+} from '../../_hooks/use-members';
 import type { MemberResponse } from '@ticketbot/shared-validation';
+import { toast } from 'sonner';
 
 const CODE_TTL_SECONDS = 10 * 60;
 const BOT_USERNAME =
-  process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'dernek_organizer_bot';
+  process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'yedi_hilal_organizator_bot';
 
 export function TelegramLinkDialog({
   associationId,
@@ -30,31 +35,47 @@ export function TelegramLinkDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const generateMutation = useGenerateMemberTelegramLink(associationId);
+  const generateEmailMutation = useGenerateMemberTelegramLinkWithEmail(associationId);
   const unlinkMutation = useUnlinkMemberTelegram(associationId);
-  const [code, setCode] = useState<{ token: string; expiresAt: number } | null>(null);
+  const [code, setCode] = useState<{ token: string; expiresAt: number; deepLinkUrl: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const triggeredFor = useRef<string | null>(null);
 
   const isLinked = !!member?.user.telegramAccount;
+  const memberEmail = member?.user.email ?? null;
 
   useEffect(() => {
     if (!open || !member) return;
-    if (isLinked) return; // don't auto-generate if already linked
-    // Generate exactly once per (open, member) pair so re-renders don't
-    // burn through fresh tokens.
+    if (isLinked) return;
     if (triggeredFor.current === member.id) return;
     triggeredFor.current = member.id;
     setCode(null);
     setCopied(false);
-    generateMutation.mutate(member.id, {
-      onSuccess: (data) => {
-        setCode({
-          token: data.token,
-          expiresAt: new Date(data.expiresAt).getTime(),
-        });
-      },
-    });
+    if (memberEmail) {
+      generateEmailMutation.mutate(
+        { membershipId: member.id, email: memberEmail },
+        {
+          onSuccess: (data) => {
+            setCode({
+              token: data.token,
+              expiresAt: new Date(data.expiresAt).getTime(),
+              deepLinkUrl: data.deepLinkUrl,
+            });
+          },
+        },
+      );
+    } else {
+      generateMutation.mutate(member.id, {
+        onSuccess: (data) => {
+          setCode({
+            token: data.token,
+            expiresAt: new Date(data.expiresAt).getTime(),
+            deepLinkUrl: data.deepLinkUrl,
+          });
+        },
+      });
+    }
   }, [open, member]);
 
   useEffect(() => {
@@ -90,9 +111,30 @@ export function TelegramLinkDialog({
         setCode({
           token: data.token,
           expiresAt: new Date(data.expiresAt).getTime(),
+          deepLinkUrl: data.deepLinkUrl,
         });
       },
     });
+  }
+
+  async function sendViaEmail() {
+    if (!member || !memberEmail) {
+      toast.error('Üyenin kayıtlı e-posta adresi yok');
+      return;
+    }
+    generateEmailMutation.mutate(
+      { membershipId: member.id, email: memberEmail },
+      {
+        onSuccess: (data) => {
+          setCode({
+            token: data.token,
+            expiresAt: new Date(data.expiresAt).getTime(),
+            deepLinkUrl: data.deepLinkUrl,
+          });
+          toast.success(`${memberEmail} adresine e-posta gönderildi`);
+        },
+      },
+    );
   }
 
   function handleUnlink() {
@@ -164,19 +206,38 @@ export function TelegramLinkDialog({
                 </p>
               </div>
               {!code ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={regenerate}
-                  disabled={generateMutation.isPending}
-                >
-                  {generateMutation.isPending ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Zap className="h-3.5 w-3.5" />
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={regenerate}
+                    disabled={generateMutation.isPending}
+                    className="flex-1"
+                  >
+                    {generateMutation.isPending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Zap className="h-3.5 w-3.5" />
+                    )}
+                    Bağlantı kodu üret
+                  </Button>
+                  {memberEmail && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={sendViaEmail}
+                      disabled={generateEmailMutation.isPending}
+                      className="flex-1"
+                    >
+                      {generateEmailMutation.isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Mail className="h-3.5 w-3.5" />
+                      )}
+                      E-posta ile gönder
+                    </Button>
                   )}
-                  Bağlantı kodu üret
-                </Button>
+                </div>
               ) : (
                 <LinkCodePanel
                   code={code}
@@ -223,35 +284,30 @@ export function TelegramLinkDialog({
           <>
             <DialogDescription className="sr-only">
               {member
-                ? `${member.user.fullName} adına tek kullanımlık bir kod üretildi. Kodu kişiye iletin; Telegram'da @${BOT_USERNAME} botuna /link KOD yazarak hesabını bağlayacak.`
+                ? `${member.user.fullName} adına tek kullanımlık bir kod üretildi. Kodu e-posta ile gönderin veya kopyalayın; üye Telegram'da @${BOT_USERNAME} botunu başlatarak hesabını bağlayacak.`
                 : ''}
             </DialogDescription>
 
-            {generateMutation.isPending && !code && (
+            {(generateMutation.isPending || generateEmailMutation.isPending) && !code && (
               <div className="flex items-center gap-2 py-6 text-[13px] text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Kod oluşturuluyor…
+                Bağlantı oluşturuluyor…
               </div>
             )}
 
-            {generateMutation.isError && !code && (
+            {(generateMutation.isError || generateEmailMutation.isError) && !code && (
               <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] text-destructive">
-                {generateMutation.error?.message ?? 'Kod oluşturulamadı'}
+                {generateMutation.error?.message ?? generateEmailMutation.error?.message ?? 'Bağlantı oluşturulamadı'}
               </div>
             )}
 
             {code && (
-              <LinkCodePanel
-                code={code}
-                minutes={minutes}
-                seconds={seconds}
-                percent={percent}
-                expired={expired}
-                copied={copied}
-                isPending={generateMutation.isPending}
-                onCopy={copyCode}
-                onRegenerate={regenerate}
-              />
+              <div className="flex items-center gap-3 rounded-md border border-green-500/30 bg-green-500/10 px-4 py-4">
+                <Check className="h-5 w-5 text-green-500" />
+                <p className="text-[14px] font-medium text-foreground">
+                  Telegram bağlantısı ilgili kullanıcıya iletilmiştir.
+                </p>
+              </div>
             )}
           </>
         )}
@@ -271,7 +327,7 @@ function LinkCodePanel({
   onCopy,
   onRegenerate,
 }: {
-  code: { token: string };
+  code: { token: string; deepLinkUrl: string };
   minutes: number;
   seconds: number;
   percent: number;
@@ -311,6 +367,20 @@ function LinkCodePanel({
             style={{ width: `${percent}%` }}
           />
         </div>
+      </div>
+
+      <div className="rounded-md border border-border bg-muted/20 p-3 space-y-2">
+        <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+          Telegram Deep Link
+        </div>
+        <a
+          href={code.deepLinkUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block break-all text-[13px] text-primary hover:underline"
+        >
+          {code.deepLinkUrl}
+        </a>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

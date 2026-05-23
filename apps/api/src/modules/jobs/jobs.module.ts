@@ -7,6 +7,7 @@ import { TaskReminderScheduler } from './task-reminder.scheduler';
 import { TaskReminderProcessor } from './processors/task-reminder.processor';
 import { EventReminderScheduler } from './event-reminder.scheduler';
 import { EventReminderProcessor } from './processors/event-reminder.processor';
+import { PendingUserCleanupService } from './pending-user-cleanup.service';
 
 export { TASK_REMINDERS_QUEUE, EVENT_REMINDERS_QUEUE };
 
@@ -25,11 +26,8 @@ export { TASK_REMINDERS_QUEUE, EVENT_REMINDERS_QUEUE };
             password: url.password
               ? decodeURIComponent(url.password)
               : undefined,
-            // BullMQ + Upstash requirements: null retries so blocking
-            // commands don't bail, no ready check since Upstash limits INFO.
             maxRetriesPerRequest: null,
             enableReadyCheck: false,
-            // TLS for `rediss://` URLs (Upstash defaults to TLS).
             ...(isTls ? { tls: { servername: url.hostname } } : {}),
           },
         };
@@ -44,6 +42,7 @@ export { TASK_REMINDERS_QUEUE, EVENT_REMINDERS_QUEUE };
     TaskReminderProcessor,
     EventReminderScheduler,
     EventReminderProcessor,
+    PendingUserCleanupService,
   ],
   exports: [TaskReminderScheduler, EventReminderScheduler, BullModule],
 })

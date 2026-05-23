@@ -74,9 +74,9 @@ docs/
 | **Tenant guard** | Implemented | `x-organisation-id` header, membership verification |
 | **Roles guard** | Implemented | Hierarchical: MEMBER < MANAGER < ADMIN < SUPER_ADMIN |
 | **Tickets CRUD** | Implemented | POST/GET/GET:id/PATCH/DELETE, soft delete, status history |
-| **Telegram link tokens** | Implemented | Generate + redeem via API |
-| **Bot /start** | Implemented | Welcome message with linking instructions |
-| **Bot /link** | Implemented | Token redemption, TelegramAccount creation |
+| **Telegram link tokens** | Implemented | Generate + redeem via API, email delivery with deep link |
+| **Bot /start** | Implemented | Welcome message + deep link handling (`/start link_<token>`) |
+| **Bot /link** | Implemented | Token redemption, phone verification, TelegramAccount creation |
 | **Bot reminder handler** | Implemented | Inline keyboard: Done / Request Extension / Dismiss |
 | **Web login** | Implemented | Supabase Auth, email + password |
 | **Web /tickets** | Implemented | Server component, fetches from API |

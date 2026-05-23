@@ -14,6 +14,7 @@ import {
   UserMinus,
   Users,
   X,
+  Plus,
 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -53,12 +54,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { useMembers, useRemoveMember, useUpdateMember } from '../../_hooks/use-members';
 import { useTitles } from '../../_hooks/use-titles';
 import { AddMemberDialog } from '../add-member-dialog';
 import { TelegramLinkDialog } from './telegram-link-dialog';
 import type { MemberResponse } from '@ticketbot/shared-validation';
+import { toast } from 'sonner';
 
 const NO_TITLE = '__all__';
 
@@ -79,6 +82,7 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
   const [titleId, setTitleId] = useState<string>(NO_TITLE);
   const [telegramFor, setTelegramFor] = useState<MemberResponse | null>(null);
   const [editingMember, setEditingMember] = useState<MemberResponse | null>(null);
+  const [addingSecondaryFor, setAddingSecondaryFor] = useState<MemberResponse | null>(null);
 
   const manager = managers?.[0] ?? null;
 
@@ -94,7 +98,7 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
       );
     }
     if (titleId !== NO_TITLE) {
-      rows = rows.filter((m) => m.title?.id === titleId);
+      rows = rows.filter((m) => m.titleAssignments?.some((t) => t.title?.id === titleId));
     }
     return rows;
   }, [members, search, titleId]);
@@ -344,11 +348,40 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
               {filteredMembers.map((m) => {
                 const isRemoving =
                   removeMutation.isPending && removeMutation.variables === m.id;
+                const secondaries = m.titleAssignments?.filter((t) => !t.isPrimary) ?? [];
                 return (
                   <TableRow key={m.id}>
                     <TableCell className="font-medium">{m.user.fullName}</TableCell>
                     <TableCell className="text-[13px] text-muted-foreground">
-                      {m.title?.name ?? m.customTitle ?? '—'}
+                      {(() => {
+                        const assignments = m.titleAssignments ?? [];
+                        const primary = assignments.find((t) => t.isPrimary);
+                        const secondaries = assignments.filter((t) => !t.isPrimary);
+                        const primaryLabel = primary?.title?.name ?? primary?.customTitle;
+                        if (!primaryLabel && secondaries.length === 0) return '—';
+                        return (
+                          <div className="space-y-0.5">
+                            {primaryLabel && (
+                              <div className="flex items-center gap-1.5">
+                                <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-foreground" />
+                                <span className="font-medium text-foreground">{primaryLabel}</span>
+                              </div>
+                            )}
+                            {secondaries.map((s) => {
+                              const label = s.title?.name ?? s.customTitle;
+                              return label ? (
+                                <div key={s.id} className="flex items-center gap-1.5">
+                                  <span className="flex items-center gap-1 pl-3.5">
+                                    <span className="h-4 w-px bg-foreground/60" />
+                                    <span className="h-2.5 w-2.5 shrink-0 rounded-sm border border-foreground/50 bg-foreground/20" />
+                                  </span>
+                                  <span className="text-foreground">{label}</span>
+                                </div>
+                              ) : null;
+                            })}
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-[13px] text-muted-foreground">
                       {m.user.email && <span className="block">{m.user.email}</span>}
@@ -375,6 +408,17 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
                     {canManage && (
                       <TableCell className="text-right">
                         <div className="inline-flex items-center gap-1">
+                          {secondaries.length < 2 && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setAddingSecondaryFor(m)}
+                              aria-label={`${m.user.fullName} için ikincil ünvan ekle`}
+                              title="İkincil ünvan ekle"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -430,6 +474,15 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
           member={editingMember}
           open
           onOpenChange={(open) => { if (!open) setEditingMember(null); }}
+        />
+      )}
+
+      {addingSecondaryFor && (
+        <AddSecondaryTitleDialog
+          associationId={associationId}
+          member={addingSecondaryFor}
+          open
+          onOpenChange={(open) => { if (!open) setAddingSecondaryFor(null); }}
         />
       )}
     </div>
@@ -530,7 +583,8 @@ const EDIT_CUSTOM_TITLE = '__custom__';
 const editMemberFormSchema = z
   .object({
     fullName: z.string().min(2, 'En az 2 karakter').max(200),
-    phone: z.string().optional(),
+    email: z.string().email('Geçerli bir e-posta girin'),
+    phone: z.string().min(1, 'Telefon numarası zorunlu'),
     address: z.string().max(500).optional(),
     titleId: z.string().optional(),
     customTitle: z.string().optional(),
@@ -549,6 +603,20 @@ const editMemberFormSchema = z
 
 type EditMemberFormValues = z.infer<typeof editMemberFormSchema>;
 
+function buildEditTitleAssignments(values: EditMemberFormValues) {
+  const useCustom = values.titleId === EDIT_CUSTOM_TITLE;
+  const hasTitle =
+    values.titleId && values.titleId !== EDIT_NO_TITLE && values.titleId !== EDIT_CUSTOM_TITLE;
+
+  if (useCustom) {
+    return [{ customTitle: values.customTitle?.trim() || null, isPrimary: true, sortOrder: 0 }];
+  }
+  if (hasTitle) {
+    return [{ titleId: values.titleId, isPrimary: true, sortOrder: 0 }];
+  }
+  return [{ isPrimary: true, sortOrder: 0 }];
+}
+
 function EditMemberDialog({
   associationId,
   member,
@@ -563,9 +631,10 @@ function EditMemberDialog({
   const mutation = useUpdateMember(associationId);
   const { data: titles } = useTitles();
 
-  const currentTitleId = member.title
-    ? member.title.id
-    : member.customTitle
+  const primary = member.titleAssignments?.find((t) => t.isPrimary);
+  const currentTitleId = primary?.title
+    ? primary.title.id
+    : primary?.customTitle
       ? EDIT_CUSTOM_TITLE
       : EDIT_NO_TITLE;
 
@@ -573,31 +642,26 @@ function EditMemberDialog({
     resolver: zodResolver(editMemberFormSchema),
     defaultValues: {
       fullName: member.user.fullName,
+      email: member.user.email ?? '',
       phone: member.user.phone ?? '',
       address: member.user.address ?? '',
       titleId: currentTitleId,
-      customTitle: member.customTitle ?? '',
+      customTitle: primary?.customTitle ?? '',
     },
   });
 
   const titleId = form.watch('titleId');
 
   function handleSubmit(values: EditMemberFormValues) {
-    const useCustom = values.titleId === EDIT_CUSTOM_TITLE;
-    const titleIdValue =
-      values.titleId && values.titleId !== EDIT_NO_TITLE && values.titleId !== EDIT_CUSTOM_TITLE
-        ? values.titleId
-        : null;
-
     mutation.mutate(
       {
         membershipId: member.id,
         input: {
           fullName: values.fullName.trim(),
+          email: values.email.trim() || undefined,
           phone: values.phone?.trim() || undefined,
           address: values.address?.trim() || null,
-          titleId: titleIdValue,
-          customTitle: useCustom ? values.customTitle?.trim() || null : null,
+          titleAssignments: buildEditTitleAssignments(values),
         },
       },
       { onSuccess: () => onOpenChange(false) },
@@ -630,10 +694,23 @@ function EditMemberDialog({
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>E-posta *</FormLabel>
+                    <FormControl>
+                      <Input type="email" placeholder="ali@..." autoComplete="off" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Telefon</FormLabel>
+                    <FormLabel>Telefon *</FormLabel>
                     <FormControl>
                       <PhoneInput
                         name={field.name}
@@ -646,20 +723,20 @@ function EditMemberDialog({
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="address"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Adres</FormLabel>
-                    <FormControl>
-                      <Input placeholder="İl, ilçe, mahalle…" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Adres <span className="text-muted-foreground font-normal">(opsiyonel)</span></FormLabel>
+                  <FormControl>
+                    <Input placeholder="İl, ilçe, mahalle…" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             {!isManager && (
               <>
                 <FormField
@@ -725,6 +802,186 @@ function EditMemberDialog({
                   <Save className="h-3.5 w-3.5" />
                 )}
                 Kaydet
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Add Secondary Title Dialog
+// ---------------------------------------------------------------------------
+
+const secondaryTitleSchema = z
+  .object({
+    titleId: z.string().optional(),
+    customTitle: z.string().optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (!v.titleId && (!v.customTitle || v.customTitle.trim().length < 2)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['customTitle'],
+        message: 'Bir ünvan seçin veya yazın',
+      });
+    }
+  });
+
+type SecondaryTitleFormValues = z.infer<typeof secondaryTitleSchema>;
+
+function AddSecondaryTitleDialog({
+  associationId,
+  member,
+  open,
+  onOpenChange,
+}: {
+  associationId: string;
+  member: MemberResponse;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const mutation = useUpdateMember(associationId);
+  const { data: titles } = useTitles();
+
+  const form = useForm<SecondaryTitleFormValues>({
+    resolver: zodResolver(secondaryTitleSchema),
+    defaultValues: {
+      titleId: undefined,
+      customTitle: '',
+    },
+  });
+
+  const titleId = form.watch('titleId');
+
+  function handleSubmit(values: SecondaryTitleFormValues) {
+    const existingAssignments = member.titleAssignments ?? [];
+    const newTitleId = values.titleId || null;
+    const newCustomTitle = values.customTitle?.trim() || null;
+
+    const isDuplicate = existingAssignments.some(
+      (t) =>
+        (newTitleId && t.titleId === newTitleId) ||
+        (newCustomTitle && t.customTitle === newCustomTitle),
+    );
+
+    if (isDuplicate) {
+      const dupLabel = newTitleId
+        ? titles?.find((t) => t.id === newTitleId)?.name ?? 'bu ünvan'
+        : newCustomTitle;
+      toast.error(`"${dupLabel}" zaten bu üyeye atanmış`);
+      return;
+    }
+
+    const maxSort = existingAssignments.reduce(
+      (max, t) => Math.max(max, t.sortOrder ?? 0),
+      0,
+    );
+
+    const newAssignment = {
+      titleId: newTitleId,
+      customTitle: newCustomTitle,
+      isPrimary: false,
+      sortOrder: maxSort + 1,
+    };
+
+    const updatedAssignments = [
+      ...existingAssignments.map((t) => ({
+        titleId: t.titleId,
+        customTitle: t.customTitle,
+        isPrimary: t.isPrimary,
+        sortOrder: t.sortOrder ?? 0,
+      })),
+      newAssignment,
+    ];
+
+    mutation.mutate(
+      {
+        membershipId: member.id,
+        input: {
+          titleAssignments: updatedAssignments,
+        },
+      },
+      { onSuccess: () => onOpenChange(false) },
+    );
+  }
+
+  const existingSecondaries = member.titleAssignments?.filter((t) => !t.isPrimary) ?? [];
+  const isAtLimit = existingSecondaries.length >= 2;
+
+  return (
+    <Dialog open={open && !isAtLimit} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[420px]">
+        <DialogHeader>
+          <DialogTitle>İkincil Ünvan Ekle</DialogTitle>
+          <DialogDescription>
+            {member.user.fullName} için ek sorumluluk alanı tanımlayın.
+          </DialogDescription>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="titleId"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Unvan</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value ?? ''}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Unvan seç" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {titles?.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="__custom__">Diğer (yaz)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Kayıtlı unvanlardan seçin veya &ldquo;Diğer&rdquo; ile özel yazın.
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {titleId === '__custom__' && (
+              <FormField
+                control={form.control}
+                name="customTitle"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Özel Unvan *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Örn. Bölge Temsilcisi" autoFocus {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onOpenChange(false)}
+                disabled={mutation.isPending}
+              >
+                <X className="h-3.5 w-3.5" />
+                Vazgeç
+              </Button>
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" />
+                )}
+                Ekle
               </Button>
             </DialogFooter>
           </form>

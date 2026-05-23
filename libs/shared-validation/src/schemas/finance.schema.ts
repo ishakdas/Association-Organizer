@@ -75,6 +75,31 @@ export const recordFeePaymentSchema = z.object({
 });
 export type RecordFeePaymentInput = z.infer<typeof recordFeePaymentSchema>;
 
+export const bulkFeePaymentItemSchema = z.object({
+  membershipId: z.string().cuid('Geçersiz üyelik'),
+  amountInKurus: z.number().int().min(1),
+  month: z.string().regex(/^\d{4}-\d{2}$/, 'Format: YYYY-AA (örn: 2026-05)'),
+  description: z.string().max(500).optional(),
+});
+
+export const bulkFeePaymentSchema = z.object({
+  payments: z.array(bulkFeePaymentItemSchema).min(1).max(100),
+});
+export type BulkFeePaymentInput = z.infer<typeof bulkFeePaymentSchema>;
+
+export const bulkFeePaymentResultSchema = z.object({
+  successCount: z.number(),
+  skippedCount: z.number(),
+  skipped: z.array(z.object({
+    membershipId: z.string(),
+    memberName: z.string(),
+    month: z.string(),
+    reason: z.string(),
+  })),
+  totalAmountKurus: z.number(),
+});
+export type BulkFeePaymentResult = z.infer<typeof bulkFeePaymentResultSchema>;
+
 // ---------------------------------------------------------------------------
 // Permissions
 // ---------------------------------------------------------------------------

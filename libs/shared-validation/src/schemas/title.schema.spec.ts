@@ -130,6 +130,7 @@ describe('titleResponseSchema', () => {
       id: 'title-1',
       name: 'Başkan',
       slug: 'baskan',
+      description: null,
       sortOrder: 0,
       isActive: true,
     });
@@ -140,6 +141,7 @@ describe('titleResponseSchema', () => {
     const r = titleResponseSchema.safeParse({
       id: 'title-1',
       name: 'Başkan',
+      description: null,
       sortOrder: 0,
       isActive: true,
     });

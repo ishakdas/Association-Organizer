@@ -3,11 +3,11 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Archive,
   ChevronRight,
   Loader2,
   RotateCcw,
   Search,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AdminAssociationResponse } from '@ticketbot/shared-validation';
@@ -30,9 +30,9 @@ import { getMe } from '@/lib/api/me';
 import {
   listAdminAssociations,
   restoreAssociation,
-  softDeleteAssociation,
 } from '@/lib/api/admin';
 import { isSystemAdmin } from '@/lib/permissions';
+import { DeleteAssociationDialog } from './_components/delete-association-dialog';
 
 async function getToken(): Promise<string> {
   const supabase = createClient();
@@ -49,6 +49,7 @@ export default function AssociationsAdminPage() {
   const [includeDeleted, setIncludeDeleted] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AdminAssociationResponse | null>(null);
 
   async function refresh(opts?: { search?: string; includeDeleted?: boolean }) {
     const token = await getToken();
@@ -98,20 +99,16 @@ export default function AssociationsAdminPage() {
     }
   }
 
-  async function handleSoftDelete(row: AdminAssociationResponse) {
-    if (!confirm(`"${row.name}" derneği silinsin mi? (Geri alınabilir.)`))
-      return;
-    setBusyId(row.id);
-    try {
-      const token = await getToken();
-      await softDeleteAssociation(token, row.id);
-      toast.success(`"${row.name}" silindi`);
-      await refresh();
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setBusyId(null);
+  function handleOpenDeleteDialog(row: AdminAssociationResponse) {
+    setDeleteTarget(row);
+  }
+
+  function handleDeleteSuccess() {
+    if (deleteTarget) {
+      toast.success(`"${deleteTarget.name}" kalıcı olarak silindi`);
     }
+    setDeleteTarget(null);
+    refresh();
   }
 
   async function handleRestore(row: AdminAssociationResponse) {
@@ -263,13 +260,13 @@ export default function AssociationsAdminPage() {
                           size="sm"
                           variant="outline"
                           className="text-destructive"
-                          onClick={() => handleSoftDelete(r)}
+                          onClick={() => handleOpenDeleteDialog(r)}
                           disabled={busyId === r.id}
                         >
                           {busyId === r.id ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           ) : (
-                            <Archive className="h-3.5 w-3.5" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           )}
                           Sil
                         </Button>
@@ -282,6 +279,12 @@ export default function AssociationsAdminPage() {
           </Table>
         )}
       </div>
+
+      <DeleteAssociationDialog
+        association={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onSuccess={handleDeleteSuccess}
+      />
     </div>
   );
 }

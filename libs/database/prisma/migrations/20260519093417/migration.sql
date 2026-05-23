@@ -1,0 +1,14 @@
+/*
+  Warnings:
+
+  - The values [MANAGE_MEMBERS,VIEW_MEMBERS,CREATE_TASKS,ASSIGN_TASKS,UPDATE_TASK_STATUS,DELETE_TASKS,VIEW_TASKS,CREATE_MEETINGS,EDIT_MEETINGS,DELETE_MEETINGS,VIEW_MEETINGS,CREATE_EVENTS,EDIT_EVENTS,DELETE_EVENTS,MANAGE_EVENT_ASSIGNMENTS,VIEW_EVENTS,CREATE_TRANSACTIONS,DELETE_TRANSACTIONS,MANAGE_CATEGORIES,VIEW_FINANCE,MANAGE_FINANCE_SETTINGS,MANAGE_ASSOCIATION_SETTINGS] on the enum `PermissionAction` will be removed. If these variants are still used in the database, this will fail.
+
+*/
+-- AlterEnum
+BEGIN;
+CREATE TYPE "PermissionAction_new" AS ENUM ('USE_MEETING_COMMANDS', 'USE_FINANCE_COMMANDS');
+ALTER TABLE "permissions" ALTER COLUMN "action" TYPE "PermissionAction_new" USING ("action"::text::"PermissionAction_new");
+ALTER TYPE "PermissionAction" RENAME TO "PermissionAction_old";
+ALTER TYPE "PermissionAction_new" RENAME TO "PermissionAction";
+DROP TYPE "public"."PermissionAction_old";
+COMMIT;

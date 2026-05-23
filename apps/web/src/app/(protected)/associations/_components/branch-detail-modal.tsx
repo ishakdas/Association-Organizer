@@ -11,7 +11,6 @@ import { listMembers } from '@/lib/api/members';
 import { resendInviteForUser } from '@/lib/api/auth';
 import type { AssociationDto } from '@ticketbot/shared-types';
 import type { MemberResponse } from '@ticketbot/shared-validation';
-import Link from 'next/link';
 
 interface BranchDetailModalProps {
   associationId: string | null;
@@ -24,6 +23,7 @@ export function BranchDetailModal({ associationId, onClose }: BranchDetailModalP
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
   const [resending, setResending] = useState(false);
+  const [memberCount, setMemberCount] = useState<number>(0);
 
   useEffect(() => {
     if (!associationId) return;
@@ -44,14 +44,14 @@ export function BranchDetailModal({ associationId, onClose }: BranchDetailModalP
         const [branchData, members] = await Promise.all([
           getAssociation(session.access_token, associationId!),
           listMembers(session.access_token, associationId!, {
-            role: 'ASSOCIATION_MANAGER',
             isActive: true,
           }),
         ]);
 
         if (!cancelled) {
           setBranch(branchData);
-          setManager(members[0] ?? null);
+          setMemberCount(members.length);
+          setManager(members.find(m => m.role === 'ASSOCIATION_MANAGER') ?? null);
         }
       } catch {
         if (!cancelled) setError(true);
@@ -92,7 +92,11 @@ export function BranchDetailModal({ associationId, onClose }: BranchDetailModalP
       />
 
       {/* Modal */}
-      <div className="fixed inset-x-4 top-1/2 z-50 mx-auto max-w-md -translate-y-1/2 rounded-2xl border border-border bg-card shadow-2xl sm:inset-x-auto sm:w-full">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-border bg-card shadow-2xl"
+      >
         {loading && (
           <div className="flex items-center justify-center py-16">
             <span className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -140,7 +144,7 @@ export function BranchDetailModal({ associationId, onClose }: BranchDetailModalP
                   <Users className="h-3.5 w-3.5" /> Aktif Üye
                 </div>
                 <div className="mt-1 text-2xl font-bold tabular-nums text-foreground">
-                  {branch.memberCount.toLocaleString('tr-TR')}
+                  {memberCount.toLocaleString('tr-TR')}
                 </div>
               </div>
               <div className="bg-card px-6 py-4">
@@ -215,15 +219,6 @@ export function BranchDetailModal({ associationId, onClose }: BranchDetailModalP
               ) : (
                 <p className="text-[13px] text-muted-foreground">Başkan bulunamadı</p>
               )}
-            </div>
-
-            {/* Footer */}
-            <div className="border-t border-border px-6 py-4">
-              <Button asChild className="w-full">
-                <Link href={`/associations/${branch.id}`}>
-                  Şubeye Git
-                </Link>
-              </Button>
             </div>
           </>
         )}

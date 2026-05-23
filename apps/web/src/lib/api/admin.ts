@@ -84,6 +84,14 @@ export function restoreAssociation(token: string, id: string) {
   );
 }
 
+export function hardDeleteAssociation(token: string, id: string) {
+  return apiClient<{
+    associationId: string;
+    usersDeleted: number;
+    membershipsDeleted: number;
+  }>(`/admin/associations/${id}/hard`, { token, method: 'DELETE' });
+}
+
 export function listLinkTokens(token: string) {
   return apiClient<AdminLinkTokenResponse[]>('/admin/telegram-link-tokens', {
     token,

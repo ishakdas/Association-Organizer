@@ -3,8 +3,10 @@ import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaClient, PrismaService } from '@ticketbot/database';
 import { FinanceService } from './finance.service';
+import { PermissionService } from '../permissions/permission.service';
 
 type PrismaMock = DeepMockProxy<PrismaClient>;
+type PermissionServiceMock = DeepMockProxy<PermissionService>;
 
 const ASSOC = 'assoc-1';
 const MANAGER = {
@@ -31,27 +33,29 @@ const FINANCE_PERM_USER = {
 describe('FinanceService', () => {
   let service: FinanceService;
   let prisma: PrismaMock;
+  let permissionService: PermissionServiceMock;
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
+    permissionService = mockDeep<PermissionService>();
+
     prisma.$transaction.mockImplementation(async (input: any) => {
       if (Array.isArray(input)) return Promise.all(input);
       return input(prisma);
     });
 
+    permissionService.hasPermission.mockResolvedValue(true);
+
     const module = await Test.createTestingModule({
       providers: [
         FinanceService,
         { provide: PrismaService, useValue: prisma },
+        { provide: PermissionService, useValue: permissionService },
       ],
     }).compile();
 
     service = module.get<FinanceService>(FinanceService);
   });
-
-  // ---------------------------------------------------------------------------
-  // Categories
-  // ---------------------------------------------------------------------------
 
   describe('createCategory', () => {
     it('creates a category when manager', async () => {
@@ -65,15 +69,13 @@ describe('FinanceService', () => {
     });
 
     it('throws ForbiddenException for member without finance permission', async () => {
+      permissionService.hasPermission.mockResolvedValue(false);
+
       await expect(
         service.createCategory(ASSOC, { name: 'Kira', type: 'EXPENSE' }, MEMBER),
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
-
-  // ---------------------------------------------------------------------------
-  // Transactions
-  // ---------------------------------------------------------------------------
 
   describe('createTransaction', () => {
     it('creates income transaction for secretary', async () => {
@@ -92,9 +94,7 @@ describe('FinanceService', () => {
     });
 
     it('creates transaction for finance permission user', async () => {
-      prisma.financePermission.findFirst.mockResolvedValue({
-        id: 'perm-1', associationId: ASSOC, userId: FINANCE_PERM_USER.id, isActive: true,
-      } as never);
+      permissionService.hasPermission.mockResolvedValue(true);
       prisma.transactionCategory.findFirst.mockResolvedValue({
         id: 'cat-1', type: 'EXPENSE',
       } as never);
@@ -146,57 +146,6 @@ describe('FinanceService', () => {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // Permissions
-  // ---------------------------------------------------------------------------
-
-  describe('grantPermission', () => {
-    it('grants permission to a member', async () => {
-      prisma.associationMembership.findFirst.mockResolvedValue({ id: 'mem-1' } as never);
-      prisma.financePermission.findFirst.mockResolvedValue(null as never);
-      prisma.financePermission.create.mockResolvedValue({
-        id: 'perm-1', userId: MEMBER.id, associationId: ASSOC, isActive: true,
-      } as never);
-
-      const result = await service.grantPermission(ASSOC, MEMBER.id, MANAGER);
-      expect(result.isActive).toBe(true);
-    });
-
-    it('throws BadRequestException if user is not a member', async () => {
-      prisma.associationMembership.findFirst.mockResolvedValue(null as never);
-
-      await expect(
-        service.grantPermission(ASSOC, 'non-member', MANAGER),
-      ).rejects.toBeInstanceOf(BadRequestException);
-    });
-  });
-
-  describe('revokePermission', () => {
-    it('revokes active permission', async () => {
-      prisma.financePermission.findFirst.mockResolvedValue({
-        id: 'perm-1', isActive: true,
-      } as never);
-      prisma.financePermission.update.mockResolvedValue({
-        id: 'perm-1', isActive: false,
-      } as never);
-
-      const result = await service.revokePermission(ASSOC, MEMBER.id, MANAGER);
-      expect(result.isActive).toBe(false);
-    });
-
-    it('throws NotFoundException if no active permission', async () => {
-      prisma.financePermission.findFirst.mockResolvedValue(null as never);
-
-      await expect(
-        service.revokePermission(ASSOC, MEMBER.id, MANAGER),
-      ).rejects.toBeInstanceOf(NotFoundException);
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // Summary
-  // ---------------------------------------------------------------------------
-
   describe('getSummary', () => {
     it('returns correct balance', async () => {
       prisma.transaction.aggregate
@@ -211,10 +160,6 @@ describe('FinanceService', () => {
       expect(result.balanceKurus).toBe(30000);
     });
   });
-
-  // ---------------------------------------------------------------------------
-  // Event expense
-  // ---------------------------------------------------------------------------
 
   describe('recordEventExpense', () => {
     it('records expense and creates transaction', async () => {
@@ -247,6 +192,121 @@ describe('FinanceService', () => {
           expenseAmount: 5000, expenseNote: 'Yemek',
         }, MANAGER),
       ).rejects.toBeInstanceOf(BadRequestException);
+    });
+  });
+
+  describe('bulkFeePayment', () => {
+    it('creates multiple fee payments and returns result', async () => {
+      permissionService.hasPermission.mockResolvedValue(true);
+      prisma.transactionCategory.findFirst.mockResolvedValue({
+        id: 'cat-aidat', name: 'Aidat Geliri', type: 'INCOME',
+      } as never);
+      prisma.associationMembership.findFirst
+        .mockResolvedValueOnce({
+          id: 'mem-1', user: { id: 'u1', fullName: 'Ahmet Yılmaz' },
+        } as never)
+        .mockResolvedValueOnce({
+          id: 'mem-2', user: { id: 'u2', fullName: 'Fatma Demir' },
+        } as never);
+      prisma.transaction.findFirst.mockResolvedValue(null as never);
+      prisma.transaction.createMany.mockResolvedValue({ count: 2 } as never);
+
+      const result = await service.bulkFeePayment(ASSOC, {
+        payments: [
+          { membershipId: 'mem-1', amountInKurus: 50000, month: '2026-05' },
+          { membershipId: 'mem-2', amountInKurus: 50000, month: '2026-05' },
+        ],
+      }, MANAGER);
+
+      expect(result.successCount).toBe(2);
+      expect(result.skippedCount).toBe(0);
+      expect(result.totalAmountKurus).toBe(100000);
+    });
+
+    it('skips duplicate payments for same month', async () => {
+      permissionService.hasPermission.mockResolvedValue(true);
+      prisma.transactionCategory.findFirst.mockResolvedValue({
+        id: 'cat-aidat', name: 'Aidat Geliri', type: 'INCOME',
+      } as never);
+      prisma.associationMembership.findFirst.mockResolvedValue({
+        id: 'mem-1', user: { id: 'u1', fullName: 'Ahmet Yılmaz' },
+      } as never);
+      prisma.transaction.findFirst.mockResolvedValue({ id: 'existing-tx' } as never);
+
+      const result = await service.bulkFeePayment(ASSOC, {
+        payments: [
+          { membershipId: 'mem-1', amountInKurus: 50000, month: '2026-05' },
+        ],
+      }, MANAGER);
+
+      expect(result.successCount).toBe(0);
+      expect(result.skippedCount).toBe(1);
+      expect(result.skipped[0].reason).toBe('Bu ay için zaten kayıt var');
+    });
+
+    it('skips inactive memberships', async () => {
+      permissionService.hasPermission.mockResolvedValue(true);
+      prisma.transactionCategory.findFirst.mockResolvedValue({
+        id: 'cat-aidat', name: 'Aidat Geliri', type: 'INCOME',
+      } as never);
+      prisma.associationMembership.findFirst.mockResolvedValue(null as never);
+
+      const result = await service.bulkFeePayment(ASSOC, {
+        payments: [
+          { membershipId: 'mem-inactive', amountInKurus: 50000, month: '2026-05' },
+        ],
+      }, MANAGER);
+
+      expect(result.successCount).toBe(0);
+      expect(result.skippedCount).toBe(1);
+      expect(result.skipped[0].reason).toBe('Üyelik bulunamadı veya aktif değil');
+    });
+  });
+
+  describe('getUnpaidMembers', () => {
+    it('returns all members with paid/unpaid status', async () => {
+      prisma.associationMembership.findMany.mockResolvedValue([
+        { id: 'mem-1', user: { id: 'u1', fullName: 'Ahmet Yılmaz' } },
+        { id: 'mem-2', user: { id: 'u2', fullName: 'Fatma Demir' } },
+      ] as never);
+      prisma.transaction.findMany.mockResolvedValue([
+        { description: 'Aidat - 2026-05 - Ahmet Yılmaz' },
+      ] as never);
+      prisma.associationSettings.findUnique.mockResolvedValue({
+        monthlyFeeAmountKurus: 50000,
+      } as never);
+
+      const result = await service.getUnpaidMembers(ASSOC, '2026-05');
+
+      expect(result).toHaveLength(2);
+      expect(result[0].hasPaid).toBe(true);
+      expect(result[0].fullName).toBe('Ahmet Yılmaz');
+      expect(result[1].hasPaid).toBe(false);
+      expect(result[1].fullName).toBe('Fatma Demir');
+      expect(result[0].monthlyFeeAmountKurus).toBe(50000);
+    });
+  });
+
+  describe('getFrequentCategories', () => {
+    it('returns most used categories from last 30 days', async () => {
+      prisma.transactionCategory.findMany.mockResolvedValue([
+        {
+          id: 'cat-1', name: 'Kira', type: 'EXPENSE',
+          _count: { transactions: 5 },
+        },
+        {
+          id: 'cat-2', name: 'Fatura', type: 'EXPENSE',
+          _count: { transactions: 3 },
+        },
+      ] as never);
+
+      const result = await service.getFrequentCategories(ASSOC, 5);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].name).toBe('Kira');
+      expect(result[0].count).toBe(5);
+      expect(result[1].name).toBe('Fatura');
+      expect(result[1].count).toBe(3);
     });
   });
 });

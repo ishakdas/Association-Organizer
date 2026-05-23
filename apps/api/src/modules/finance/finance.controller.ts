@@ -27,7 +27,7 @@ import { CreateTransactionCategoryDto } from './dto/create-category.dto';
 import { UpdateTransactionCategoryDto } from './dto/update-category.dto';
 import { ListTransactionsQueryDto } from './dto/list-transactions-query.dto';
 import { RecordFeePaymentDto } from './dto/record-fee.dto';
-import { GrantFinancePermissionDto } from './dto/grant-permission.dto';
+import { BulkFeePaymentDto } from './dto/bulk-fee-payment.dto';
 import { AssociationSettingsDto } from './dto/settings.dto';
 import { RecordEventExpenseDto } from './dto/record-event-expense.dto';
 
@@ -182,6 +182,33 @@ export class FinanceController {
     return this.service.getMemberFeeHistory(associationId, membershipId);
   }
 
+  @Post('fees/bulk')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
+  bulkFeePayment(
+    @Param('associationId') associationId: string,
+    @Body() body: BulkFeePaymentDto,
+    @CurrentUser() user: RequestUser,
+  ) {
+    return this.service.bulkFeePayment(associationId, body, user);
+  }
+
+  @Get('fees/unpaid')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
+  getUnpaidMembers(
+    @Param('associationId') associationId: string,
+    @Query('month') month: string,
+  ) {
+    return this.service.getUnpaidMembers(associationId, month);
+  }
+
   // --- Donations ---
 
   @Post('donations')
@@ -239,34 +266,6 @@ export class FinanceController {
     return this.service.getMonthlyStats(associationId);
   }
 
-  // --- Permissions (sadece MANAGER) ---
-
-  @Post('permissions')
-  @AssociationRoles(UserRole.ASSOCIATION_MANAGER)
-  grantPermission(
-    @Param('associationId') associationId: string,
-    @Body() body: GrantFinancePermissionDto,
-    @CurrentUser() user: RequestUser,
-  ) {
-    return this.service.grantPermission(associationId, body.userId, user);
-  }
-
-  @Delete('permissions/:userId')
-  @AssociationRoles(UserRole.ASSOCIATION_MANAGER)
-  revokePermission(
-    @Param('associationId') associationId: string,
-    @Param('userId') userId: string,
-    @CurrentUser() user: RequestUser,
-  ) {
-    return this.service.revokePermission(associationId, userId, user);
-  }
-
-  @Get('permissions')
-  @AssociationRoles(UserRole.ASSOCIATION_MANAGER)
-  listPermissions(@Param('associationId') associationId: string) {
-    return this.service.listPermissions(associationId);
-  }
-
   // --- Settings (sadece MANAGER) ---
 
   @Put('settings')
@@ -287,5 +286,15 @@ export class FinanceController {
   )
   getSettings(@Param('associationId') associationId: string) {
     return this.service.getSettings(associationId);
+  }
+
+  @Get('frequent-categories')
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
+  getFrequentCategories(@Param('associationId') associationId: string) {
+    return this.service.getFrequentCategories(associationId);
   }
 }

@@ -180,7 +180,7 @@ function ResetPasswordInner() {
         </div>
 
         <footer className="text-center text-[11px] uppercase tracking-widest text-muted-foreground lg:hidden">
-          © {new Date().getFullYear()} Dernek Organizer
+          © {new Date().getFullYear()} Defter-i Hilal
         </footer>
       </div>
       <BrandPanel />
@@ -231,7 +231,7 @@ function BrandPanel() {
         <div className="flex items-center gap-3">
           <Image
             src="/yedihilal-logo.png"
-            alt="YediHilal"
+            alt="Defter-i Hilal"
             width={32}
             height={45}
             className="h-11 w-auto"
@@ -239,7 +239,7 @@ function BrandPanel() {
           />
           <div className="leading-tight">
             <div className="text-[13px] font-bold tracking-tight text-white">
-              Dernek Organizer
+              Defter-i Hilal
             </div>
             <div className="text-[10px] font-medium uppercase tracking-widest text-white/60">
               Sicil &amp; Üyelik
@@ -262,7 +262,7 @@ function BrandPanel() {
       </div>
 
       <div className="relative z-10 flex items-center justify-between text-[11px] uppercase tracking-widest text-white/50">
-        <span>© {new Date().getFullYear()} Dernek Organizer</span>
+        <span>© {new Date().getFullYear()} Defter-i Hilal</span>
         <span>TR</span>
       </div>
     </aside>

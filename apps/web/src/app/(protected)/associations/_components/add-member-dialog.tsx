@@ -49,8 +49,8 @@ const formSchema = z
   .object({
     mode: z.enum(['secretary', 'member']),
     fullName: z.string().min(2, 'En az 2 karakter').max(200),
-    email: z.string().email('Geçerli e-posta').optional().or(z.literal('')),
-    phone: z.string().optional(),
+    email: z.string().email('Geçerli bir e-posta girin'),
+    phone: z.string().min(1, 'Telefon numarası zorunlu'),
     address: z.string().max(500).optional(),
     titleId: z.string().optional(),
     customTitle: z.string().optional(),
@@ -58,13 +58,6 @@ const formSchema = z
   })
   .superRefine((v, ctx) => {
     if (v.mode === 'secretary') {
-      if (!v.email || !v.email.includes('@')) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['email'],
-          message: 'Sekreter için geçerli e-posta zorunlu',
-        });
-      }
       if (!v.password || v.password.length < 8) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -85,6 +78,25 @@ const formSchema = z
   });
 
 type FormValues = z.infer<typeof formSchema>;
+
+function buildTitleAssignments(values: FormValues) {
+  const isSecretary = values.mode === 'secretary';
+  if (isSecretary) return [{ isPrimary: true, sortOrder: 0 }];
+
+  const useCustom = values.titleId === CUSTOM_TITLE;
+  const hasTitle =
+    values.titleId &&
+    values.titleId !== NO_TITLE &&
+    values.titleId !== CUSTOM_TITLE;
+
+  if (useCustom) {
+    return [{ customTitle: values.customTitle?.trim(), isPrimary: true, sortOrder: 0 }];
+  }
+  if (hasTitle) {
+    return [{ titleId: values.titleId, isPrimary: true, sortOrder: 0 }];
+  }
+  return [{ isPrimary: true, sortOrder: 0 }];
+}
 
 export function AddMemberDialog({
   associationId,
@@ -170,14 +182,6 @@ export function AddMemberDialog({
 
   function onSubmit(values: FormValues) {
     const isSecretary = values.mode === 'secretary';
-    const useCustom = !isSecretary && values.titleId === CUSTOM_TITLE;
-    const titleIdValue =
-      !isSecretary &&
-      values.titleId &&
-      values.titleId !== NO_TITLE &&
-      values.titleId !== CUSTOM_TITLE
-        ? values.titleId
-        : undefined;
 
     const role: MembershipRole = isSecretary
       ? 'ASSOCIATION_SECRETARY'
@@ -187,12 +191,11 @@ export function AddMemberDialog({
 
     mutation.mutate({
       fullName: values.fullName,
-      email: values.email || undefined,
-      phone: values.phone || undefined,
-      address: values.address || undefined,
+      email: (values.email || undefined) as string,
+      phone: (values.phone || undefined) as string,
+      address: (values.address || undefined) as string,
       role,
-      titleId: titleIdValue,
-      customTitle: useCustom ? values.customTitle?.trim() : undefined,
+      titleAssignments: buildTitleAssignments(values),
       password: isSecretary ? values.password : undefined,
     });
   }
@@ -283,7 +286,7 @@ export function AddMemberDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      E-posta {mode === 'secretary' && '*'}
+                      E-posta *
                     </FormLabel>
                     <FormControl>
                       <Input type="email" placeholder="ali@..." autoComplete="off" {...field} />
@@ -297,7 +300,7 @@ export function AddMemberDialog({
                 name="phone"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Telefon</FormLabel>
+                    <FormLabel>Telefon *</FormLabel>
                     <FormControl>
                       <PhoneInput
                         name={field.name}
@@ -317,7 +320,7 @@ export function AddMemberDialog({
               name="address"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Adres</FormLabel>
+                  <FormLabel>Adres <span className="text-muted-foreground font-normal">(opsiyonel)</span></FormLabel>
                   <FormControl>
                     <Input placeholder="İl, ilçe, mahalle…" {...field} />
                   </FormControl>

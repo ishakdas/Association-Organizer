@@ -16,12 +16,17 @@ import {
   List,
   Loader2,
   UserPlus,
+  Search,
+  ArrowUpDown,
+  Filter,
 } from 'lucide-react';
 import type {
   MyTaskItem,
   TaskStatusValue,
+  TaskPriorityValue,
 } from '@ticketbot/shared-validation';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Tabs,
@@ -65,12 +70,30 @@ const STATUS_TABS: { value: StatusTab; label: string }[] = [
   { value: 'CANCELLED', label: 'İptal' },
 ];
 
+const PRIORITY_FILTERS: { value: TaskPriorityValue | 'all'; label: string }[] = [
+  { value: 'all', label: 'Tüm Öncelikler' },
+  { value: 'HIGH', label: 'Yüksek' },
+  { value: 'MEDIUM', label: 'Orta' },
+  { value: 'LOW', label: 'Düşük' },
+];
+
+const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: 'createdAt-desc', label: 'En Yeni' },
+  { value: 'createdAt-asc', label: 'En Eski' },
+  { value: 'dueDate-asc', label: 'Bitiş Tarihi (Yakın)' },
+  { value: 'dueDate-desc', label: 'Bitiş Tarihi (Uzak)' },
+  { value: 'priority-desc', label: 'Öncelik (Yüksek)' },
+  { value: 'title-asc', label: 'Başlık (A-Z)' },
+];
+
 export function TasksOverview() {
   const [associationId, setAssociationId] = useState<string>(ALL_ASSOC);
   const [tab, setTab] = useState<StatusTab>('ALL');
   const [view, setView] = useState<ViewMode>('list');
+  const [search, setSearch] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState<TaskPriorityValue | 'all'>('all');
+  const [sortBy, setSortBy] = useState('createdAt-desc');
 
-  // Hydrate view preference from localStorage after mount to avoid SSR mismatch.
   useEffect(() => {
     const saved = window.localStorage.getItem(VIEW_STORAGE_KEY);
     if (saved === 'kanban' || saved === 'list') setView(saved);
@@ -79,9 +102,9 @@ export function TasksOverview() {
     window.localStorage.setItem(VIEW_STORAGE_KEY, view);
   }, [view]);
 
-  // Catalog query: pulls everything visible so the association select
-  // shows every dernek the user has access to (filters narrow client-side).
-  const catalog = useMyTasks({ pageSize: 100 });
+  const [sortField, sortOrder] = sortBy.split('-') as [string, 'asc' | 'desc'];
+
+  const catalog = useMyTasks({ pageSize: 200 });
 
   const associations = useMemo(() => {
     const map = new Map<string, string>();
@@ -93,11 +116,13 @@ export function TasksOverview() {
     );
   }, [catalog.data]);
 
-  // In kanban mode the columns themselves are the status grouping, so we
-  // ignore the status tab and pull every task that matches the association.
   const list = useMyTasks({
     associationId: associationId === ALL_ASSOC ? undefined : associationId,
     status: view === 'kanban' || tab === 'ALL' ? undefined : tab,
+    priority: priorityFilter === 'all' ? undefined : priorityFilter,
+    search: search || undefined,
+    sortBy: sortField as any,
+    sortOrder,
     pageSize: 100,
   });
 
@@ -137,6 +162,42 @@ export function TasksOverview() {
           </div>
         </div>
       </header>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Görev ara..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="h-8 pl-8 text-[12px]"
+          />
+        </div>
+
+        <Select value={priorityFilter} onValueChange={(v) => setPriorityFilter(v as TaskPriorityValue | 'all')}>
+          <SelectTrigger className="h-8 w-[140px] text-[12px]">
+            <Filter className="mr-1.5 h-3 w-3" />
+            <SelectValue placeholder="Öncelik" />
+          </SelectTrigger>
+          <SelectContent>
+            {PRIORITY_FILTERS.map((p) => (
+              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={sortBy} onValueChange={setSortBy}>
+          <SelectTrigger className="h-8 w-[160px] text-[12px]">
+            <ArrowUpDown className="mr-1.5 h-3 w-3" />
+            <SelectValue placeholder="Sırala" />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((s) => (
+              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
 
       {view === 'kanban' ? (
         <TasksKanban
@@ -291,7 +352,6 @@ function TasksBody({
     );
   }
 
-  // "Tüm dernekler" — kategorize ederek göster.
   const groups = new Map<string, { name: string; tasks: MyTaskItem[] }>();
   for (const t of tasks) {
     const g = groups.get(t.association.id) ?? {

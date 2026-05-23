@@ -31,15 +31,21 @@ const optionalEmail = z
   .optional()
   .transform((v) => (v ? v : undefined));
 
+const titleAssignmentSchema = z.object({
+  titleId: z.string().cuid('Geçersiz unvan').nullable().optional(),
+  customTitle: z.string().min(2).max(100).nullable().optional(),
+  isPrimary: z.boolean().default(false),
+  sortOrder: z.number().int().min(0).default(0),
+});
+
 export const addMemberSchema = z
   .object({
     fullName: z.string().min(2, 'En az 2 karakter').max(200),
-    email: optionalEmail,
+    email: z.string().email('Geçerli bir e-posta girin').max(200),
     phone: optionalPhoneSchema,
     address: z.string().max(500).optional(),
     role: userRoleEnum,
-    titleId: z.string().cuid('Geçersiz unvan').optional(),
-    customTitle: z.string().min(2).max(100).optional(),
+    titleAssignments: z.array(titleAssignmentSchema).min(1).max(3),
     password: z.string().min(8, 'En az 8 karakter').max(72).optional(),
   })
   .superRefine((v, ctx) => {
@@ -51,13 +57,26 @@ export const addMemberSchema = z
           message: 'Sekreter için şifre zorunludur',
         });
       }
-      if (!v.email) {
+    }
+    const hasPrimary = v.titleAssignments.some((t) => t.isPrimary);
+    if (!hasPrimary) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['titleAssignments'],
+        message: 'En az bir birincil ünvan seçilmelidir',
+      });
+    }
+    const seenTitles = new Set<string>();
+    for (const t of v.titleAssignments) {
+      const key = t.titleId ?? `custom:${t.customTitle}`;
+      if (seenTitles.has(key)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          path: ['email'],
-          message: 'Sekreter için e-posta zorunludur',
+          path: ['titleAssignments'],
+          message: 'Aynı ünvan birden fazla atanamaz',
         });
       }
+      seenTitles.add(key);
     }
   });
 export type AddMemberInput = z.infer<typeof addMemberSchema>;
@@ -65,16 +84,40 @@ export type AddMemberInput = z.infer<typeof addMemberSchema>;
 export const updateMemberSchema = z
   .object({
     role: userRoleEnum.optional(),
-    titleId: z.string().cuid('Geçersiz unvan').nullable().optional(),
-    customTitle: z.string().min(2).max(100).nullable().optional(),
+    titleAssignments: z.array(titleAssignmentSchema).min(1).max(3).optional(),
     isActive: z.boolean().optional(),
     leftAt: z.string().datetime({ offset: true }).nullable().optional(),
     fullName: z.string().min(2).max(200).optional(),
+    email: z.string().email('Geçerli bir e-posta girin').max(200).optional(),
     phone: optionalPhoneSchema,
     address: z.string().max(500).nullable().optional(),
   })
   .refine((v) => Object.keys(v).length > 0, {
     message: 'En az bir alan güncellenmeli',
+  })
+  .superRefine((v, ctx) => {
+    if (v.titleAssignments) {
+      const hasPrimary = v.titleAssignments.some((t) => t.isPrimary);
+      if (!hasPrimary) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['titleAssignments'],
+          message: 'En az bir birincil ünvan seçilmelidir',
+        });
+      }
+      const seenTitles = new Set<string>();
+      for (const t of v.titleAssignments) {
+        const key = t.titleId ?? `custom:${t.customTitle}`;
+        if (seenTitles.has(key)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['titleAssignments'],
+            message: 'Aynı ünvan birden fazla atanamaz',
+          });
+        }
+        seenTitles.add(key);
+      }
+    }
   });
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 
@@ -92,8 +135,6 @@ export const memberResponseSchema = z.object({
   associationId: z.string(),
   userId: z.string(),
   role: userRoleEnum,
-  titleId: z.string().nullable(),
-  customTitle: z.string().nullable(),
   joinedAt: z.string(),
   leftAt: z.string().nullable(),
   isActive: z.boolean(),
@@ -113,12 +154,22 @@ export const memberResponseSchema = z.object({
       .nullable()
       .optional(),
   }),
-  title: z
-    .object({
+  titleAssignments: z.array(
+    z.object({
       id: z.string(),
-      name: z.string(),
-      slug: z.string(),
-    })
-    .nullable(),
+      titleId: z.string().nullable(),
+      customTitle: z.string().nullable(),
+      isPrimary: z.boolean(),
+      sortOrder: z.number(),
+      title: z
+        .object({
+          id: z.string(),
+          name: z.string(),
+          slug: z.string(),
+          description: z.string().nullable(),
+        })
+        .nullable(),
+    }),
+  ),
 });
 export type MemberResponse = z.infer<typeof memberResponseSchema>;

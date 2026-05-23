@@ -21,6 +21,7 @@ import {
   ResolveDisputeInput,
   UpdateTaskInput,
   UpdateTaskStatusInput,
+  ExtractTasksFromMeetingInput,
 } from '@ticketbot/shared-validation';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { ConfigService } from '@nestjs/config';
@@ -33,6 +34,10 @@ import {
 } from 'bot';
 import { TaskReminderScheduler } from '../jobs/task-reminder.scheduler';
 import { IcsTokenService } from './ics-token.service';
+import { TaskNotificationService } from './task-notification.service';
+
+const PRIORITY_WEIGHT = { HIGH: 3, MEDIUM: 2, LOW: 1 };
+const MAX_OPEN_TASKS_BEFORE_WARNING = 10;
 
 @Injectable()
 export class TasksService {
@@ -45,6 +50,7 @@ export class TasksService {
     private readonly icsTokens: IcsTokenService,
     private readonly config: ConfigService,
     private readonly aiService: AiService,
+    private readonly notificationService: TaskNotificationService,
   ) {}
 
   async create(
@@ -57,10 +63,14 @@ export class TasksService {
       await this.ensureAssigneeIsMember(associationId, input.watcherUserId);
     }
 
-    // Telegram önkoşulu artık katı değil: atanan kişinin Telegram'ı
-    // yoksa görev yine oluşturulur, sadece atama bildirimi gönderilmez
-    // ve activity log'a "no_telegram" payload'lı bir ASSIGNED_NOTIFIED
-    // satırı düşer. Frontend bu durumu kullanıcıya bilgi olarak gösterir.
+    // Due date validation: prevent past dates
+    if (input.dueDate && new Date(input.dueDate) < new Date()) {
+      throw new BadRequestException('Bitiş tarihi geçmiş olamaz');
+    }
+
+    // Workload check: warn if assignee has too many open tasks
+    const workloadWarning = await this.getWorkloadWarning(associationId, input.assignedToUserId);
+
     const assigneeTelegram = await this.prisma.telegramAccount.findUnique({
       where: { userId: input.assignedToUserId },
       select: { userId: true },
@@ -83,6 +93,7 @@ export class TasksService {
         include: {
           assignedBy: { select: { id: true, fullName: true } },
           watcher: { select: { id: true, fullName: true } },
+          assignedTo: { select: { id: true, fullName: true } },
         },
       });
 
@@ -116,13 +127,8 @@ export class TasksService {
     }
 
     if (assigneeTelegram) {
-      // Fire-and-forget: notification is best-effort and must not block
-      // the HTTP response. Errors are swallowed inside notifyAssignment.
       void this.notifyAssignment(task);
     } else {
-      // Telegram bağlı değil — atama yine kayıt edildi, activity log'a
-      // "atanan kişinin Telegram'ı yok" durumunu yazıyoruz ki Manager
-      // sonradan timeline'da görebilsin.
       void this.prisma.taskActivity
         .create({
           data: {
@@ -139,13 +145,35 @@ export class TasksService {
         });
     }
 
-    return task;
+    return {
+      ...task,
+      durationHours: null,
+      workloadWarning,
+    };
   }
 
-  // Sends an "atama" DM to the assignee on Telegram and logs an
-  // ASSIGNED_NOTIFIED activity. Failures (no Telegram bound, send
-  // error) are swallowed so a flaky bot can't fail task creation —
-  // assignees see the task in the web UI regardless.
+  private async getWorkloadWarning(associationId: string, userId: string): Promise<string | null> {
+    const openCount = await this.prisma.task.count({
+      where: {
+        associationId,
+        assignedToUserId: userId,
+        status: { in: [TaskStatus.PENDING, TaskStatus.IN_PROGRESS] },
+        deletedAt: null,
+      },
+    });
+
+    if (openCount >= MAX_OPEN_TASKS_BEFORE_WARNING) {
+      return `Atanan kişinin ${openCount} açık görevi var`;
+    }
+    return null;
+  }
+
+  private computeDurationHours(task: { createdAt: Date; completedAt: Date | null }): number | null {
+    if (!task.completedAt) return null;
+    const ms = task.completedAt.getTime() - task.createdAt.getTime();
+    return Math.round(ms / (1000 * 60 * 60) * 100) / 100;
+  }
+
   private async notifyAssignment(task: {
     id: string;
     title: string;
@@ -179,6 +207,11 @@ export class TasksService {
         replyMarkup: keyboard,
       });
 
+      await this.prisma.task.update({
+        where: { id: task.id },
+        data: { notifiedViaTelegram: true, lastNotifiedAt: new Date() },
+      });
+
       await this.prisma.taskActivity.create({
         data: {
           taskId: task.id,
@@ -206,28 +239,51 @@ export class TasksService {
 
     if (query.status) where.status = query.status;
     if (query.assignedToUserId) where.assignedToUserId = query.assignedToUserId;
+    if (query.priority) where.priority = query.priority;
+    if (query.search) {
+      where.OR = [
+        { title: { contains: query.search, mode: 'insensitive' as const } },
+        { description: { contains: query.search, mode: 'insensitive' as const } },
+      ];
+    }
 
     if (this.isMemberOnly(user, associationId)) {
       where.assignedToUserId = user.id;
     }
 
-    const { page, pageSize } = query;
+    const { page, pageSize, sortBy, sortOrder } = query;
+    const orderBy: Prisma.TaskOrderByWithRelationInput = {};
+    if (sortBy === 'priority') {
+      orderBy.priority = sortOrder;
+    } else if (sortBy === 'dueDate') {
+      orderBy.dueDate = sortOrder;
+    } else if (sortBy === 'title') {
+      orderBy.title = sortOrder;
+    } else {
+      orderBy.createdAt = sortOrder;
+    }
+
     const [data, total] = await this.prisma.$transaction([
       this.prisma.task.findMany({
         where,
         skip: (page - 1) * pageSize,
         take: pageSize,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         include: {
           assignedBy: { select: { id: true, fullName: true } },
           watcher: { select: { id: true, fullName: true } },
+          assignedTo: { select: { id: true, fullName: true } },
         },
       }),
       this.prisma.task.count({ where }),
     ]);
 
     return {
-      data,
+      data: data.map((t) => ({
+        ...t,
+        durationHours: this.computeDurationHours(t),
+        workloadWarning: null,
+      })),
       meta: {
         total,
         page,
@@ -237,12 +293,34 @@ export class TasksService {
     };
   }
 
-  // Cross-association list for the global Görevler page. The visible
-  // set is computed from the caller's memberships:
-  //   - SYSTEM_ADMIN  : every association
-  //   - MANAGER/SECRT : every task in those associations
-  //   - MEMBER        : only tasks assigned to the caller in that association
-  // Optional `associationId` and `status` filters narrow within that set.
+  async getOne(
+    associationId: string,
+    taskId: string,
+    user: AuthenticatedUser,
+  ) {
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, associationId, deletedAt: null },
+      include: {
+        assignedBy: { select: { id: true, fullName: true } },
+        watcher: { select: { id: true, fullName: true } },
+        assignedTo: { select: { id: true, fullName: true } },
+        association: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!task) throw new NotFoundException('Görev bulunamadı');
+
+    if (this.isMemberOnly(user, associationId) && task.assignedToUserId !== user.id) {
+      throw new ForbiddenException('Bu görevi görüntüleme yetkiniz yok');
+    }
+
+    return {
+      ...task,
+      durationHours: this.computeDurationHours(task),
+      workloadWarning: null,
+    };
+  }
+
   async listForUser(query: ListMyTasksQuery, user: AuthenticatedUser) {
     const isSysAdmin = user.systemRole === UserRole.SYSTEM_ADMIN;
     const active = user.memberships.filter((m) => m.isActive);
@@ -293,14 +371,33 @@ export class TasksService {
     };
     if (query.status) where.status = query.status;
     if (query.associationId) where.associationId = query.associationId;
+    if (query.priority) where.priority = query.priority;
+    if (query.search) {
+      where.OR = [
+        { title: { contains: query.search, mode: 'insensitive' as const } },
+        { description: { contains: query.search, mode: 'insensitive' as const } },
+      ];
+    }
 
-    const { page, pageSize } = query;
+    const { page, pageSize, sortBy, sortOrder } = query;
+    const orderBy: Prisma.TaskOrderByWithRelationInput[] = [];
+    if (sortBy === 'priority') {
+      orderBy.push({ priority: sortOrder });
+    } else if (sortBy === 'dueDate') {
+      orderBy.push({ dueDate: sortOrder });
+    } else if (sortBy === 'title') {
+      orderBy.push({ title: sortOrder });
+    } else {
+      orderBy.push({ createdAt: sortOrder });
+    }
+    orderBy.push({ status: 'asc' });
+
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.task.findMany({
         where,
         skip: (page - 1) * pageSize,
         take: pageSize,
-        orderBy: [{ status: 'asc' }, { dueDate: 'asc' }, { createdAt: 'desc' }],
+        orderBy,
         include: {
           association: { select: { id: true, name: true } },
           assignedTo: { select: { id: true, fullName: true } },
@@ -318,6 +415,8 @@ export class TasksService {
         assignedBy: { id: assignedBy.id, fullName: assignedBy.fullName },
         watcher: watcher ? { id: watcher.id, fullName: watcher.fullName } : null,
         assignee: { id: assignedTo.id, fullName: assignedTo.fullName },
+        durationHours: this.computeDurationHours(rest),
+        workloadWarning: null,
       })),
       meta: {
         total,
@@ -335,7 +434,7 @@ export class TasksService {
   ) {
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, deletedAt: null },
-      select: { id: true, associationId: true, status: true },
+      select: { id: true, associationId: true, status: true, assignedToUserId: true, createdAt: true, title: true },
     });
     if (!task) throw new NotFoundException('Görev bulunamadı');
 
@@ -360,6 +459,7 @@ export class TasksService {
         include: {
           assignedBy: { select: { id: true, fullName: true } },
           watcher: { select: { id: true, fullName: true } },
+          assignedTo: { select: { id: true, fullName: true } },
         },
       });
 
@@ -381,14 +481,42 @@ export class TasksService {
       await this.scheduler.cancelTask(taskId);
     }
 
-    return updated;
+    this.sendStatusNotification(task, updated, user).catch((err) => {
+      this.logger.warn(`Bildirim gönderilemedi: ${(err as Error).message}`);
+    });
+
+    return {
+      ...updated,
+      durationHours: this.computeDurationHours(updated),
+      workloadWarning: null,
+    };
   }
 
-  // PATCH /tasks/:id — Manager/Sekreter herhangi bir alanı güncelleyebilir.
-  // Yetki: aynı dernekte aktif Manager/Sekreter veya SYSTEM_ADMIN.
-  // Side-effects: alan değişimleri taskActivity'ye log düşer; assignee
-  // veya dueDate/reminderAt değiştiyse reminder schedule yenilenir; yeni
-  // assignee'ye Telegram ataması (varsa) yeniden gönderilir.
+  private async sendStatusNotification(
+    originalTask: { id: string; associationId: string; status: string; assignedToUserId: string; createdAt: Date; title: string },
+    updatedTask: any,
+    actor: AuthenticatedUser,
+  ): Promise<void> {
+    if (updatedTask.status === 'COMPLETED' && originalTask.status !== 'COMPLETED') {
+      await this.notificationService.notifyTaskCompleted(
+        originalTask.associationId,
+        originalTask.id,
+        originalTask.title,
+        updatedTask.assignedTo?.fullName ?? 'Bilinmeyen',
+        originalTask.createdAt,
+        updatedTask.completedAt ?? new Date(),
+      );
+    } else if (updatedTask.status === 'CANCELLED' && originalTask.status !== 'CANCELLED') {
+      await this.notificationService.notifyTaskCancelled(
+        originalTask.associationId,
+        originalTask.id,
+        originalTask.title,
+        updatedTask.assignedTo?.fullName ?? 'Bilinmeyen',
+        actor.id === updatedTask.assignedTo?.id ? updatedTask.assignedTo.fullName : (updatedTask.assignedBy?.fullName ?? 'Bilinmeyen'),
+      );
+    }
+  }
+
   async update(
     taskId: string,
     input: UpdateTaskInput,
@@ -404,6 +532,11 @@ export class TasksService {
     if (!existing) throw new NotFoundException('Görev bulunamadı');
 
     this.assertCanManageTask(user, existing.associationId);
+
+    // Due date validation: prevent past dates on update
+    if (input.dueDate && new Date(input.dueDate) < new Date()) {
+      throw new BadRequestException('Bitiş tarihi geçmiş olamaz');
+    }
 
     if (
       input.assignedToUserId &&
@@ -433,7 +566,6 @@ export class TasksService {
       data.reminderFrequency = input.reminderFrequency;
     if (input.assignedToUserId !== undefined) {
       data.assignedTo = { connect: { id: input.assignedToUserId } };
-      // Yeni atama yapıldıysa dispute durumu temizlenir.
       data.disputed = false;
       data.disputedAt = null;
     }
@@ -454,6 +586,7 @@ export class TasksService {
         include: {
           assignedBy: { select: { id: true, fullName: true } },
           watcher: { select: { id: true, fullName: true } },
+          assignedTo: { select: { id: true, fullName: true } },
         },
       });
 
@@ -532,16 +665,19 @@ export class TasksService {
       return next;
     });
 
-    try {
-      await this.scheduler.rescheduleTask({
-        id: updated.id,
-        dueDate: updated.dueDate,
-        reminderAt: updated.reminderAt,
-      });
-    } catch (err) {
-      this.logger.warn(
-        `Failed to reschedule task ${updated.id}: ${(err as Error).message}`,
-      );
+    // Reschedule reminders if dueDate or reminderAt changed
+    if (input.dueDate !== undefined || input.reminderAt !== undefined || input.reminderFrequency !== undefined) {
+      try {
+        await this.scheduler.rescheduleTask({
+          id: updated.id,
+          dueDate: updated.dueDate,
+          reminderAt: updated.reminderAt,
+        });
+      } catch (err) {
+        this.logger.warn(
+          `Failed to reschedule task ${updated.id}: ${(err as Error).message}`,
+        );
+      }
     }
 
     if (reassigned) {
@@ -575,12 +711,129 @@ export class TasksService {
       }
     }
 
-    return updated;
+    return {
+      ...updated,
+      durationHours: this.computeDurationHours(updated),
+      workloadWarning: null,
+    };
   }
 
-  // POST /tasks/:id/resolve-dispute — itiraz edilen bir görevi yeni bir
-  // üyeye atayarak çözer. Yetki: assignedBy (görev oluşturan), watcher
-  // (takipçi) veya aynı dernekteki Manager/Sekreter/SYSTEM_ADMIN.
+  async softDelete(
+    associationId: string,
+    taskId: string,
+    user: AuthenticatedUser,
+  ) {
+    const existing = await this.prisma.task.findFirst({
+      where: { id: taskId, associationId, deletedAt: null },
+      select: { id: true, title: true, status: true, assignedToUserId: true },
+    });
+    if (!existing) throw new NotFoundException('Görev bulunamadı');
+
+    this.assertCanManageTask(user, associationId);
+
+    const deleted = await this.prisma.task.update({
+      where: { id: taskId },
+      data: { deletedAt: new Date() },
+      include: {
+        assignedBy: { select: { id: true, fullName: true } },
+        watcher: { select: { id: true, fullName: true } },
+        assignedTo: { select: { id: true, fullName: true } },
+      },
+    });
+
+    await this.scheduler.cancelTask(taskId);
+
+    await this.prisma.taskActivity.create({
+      data: {
+        taskId,
+        actorId: user.id,
+        action: TaskActivityAction.STATUS_CHANGED,
+        payload: { to: 'DELETED', reason: 'soft_delete' },
+      },
+    });
+
+    return {
+      ...deleted,
+      durationHours: this.computeDurationHours(deleted),
+      workloadWarning: null,
+    };
+  }
+
+  async extractTasksFromMeeting(
+    associationId: string,
+    input: ExtractTasksFromMeetingInput,
+    user: AuthenticatedUser,
+  ) {
+    this.assertCanManageTask(user, associationId);
+
+    const meeting = await this.prisma.meetingNote.findFirst({
+      where: { id: input.meetingNoteId, associationId, deletedAt: null },
+      include: { attendees: { include: { user: { select: { id: true, fullName: true } } } } },
+    });
+    if (!meeting) throw new NotFoundException('Toplantı bulunamadı');
+
+    // Use AI to extract action items from meeting content
+    try {
+      const extracted = await this.aiService.extractTasksFromMeeting(meeting.content);
+
+      const createdTasks = [];
+      for (const item of extracted.tasks) {
+        // Try to match assignee by name
+        let assigneeUserId: string | null = null;
+        if (item.assigneeName) {
+          const matched = meeting.attendees.find(
+            (a) => a.user.fullName.toLowerCase().includes(item.assigneeName!.toLowerCase()),
+          );
+          if (matched) assigneeUserId = matched.user.id;
+        }
+
+        if (!assigneeUserId) {
+          // Default to meeting creator
+          assigneeUserId = meeting.createdById;
+        }
+
+        const task = await this.prisma.task.create({
+          data: {
+            associationId,
+            title: item.title,
+            description: item.description ?? null,
+            assignedToUserId: assigneeUserId,
+            assignedById: user.id,
+            priority: item.priority || 'MEDIUM',
+            dueDate: item.dueDate ? new Date(item.dueDate) : null,
+            sourceMeetingNoteId: meeting.id,
+          },
+          include: {
+            assignedBy: { select: { id: true, fullName: true } },
+            watcher: { select: { id: true, fullName: true } },
+            assignedTo: { select: { id: true, fullName: true } },
+          },
+        });
+
+        await this.prisma.taskActivity.create({
+          data: {
+            taskId: task.id,
+            actorId: user.id,
+            action: TaskActivityAction.EXTRACTED_FROM_MEETING,
+            payload: {
+              meetingNoteId: meeting.id,
+              meetingTitle: meeting.title,
+              originalText: item.originalText,
+            },
+          },
+        });
+
+        createdTasks.push(task);
+      }
+
+      return { extractedTasks: createdTasks, count: createdTasks.length };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`AI meeting extraction failed: ${message}`);
+      throw new InternalServerErrorException(`AI hatası: ${message}`);
+    }
+  }
+
   async resolveDispute(
     taskId: string,
     input: ResolveDisputeInput,
@@ -619,8 +872,6 @@ export class TasksService {
       { assignedToUserId: input.assignedToUserId },
       user,
     ).then(async (updated) => {
-      // REASSIGNMENT_RESOLVED activity'si update() sonrası ayrıca düşer ki
-      // timeline "REASSIGNED + dispute kapatıldı" hikâyesini ayrı görsün.
       await this.prisma.taskActivity.create({
         data: {
           taskId,
@@ -639,7 +890,7 @@ export class TasksService {
   async markCompletedViaBot(taskId: string, actingUserId: string) {
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, deletedAt: null },
-      select: { id: true, status: true, assignedToUserId: true },
+      select: { id: true, status: true, assignedToUserId: true, associationId: true, title: true, createdAt: true },
     });
     if (!task) throw new NotFoundException('Görev bulunamadı');
     if (task.assignedToUserId !== actingUserId) {
@@ -655,6 +906,7 @@ export class TasksService {
         include: {
           assignedBy: { select: { id: true, fullName: true } },
           watcher: { select: { id: true, fullName: true } },
+          assignedTo: { select: { id: true, fullName: true } },
         },
       });
     }
@@ -666,6 +918,7 @@ export class TasksService {
         include: {
           assignedBy: { select: { id: true, fullName: true } },
           watcher: { select: { id: true, fullName: true } },
+          assignedTo: { select: { id: true, fullName: true } },
         },
       });
 
@@ -683,13 +936,20 @@ export class TasksService {
 
     await this.scheduler.cancelTask(taskId);
 
+    this.notificationService.notifyTaskCompleted(
+      task.associationId,
+      task.id,
+      task.title,
+      updated.assignedTo?.fullName ?? 'Bilinmeyen',
+      task.createdAt,
+      updated.completedAt ?? new Date(),
+    ).catch((err) => {
+      this.logger.warn(`Bildirim gönderilemedi: ${(err as Error).message}`);
+    });
+
     return updated;
   }
 
-  // Sets the task's dueDate to an absolute new instant. Used by the
-  // Telegram snooze submenu and inline-calendar callbacks. Authorization
-  // mirrors extendDueDate (assignee only). The reminder schedule is
-  // re-anchored against the new due date.
   async snoozeDueDateViaBot(
     taskId: string,
     actingUserId: string,
@@ -764,11 +1024,6 @@ export class TasksService {
     return updated;
   }
 
-  // Records that the assignee acknowledged ownership of the task from
-  // the assignment DM ("Kabul ediyorum"). Idempotent — re-tapping the
-  // button does not insert a second activity row. Status of the task
-  // itself isn't mutated; PENDING stays PENDING and the reminder
-  // schedule continues unchanged.
   async acceptViaBot(taskId: string, actingUserId: string) {
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, deletedAt: null },
@@ -819,9 +1074,6 @@ export class TasksService {
         },
       });
 
-      // PENDING → IN_PROGRESS on first acceptance. Mirrors the standard
-      // STATUS_CHANGED audit row used elsewhere; reminder schedule is
-      // not touched (deadline still applies, work is now in progress).
       if (task.status === TaskStatus.PENDING) {
         await tx.task.update({
           where: { id: taskId },
@@ -852,10 +1104,6 @@ export class TasksService {
     });
   }
 
-  // Flags a task as disputed by the assignee ("Bana ait değil"). The
-  // assignee stays on the task; the manager resolves the dispute from
-  // the web (reassign or dismiss — handled in Faz D). Reminders are
-  // paused until resolution so we don't badger the wrong person.
   async disputeViaBot(taskId: string, actingUserId: string) {
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, deletedAt: null },
@@ -882,7 +1130,6 @@ export class TasksService {
     }
 
     if (task.disputed) {
-      // Idempotent: re-pressing "Bana ait değil" doesn't double-log.
       return this.prisma.task.findUniqueOrThrow({
         where: { id: taskId },
         include: {
@@ -916,8 +1163,6 @@ export class TasksService {
 
     await this.scheduler.cancelTask(taskId);
 
-    // Watcher (yoksa creator) Telegram üzerinden bilgilendirilir; web'e
-    // derin bağlantı gönderilir. Resolve UI orada açılır.
     void this.notifyDispute({
       taskId: task.id,
       taskTitle: task.title,
@@ -980,10 +1225,6 @@ export class TasksService {
     }
   }
 
-  // Returns the minimal context the bot integration needs to re-render
-  // the assignment keyboard when the user taps "Geri" out of the snooze
-  // submenu. Authorizes that the caller is still the assignee — anyone
-  // else interacting with someone else's DM gets a Forbidden.
   async getAssignmentBotContext(taskId: string, actingUserId: string) {
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, deletedAt: null },
@@ -1069,10 +1310,6 @@ export class TasksService {
     return updated;
   }
 
-  // Returns the activity timeline for a single task. Authorization
-  // mirrors `list`: SYSTEM_ADMIN sees everything, MANAGER/SECRETARY in
-  // the task's association sees everything, MEMBER only sees activities
-  // for tasks assigned to them.
   async listActivities(
     associationId: string,
     taskId: string,

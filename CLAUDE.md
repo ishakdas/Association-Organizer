@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+**Prerequisites**: Node 20 (`.nvmrc`), pnpm 10+, Docker. `docker compose up -d` starts Postgres on `:5433` and Redis on `:6380` (note the non-default host ports).
+
 ```bash
 # Dev (all apps in parallel)
 pnpm dev
@@ -20,20 +22,25 @@ pnpm test
 
 # Single app
 nx run api:test
-nx run web:test
+nx run web:test     # runs `jest --passWithNoTests` — no real web tests yet
 
 # Single spec file
 nx run api:test -- --testPathPattern=associations.service.spec
 
-# API e2e
+# API integration + e2e (require local DB up)
+pnpm --filter api test:integration
 pnpm --filter api test:e2e
 
 # Database
-pnpm db:generate    # prisma generate
-pnpm db:migrate     # prisma migrate dev
-pnpm db:seed        # seed data
-pnpm db:studio      # Prisma Studio UI
+pnpm db:generate        # prisma generate
+pnpm db:migrate         # prisma migrate dev
+pnpm db:migrate:deploy  # prisma migrate deploy (production)
+pnpm db:seed            # seed data
+pnpm db:studio          # Prisma Studio UI
+pnpm db:dev-reset       # drop + recreate dev DB (destructive — local only)
 ```
+
+`lint → typecheck → test` is **not** wired as a pipeline and there are no pre-commit hooks. Run all three manually before declaring done.
 
 ## Architecture
 
@@ -57,7 +64,16 @@ pnpm db:studio      # Prisma Studio UI
 - `associations` — association CRUD, membership management, member-title assignment
 - `tasks` — per-association task board
 - `meetings` — meeting notes with attendees
-- `titles` — system-admin-managed `MemberTitleDefinition` catalog
+- `events` — association events; includes `event-pdf.service.ts` for PDF export
+- `event-roles` — per-event role assignments
+- `finance` — dues collection (toplu aidat tahsilatı), per-association finance ledger
+- `titles` — system-admin-managed `MemberTitleDefinition` catalog (members may hold multiple titles)
+- `permissions` — permission catalog and grant management
+- `admin` — system-admin-only operations
+- `email` — outbound email (Supabase / SMTP wrappers)
+- `ai-helper` — wrapper around `@ticketbot/ai` for prompt-driven helpers
+- `islamic-calendar` — Hijri date utilities used by event/meeting surfaces
+- `health` — liveness/readiness probes
 - `supabase` — admin Supabase client (service-role) used for provisioning
 - `jobs` — BullMQ queues (stubbed)
 
@@ -167,7 +183,9 @@ For system-scoped endpoints (no association context) use `associations` create/l
 
 **Route groups** (under `apps/web/src/app/`):
 - `(auth)/` — login, OAuth callback
-- `(protected)/` — all authenticated pages; the layout double-checks auth server-side and loads the `AuthenticatedUser` shape that mirrors the API's `/auth/me`
+- `(onboarding)/` — post-signup onboarding flow
+- `(protected)/` — all authenticated pages (`dashboard`, `associations`, `tasks`, `events`, `admin`, `settings`, plus shared `_components`). The layout double-checks auth server-side and loads the `AuthenticatedUser` shape that mirrors the API's `/auth/me`.
+- `connect-telegram/` — standalone deep-link landing page (outside the route groups) used by the bot's `/link` handoff.
 
 **Role-based UI** is centralized in **`apps/web/src/lib/permissions.ts`** — do not reimplement role checks inline. Use:
 - `isSystemAdmin(user)`
@@ -213,6 +231,12 @@ Required by the web (`apps/web/.env.local`): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_P
 
 ## Infrastructure
 
-- **Deploy**: API + Redis → Railway; Web → Vercel; DB → Supabase (PostgreSQL)
+- **Deploy**: API + Redis → Railway (`railway.json`, `Dockerfile`); **Web → Netlify** (`netlify.toml`, runs `pnpm --filter web build` from repo root via `@netlify/plugin-nextjs`); DB → Supabase (PostgreSQL). The legacy README still mentions Vercel — Netlify is the source of truth.
 - **BullMQ**: `JobsModule` is stubbed; will drive task reminders and meeting-to-task extraction.
-- **Docker Compose**: Provides local Postgres + Redis for development.
+- **Docker Compose**: Provides local Postgres (`:5433`) + Redis (`:6380`) for development; credentials `ticketbot/ticketbot/ticketbot`.
+
+## Companion docs
+
+- `AGENTS.md` (repo root) — a tighter, more current cheat sheet of the same architecture facts; cross-check it when this file feels stale.
+- `docs/` — long-form references (`ARCHITECTURE.md`, `DATABASE.md`, `API-REFERENCE.md`, `DEPLOYMENT.md`, `TESTING.md`, `ADR-001-foundations.md`, `ROADMAP.md`, plus `01-…`–`10-…` topic guides). Read these before large refactors; treat them as historical context, not contracts.
+- `scripts/cleanup-test-users.mjs`, `scripts/reset-test-users.js` — utility scripts for wiping/restoring seed users when local auth state gets wedged.
