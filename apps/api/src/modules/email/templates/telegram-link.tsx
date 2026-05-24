@@ -41,7 +41,13 @@ export function TelegramLinkTemplate({
           basın ve ardından telefon numaranızı paylaşın.
         </Text>
 
-        <CtaButton href={tgDirectUrl}>Telegram'da Bağlantıyı Başlat</CtaButton>
+        {/*
+          Use the https://t.me/... URL, not tgDirectUrl (tg://). Gmail and
+          most webmail clients strip <a href> when the scheme isn't
+          http/https/mailto/tel → the button renders as plain text. The
+          t.me page handles the Telegram-not-installed case itself.
+        */}
+        <CtaButton href={deepLinkUrl}>Telegram'da Bağlantıyı Başlat</CtaButton>
 
         <Text style={{ fontSize: 14, color: '#555555', margin: '16px 0 8px' }}>
           <strong>Buton çalışmazsa</strong> Telegram'ı açıp{' '}
