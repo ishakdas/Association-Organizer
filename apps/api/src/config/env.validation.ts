@@ -23,7 +23,7 @@ export const envSchema = z.object({
   AI_MODEL: z.string().min(1).optional(),
   AI_TEMPERATURE: z.string().min(1).optional(),
   AI_MAX_TOKENS: z.string().min(1).optional(),
-  BOT_TOKEN: z.string().min(1),
+  TELEGRAM_BOT_TOKEN: z.string().min(1),
   TELEGRAM_BOT_USERNAME: z.string().min(1).default('yedi_hilal_organizator_bot'),
   API_URL: z.string().url().default('http://localhost:3000'),
   WEB_URL: z.string().url().default('http://localhost:3001'),

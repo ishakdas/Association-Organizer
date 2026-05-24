@@ -222,7 +222,7 @@ Creating a user with a Supabase identity is a two-step saga (Supabase auth user 
 
 ## Environment Variables
 
-Required by the API (`apps/api/.env`): `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `JWT_SECRET`, `BOT_TOKEN`, `API_URL`, `WEB_URL`. Optional but recommended in production: `DIRECT_URL` (non-pooled Postgres URL — used by Prisma `migrate deploy` and by pg-boss for LISTEN/NOTIFY + advisory locks; falls back to `DATABASE_URL`). Validated by Zod on boot (`config/env.validation.ts`) — invalid env exits the process.
+Required by the API (`apps/api/.env`): `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `JWT_SECRET`, `TELEGRAM_BOT_TOKEN`, `API_URL`, `WEB_URL`. Optional but recommended in production: `DIRECT_URL` (non-pooled Postgres URL — used by Prisma `migrate deploy` and by pg-boss for LISTEN/NOTIFY + advisory locks; falls back to `DATABASE_URL`). Validated by Zod on boot (`config/env.validation.ts`) — invalid env exits the process.
 
 Required by the web (`apps/web/.env.local`): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_URL`.
 
