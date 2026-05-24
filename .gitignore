@@ -22,6 +22,9 @@ out/
 *.swo
 *~
 
+# Tool caches
+.codegraph/
+
 # OS
 .DS_Store
 Thumbs.db
