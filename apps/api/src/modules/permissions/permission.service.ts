@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService, PermissionAction, UserRole } from '@ticketbot/database';
+import { PrismaService, PermissionAction, Prisma, UserRole } from '@ticketbot/database';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
 
 export interface UserPermissionSummary {
@@ -15,9 +15,69 @@ export interface UserPermissionSummary {
   permissions: PermissionAction[];
 }
 
+// Title slug → auto-granted permission. Slugs are produced by slugifyTr
+// during seed and stored on MemberTitleDefinition.slug.
+const TITLE_DERIVED_PERMISSIONS: Record<string, PermissionAction> = {
+  'teskilat-baskani': PermissionAction.USE_MEETING_COMMANDS,
+  'mali-isler-sorumlusu': PermissionAction.USE_FINANCE_COMMANDS,
+};
+
+type PrismaLike = PrismaService | Prisma.TransactionClient;
+
 @Injectable()
 export class PermissionService {
   constructor(private readonly prisma: PrismaService) {}
+
+  // Granted to every new active membership so /gorevlerim is callable
+  // without an explicit manager grant.
+  async applyMembershipDefaults(
+    associationId: string,
+    userId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client: PrismaLike = tx ?? this.prisma;
+    await client.permission.createMany({
+      data: [
+        { associationId, userId, action: PermissionAction.USE_TASK_COMMANDS },
+      ],
+      skipDuplicates: true,
+    });
+  }
+
+  // Inserts permissions implied by the member's titles (e.g. Mali İşler
+  // Sorumlusu → USE_FINANCE_COMMANDS). Idempotent — never revokes; the
+  // manager can manually revoke from the permissions UI.
+  async applyTitleDerivedPermissions(
+    associationId: string,
+    userId: string,
+    titleIds: (string | null | undefined)[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const ids = titleIds.filter((id): id is string => !!id);
+    if (ids.length === 0) return;
+
+    const client: PrismaLike = tx ?? this.prisma;
+    const titles = await client.memberTitleDefinition.findMany({
+      where: { id: { in: ids } },
+      select: { slug: true },
+    });
+
+    const actions = new Set<PermissionAction>();
+    for (const t of titles) {
+      const action = TITLE_DERIVED_PERMISSIONS[t.slug];
+      if (action) actions.add(action);
+    }
+    if (actions.size === 0) return;
+
+    await client.permission.createMany({
+      data: Array.from(actions).map((action) => ({
+        associationId,
+        userId,
+        action,
+      })),
+      skipDuplicates: true,
+    });
+  }
 
   async hasPermission(
     userId: string,

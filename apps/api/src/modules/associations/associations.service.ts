@@ -12,6 +12,7 @@ import {
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { AssociationsRepository } from './associations.repository';
 import { UsersService } from '../users/users.service';
+import { PermissionService } from '../permissions/permission.service';
 
 export interface DeleteResult {
   associationId: string;
@@ -27,6 +28,7 @@ export class AssociationsService {
     private readonly repository: AssociationsRepository,
     private readonly prisma: PrismaService,
     private readonly users: UsersService,
+    private readonly permissions: PermissionService,
   ) {}
 
   /**
@@ -70,6 +72,12 @@ export class AssociationsService {
             isActive: true,
           },
         });
+
+        await this.permissions.applyMembershipDefaults(
+          association.id,
+          managerUser.id,
+          tx,
+        );
 
         return association;
       });

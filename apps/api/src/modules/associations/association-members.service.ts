@@ -20,6 +20,7 @@ import {
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
+import { PermissionService } from '../permissions/permission.service';
 
 export const MEMBER_INCLUDE = {
   user: {
@@ -51,6 +52,7 @@ export class AssociationMembersService {
     private readonly prisma: PrismaService,
     private readonly users: UsersService,
     private readonly auth: AuthService,
+    private readonly permissions: PermissionService,
   ) {}
 
   async create(associationId: string, input: AddMemberInput) {
@@ -71,7 +73,7 @@ export class AssociationMembersService {
         }
 
         try {
-          return await this.prisma.associationMembership.create({
+          const membership = await this.prisma.associationMembership.create({
             data: {
               associationId,
               userId: existing.id,
@@ -83,6 +85,12 @@ export class AssociationMembersService {
             },
             include: MEMBER_INCLUDE,
           });
+          await this.applyMemberPermissions(
+            associationId,
+            existing.id,
+            input.titleAssignments,
+          );
+          return membership;
         } catch (e) {
           if (
             e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -117,7 +125,7 @@ export class AssociationMembersService {
             address: input.address,
           });
 
-      return await this.prisma.associationMembership.create({
+      const membership = await this.prisma.associationMembership.create({
         data: {
           associationId,
           userId: createdUser.id,
@@ -129,6 +137,12 @@ export class AssociationMembersService {
         },
         include: MEMBER_INCLUDE,
       });
+      await this.applyMemberPermissions(
+        associationId,
+        createdUser.id,
+        input.titleAssignments,
+      );
+      return membership;
     } catch (e) {
       if (createdUser) {
         try {
@@ -217,7 +231,7 @@ export class AssociationMembersService {
     if (input.address !== undefined) userData.address = input.address;
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         if (Object.keys(userData).length > 0) {
           await tx.user.update({
             where: { id: existing.userId },
@@ -230,6 +244,16 @@ export class AssociationMembersService {
           include: MEMBER_INCLUDE,
         });
       });
+
+      if (input.titleAssignments !== undefined) {
+        await this.permissions.applyTitleDerivedPermissions(
+          associationId,
+          existing.userId,
+          input.titleAssignments.map((a) => a.titleId ?? null),
+        );
+      }
+
+      return result;
     } catch (e) {
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
@@ -299,6 +323,21 @@ export class AssociationMembersService {
     }
 
     return this.auth.generateLinkTokenWithEmail(membership.userId, targetEmail);
+  }
+
+  private async applyMemberPermissions(
+    associationId: string,
+    userId: string,
+    titleAssignments?: { titleId?: string | null }[],
+  ): Promise<void> {
+    await this.permissions.applyMembershipDefaults(associationId, userId);
+    if (titleAssignments && titleAssignments.length > 0) {
+      await this.permissions.applyTitleDerivedPermissions(
+        associationId,
+        userId,
+        titleAssignments.map((a) => a.titleId ?? null),
+      );
+    }
   }
 
   private normalizeTitleAssignments(

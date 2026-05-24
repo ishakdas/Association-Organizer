@@ -66,23 +66,38 @@ export function registerTaskListCommand(bot: Telegraf, prisma: PrismaService) {
     }
 
     const eligible: typeof memberships = [];
+    const canViewAllByAssoc = new Map<string, boolean>();
 
     for (const m of memberships) {
       if (isManagerOrSecretary(m.role)) {
         eligible.push(m);
+        canViewAllByAssoc.set(m.associationId, true);
         continue;
       }
 
-      const permission = await prisma.permission.findFirst({
+      const grants = await prisma.permission.findMany({
         where: {
           associationId: m.associationId,
           userId: account.userId,
-          action: PermissionAction.USE_TASK_COMMANDS,
+          action: {
+            in: [
+              PermissionAction.USE_TASK_COMMANDS,
+              PermissionAction.VIEW_ALL_MEMBER_TASKS,
+            ],
+          },
         },
+        select: { action: true },
       });
 
-      if (permission) {
+      if (grants.length > 0) {
         eligible.push(m);
+      }
+      if (
+        grants.some(
+          (g) => g.action === PermissionAction.VIEW_ALL_MEMBER_TASKS,
+        )
+      ) {
+        canViewAllByAssoc.set(m.associationId, true);
       }
     }
 
@@ -92,8 +107,11 @@ export function registerTaskListCommand(bot: Telegraf, prisma: PrismaService) {
 
     const assoc = eligible[0].association;
     const membership = eligible[0];
+    const canViewAll =
+      isManagerOrSecretary(membership.role) ||
+      canViewAllByAssoc.get(assoc.id) === true;
 
-    if (isManagerOrSecretary(membership.role)) {
+    if (canViewAll) {
       taskSessions.set(fromId, {
         userId: account.userId,
         step: 'member',

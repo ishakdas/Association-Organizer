@@ -1,6 +1,10 @@
 import { apiClient } from './client';
 
-export type PermissionAction = 'USE_MEETING_COMMANDS' | 'USE_FINANCE_COMMANDS' | 'USE_TASK_COMMANDS';
+export type PermissionAction =
+  | 'USE_MEETING_COMMANDS'
+  | 'USE_FINANCE_COMMANDS'
+  | 'USE_TASK_COMMANDS'
+  | 'VIEW_ALL_MEMBER_TASKS';
 
 export interface UserPermissionSummary {
   userId: string;

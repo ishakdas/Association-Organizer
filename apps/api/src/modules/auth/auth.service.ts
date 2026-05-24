@@ -16,6 +16,7 @@ import { randomBytes } from 'crypto';
 import { BOT_JWT_ISSUER } from './auth.constants';
 import { SupabaseAdminService } from '../supabase/supabase-admin.service';
 import { EmailService } from '../email/email.service';
+import { PermissionService } from '../permissions/permission.service';
 
 export interface InviteResult {
   emailSent: boolean;
@@ -32,6 +33,7 @@ export class AuthService {
     private readonly config: ConfigService,
     private readonly supabase: SupabaseAdminService,
     private readonly emailService: EmailService,
+    private readonly permissions: PermissionService,
   ) {}
 
   async generateLinkToken(userId: string) {
@@ -459,6 +461,12 @@ export class AuthService {
             isActive: true,
           },
         });
+
+        await this.permissions.applyMembershipDefaults(
+          newAssociation.id,
+          user.id,
+          tx,
+        );
       });
     } catch (err) {
       try {

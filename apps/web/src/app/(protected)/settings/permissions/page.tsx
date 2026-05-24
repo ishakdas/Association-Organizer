@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ChevronRight, Shield, Check, X, Loader2, MessageSquare, Wallet, ClipboardList } from 'lucide-react';
+import { ChevronRight, Shield, Check, X, Loader2, MessageSquare, Wallet, ClipboardList, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,7 @@ const PERMISSIONS: { action: PermissionAction; label: string; icon: typeof Messa
   { action: 'USE_MEETING_COMMANDS', label: 'Toplantı Komutları', icon: MessageSquare, description: '/toplanti komutunu kullanabilir' },
   { action: 'USE_FINANCE_COMMANDS', label: 'Finans Komutları', icon: Wallet, description: '/finans, /gider, /bagis, /aidat, /kasa komutlarını kullanabilir' },
   { action: 'USE_TASK_COMMANDS', label: 'Görev Komutları', icon: ClipboardList, description: '/gorevlerim komutunu kullanabilir' },
+  { action: 'VIEW_ALL_MEMBER_TASKS', label: 'Tüm Üye Görevleri', icon: Users, description: '/gorevlerim ile tüm üyelerin görevlerini listeleyebilir' },
 ];
 
 const AVATAR_COLORS = ['bg-blue-500', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-cyan-500', 'bg-fuchsia-500', 'bg-indigo-500'];
