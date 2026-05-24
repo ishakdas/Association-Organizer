@@ -8,6 +8,7 @@ import { AiService } from '@ticketbot/ai';
 import { TasksService } from './tasks.service';
 import { TaskReminderScheduler } from '../jobs/task-reminder.scheduler';
 import { IcsTokenService } from './ics-token.service';
+import { TaskNotificationService } from './task-notification.service';
 
 type PrismaMock = DeepMockProxy<PrismaClient>;
 
@@ -109,6 +110,11 @@ describe('TasksService', () => {
       prioritizeTasks: jest.fn().mockResolvedValue({ prioritizedTasks: [] }),
     };
 
+    const notificationMock = {
+      notifyTaskCompleted: jest.fn().mockResolvedValue(undefined),
+      notifyTaskCancelled: jest.fn().mockResolvedValue(undefined),
+    };
+
     const moduleRef = await Test.createTestingModule({
       providers: [
         TasksService,
@@ -118,6 +124,7 @@ describe('TasksService', () => {
         { provide: IcsTokenService, useValue: icsTokensMock },
         { provide: AiService, useValue: aiServiceMock },
         { provide: ConfigService, useValue: configMock },
+        { provide: TaskNotificationService, useValue: notificationMock },
       ],
     }).compile();
     service = moduleRef.get(TasksService);
