@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-**Prerequisites**: Node 20 (`.nvmrc`), pnpm 10+, Docker. `docker compose up -d` starts Postgres on `:5433` and Redis on `:6380` (note the non-default host ports).
+**Prerequisites**: Node 20 (`.nvmrc`), pnpm 10+, Docker. `docker compose up -d` starts Postgres on `:5433` (note the non-default host port). Background jobs use pg-boss against the same Postgres — no Redis required.
 
 ```bash
 # Dev (all apps in parallel)
@@ -75,7 +75,7 @@ pnpm db:dev-reset       # drop + recreate dev DB (destructive — local only)
 - `islamic-calendar` — Hijri date utilities used by event/meeting surfaces
 - `health` — liveness/readiness probes
 - `supabase` — admin Supabase client (service-role) used for provisioning
-- `jobs` — BullMQ queues (stubbed)
+- `jobs` — pg-boss queues (`PgBossService`) for `task-reminders` and `event-reminders`; plus a daily `CronJob` for stale-user cleanup. Job IDs are persisted on `Task.dueJobId`/`reminderJobId` and `Event.notifyJobId` so updates can cancel/reschedule cleanly.
 
 ## Domain model
 
@@ -211,19 +211,18 @@ Creating a user with a Supabase identity is a two-step saga (Supabase auth user 
 
 ### Stubbed-but-present fields (do NOT test or wire yet)
 
-- `Task.notifiedViaTelegram / notifiedViaWhatsapp / notifiedViaEmail / lastNotifiedAt / reminderAt / reminderFrequency` — reserved for the upcoming **notification system**. Columns exist and `taskResponseSchema` reads them, but no writer/scheduler exists. Don't add tests around notification side-effects.
+- `Task.notifiedViaWhatsapp / notifiedViaEmail` — reserved for future WhatsApp/email notification channels. Telegram (`notifiedViaTelegram`, `lastNotifiedAt`, `reminderAt`, `reminderFrequency`) is fully wired via pg-boss.
 - `MeetingNote.derivedTasks` (Task[] back-relation via `Task.sourceMeetingNoteId`) — reserved for **meeting-to-task extraction** (spawn action items from a meeting note). Not implemented.
 
 ## Known pending / intentionally deferred
 
-- **Task notification scheduler** — BullMQ reminder jobs driving the `notified*` / `lastNotifiedAt` columns on `Task`. `JobsModule` is currently stubbed.
 - **Meeting-to-task extraction** — turning a `MeetingNote` into a set of `Task` rows via `sourceMeetingNoteId`. AI plumbing (`@ticketbot/ai`) exists; the extraction flow does not.
 - **apps/web test harness** — no Jest/Vitest/RTL config, no `pnpm --filter web test` target. Component tests are not yet measured.
 - **Playwright E2E** — not installed. Critical-flow browser tests (login → create association → add member → assign task) are not in place.
 
 ## Environment Variables
 
-Required by the API (`apps/api/.env`): `DATABASE_URL`, `REDIS_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `JWT_SECRET`, `BOT_TOKEN`, `API_URL`, `WEB_URL`. Validated by Zod on boot (`config/env.validation.ts`) — invalid env exits the process.
+Required by the API (`apps/api/.env`): `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_JWT_SECRET`, `JWT_SECRET`, `BOT_TOKEN`, `API_URL`, `WEB_URL`. Optional but recommended in production: `DIRECT_URL` (non-pooled Postgres URL — used by Prisma `migrate deploy` and by pg-boss for LISTEN/NOTIFY + advisory locks; falls back to `DATABASE_URL`). Validated by Zod on boot (`config/env.validation.ts`) — invalid env exits the process.
 
 Required by the web (`apps/web/.env.local`): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_API_URL`.
 
@@ -231,9 +230,9 @@ Required by the web (`apps/web/.env.local`): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_P
 
 ## Infrastructure
 
-- **Deploy**: API + Redis → Railway (`railway.json`, `Dockerfile`); **Web → Netlify** (`netlify.toml`, runs `pnpm --filter web build` from repo root via `@netlify/plugin-nextjs`); DB → Supabase (PostgreSQL). The legacy README still mentions Vercel — Netlify is the source of truth.
-- **BullMQ**: `JobsModule` is stubbed; will drive task reminders and meeting-to-task extraction.
-- **Docker Compose**: Provides local Postgres (`:5433`) + Redis (`:6380`) for development; credentials `ticketbot/ticketbot/ticketbot`.
+- **Deploy**: API → Railway (`railway.json`, `Dockerfile`); **Web → Netlify** (`netlify.toml`, runs `pnpm --filter web build` from repo root via `@netlify/plugin-nextjs`); DB → Supabase (PostgreSQL). The legacy README still mentions Vercel — Netlify is the source of truth.
+- **Background jobs**: pg-boss runs inside the API process against the same Supabase Postgres (schema `pgboss`). No Redis or external queue service required. See `apps/api/src/modules/jobs/pgboss.service.ts` for lifecycle.
+- **Docker Compose**: Provides local Postgres (`:5433`) for development; credentials `ticketbot/ticketbot/ticketbot`.
 
 ## Companion docs
 

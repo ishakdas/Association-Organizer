@@ -1,7 +1,6 @@
-import { Logger } from '@nestjs/common';
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { addDays, addMonths, addWeeks } from 'date-fns';
+import type { Job } from 'pg-boss';
 import {
   PrismaService,
   ReminderFrequency,
@@ -15,21 +14,29 @@ import {
   reminderActionsKeyboard,
 } from 'bot';
 import { TASK_REMINDERS_QUEUE } from '../jobs.constants';
+import { PgBossService } from '../pgboss.service';
 import {
   TaskReminderJobData,
   TaskReminderScheduler,
 } from '../task-reminder.scheduler';
 
-@Processor(TASK_REMINDERS_QUEUE)
-export class TaskReminderProcessor extends WorkerHost {
+@Injectable()
+export class TaskReminderProcessor implements OnModuleInit {
   private readonly logger = new Logger(TaskReminderProcessor.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly bot: BotService,
     private readonly scheduler: TaskReminderScheduler,
-  ) {
-    super();
+    private readonly boss: PgBossService,
+  ) {}
+
+  async onModuleInit(): Promise<void> {
+    await this.boss.work<TaskReminderJobData>(
+      TASK_REMINDERS_QUEUE,
+      (job) => this.process(job),
+    );
+    this.logger.log(`Registered pg-boss worker on ${TASK_REMINDERS_QUEUE}`);
   }
 
   async process(job: Job<TaskReminderJobData>): Promise<void> {

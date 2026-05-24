@@ -1,8 +1,7 @@
 import { Module } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { BullModule } from '@nestjs/bullmq';
 import { BotModule } from 'bot';
 import { EVENT_REMINDERS_QUEUE, TASK_REMINDERS_QUEUE } from './jobs.constants';
+import { PgBossService } from './pgboss.service';
 import { TaskReminderScheduler } from './task-reminder.scheduler';
 import { TaskReminderProcessor } from './processors/task-reminder.processor';
 import { EventReminderScheduler } from './event-reminder.scheduler';
@@ -12,38 +11,15 @@ import { PendingUserCleanupService } from './pending-user-cleanup.service';
 export { TASK_REMINDERS_QUEUE, EVENT_REMINDERS_QUEUE };
 
 @Module({
-  imports: [
-    BullModule.forRootAsync({
-      inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const url = new URL(config.get<string>('redis.url')!);
-        const isTls = url.protocol === 'rediss:';
-        return {
-          connection: {
-            host: url.hostname,
-            port: Number(url.port || 6379),
-            username: url.username || undefined,
-            password: url.password
-              ? decodeURIComponent(url.password)
-              : undefined,
-            maxRetriesPerRequest: null,
-            enableReadyCheck: false,
-            ...(isTls ? { tls: { servername: url.hostname } } : {}),
-          },
-        };
-      },
-    }),
-    BullModule.registerQueue({ name: TASK_REMINDERS_QUEUE }),
-    BullModule.registerQueue({ name: EVENT_REMINDERS_QUEUE }),
-    BotModule,
-  ],
+  imports: [BotModule],
   providers: [
+    PgBossService,
     TaskReminderScheduler,
     TaskReminderProcessor,
     EventReminderScheduler,
     EventReminderProcessor,
     PendingUserCleanupService,
   ],
-  exports: [TaskReminderScheduler, EventReminderScheduler, BullModule],
+  exports: [TaskReminderScheduler, EventReminderScheduler],
 })
 export class JobsModule {}

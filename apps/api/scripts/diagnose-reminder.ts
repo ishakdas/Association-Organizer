@@ -2,12 +2,10 @@ import 'dotenv/config';
 import path from 'node:path';
 import { config as loadEnv } from 'dotenv';
 import { PrismaClient } from '@prisma/client';
-import { Queue } from 'bullmq';
 
 loadEnv({ path: path.resolve(__dirname, '..', '.env') });
 
 const TARGET_EMAIL = process.argv[2] ?? 'ishak@aa.aa';
-const QUEUE_NAME = 'task-reminders';
 
 async function main() {
   const prisma = new PrismaClient();
@@ -81,6 +79,8 @@ async function main() {
       reminderFrequency: true,
       lastNotifiedAt: true,
       notifiedViaTelegram: true,
+      dueJobId: true,
+      reminderJobId: true,
       createdAt: true,
     },
   });
@@ -102,57 +102,68 @@ async function main() {
       `  [${role}] id=${t.id} title="${t.title}" status=${t.status}\n` +
         `         reminderAt=${t.reminderAt?.toISOString() ?? '-'} (${reminderState})\n` +
         `         dueDate   =${t.dueDate?.toISOString() ?? '-'} (${dueState})\n` +
-        `         freq=${t.reminderFrequency} lastNotifiedAt=${t.lastNotifiedAt?.toISOString() ?? '-'} notifiedTg=${t.notifiedViaTelegram}`,
+        `         freq=${t.reminderFrequency} lastNotifiedAt=${t.lastNotifiedAt?.toISOString() ?? '-'} notifiedTg=${t.notifiedViaTelegram}\n` +
+        `         pgboss: dueJobId=${t.dueJobId ?? '-'} reminderJobId=${t.reminderJobId ?? '-'}`,
     );
   }
 
-  const redisUrl = new URL(process.env.REDIS_URL ?? 'redis://localhost:6379');
-  const host =
-    redisUrl.hostname === 'localhost' ? '127.0.0.1' : redisUrl.hostname;
-  const queue = new Queue(QUEUE_NAME, {
-    connection: {
-      host,
-      port: Number(redisUrl.port || 6379),
-      username: redisUrl.username || undefined,
-      password: redisUrl.password || undefined,
-      family: 4,
-    },
-  });
-
-  const counts = await queue.getJobCounts(
-    'waiting',
-    'delayed',
-    'active',
-    'completed',
-    'failed',
+  // pg-boss bookkeeping: query the `pgboss.job` table directly to see what
+  // is queued. Replaces the old BullMQ `getJobCounts` / `getDelayed` /
+  // `getWaiting` / `getFailed` calls.
+  const counts = await prisma.$queryRawUnsafe<
+    { state: string; queue_name: string; n: bigint }[]
+  >(
+    `SELECT state, name AS queue_name, count(*)::bigint AS n
+     FROM pgboss.job
+     WHERE name IN ('task-reminders', 'event-reminders')
+     GROUP BY state, name
+     ORDER BY name, state`,
   );
-  console.log(`\n[info] BullMQ queue "${QUEUE_NAME}" counts:`, counts);
+  console.log(`\n[info] pg-boss job counts by state:`);
+  for (const row of counts) {
+    console.log(`  ${row.queue_name} / ${row.state}: ${row.n.toString()}`);
+  }
 
-  const delayed = await queue.getDelayed();
-  const waiting = await queue.getWaiting();
-  const failed = await queue.getFailed();
-
-  console.log(`\n[info] Delayed jobs (${delayed.length}):`);
-  for (const j of delayed.slice(0, 20)) {
-    const fireAt = new Date((j.opts.delay ?? 0) + (j.timestamp ?? 0));
+  const upcoming = await prisma.$queryRawUnsafe<
+    {
+      id: string;
+      name: string;
+      state: string;
+      data: unknown;
+      startafter: Date;
+    }[]
+  >(
+    `SELECT id, name, state, data, startafter
+     FROM pgboss.job
+     WHERE name = 'task-reminders'
+       AND state IN ('created', 'retry')
+     ORDER BY startafter ASC
+     LIMIT 20`,
+  );
+  console.log(`\n[info] Upcoming task-reminders jobs (${upcoming.length}):`);
+  for (const j of upcoming) {
     console.log(
-      `  jobId=${j.id} name=${j.name} data=${JSON.stringify(j.data)} fireAt=${fireAt.toISOString()}`,
+      `  id=${j.id} state=${j.state} startAfter=${j.startafter.toISOString()} data=${JSON.stringify(j.data)}`,
     );
   }
 
-  console.log(`\n[info] Waiting jobs (${waiting.length}):`);
-  for (const j of waiting.slice(0, 20)) {
-    console.log(`  jobId=${j.id} name=${j.name} data=${JSON.stringify(j.data)}`);
-  }
-
-  console.log(`\n[info] Failed jobs (${failed.length}):`);
-  for (const j of failed.slice(0, 20)) {
+  const failed = await prisma.$queryRawUnsafe<
+    { id: string; name: string; data: unknown; output: unknown }[]
+  >(
+    `SELECT id, name, data, output
+     FROM pgboss.job
+     WHERE name = 'task-reminders'
+       AND state = 'failed'
+     ORDER BY completedon DESC NULLS LAST
+     LIMIT 20`,
+  );
+  console.log(`\n[info] Failed task-reminders jobs (${failed.length}):`);
+  for (const j of failed) {
     console.log(
-      `  jobId=${j.id} name=${j.name} reason=${j.failedReason ?? '-'} data=${JSON.stringify(j.data)}`,
+      `  id=${j.id} data=${JSON.stringify(j.data)} output=${JSON.stringify(j.output)}`,
     );
   }
 
-  await queue.close();
   await prisma.$disconnect();
   process.exit(0);
 }

@@ -1,10 +1,10 @@
-import { Logger } from '@nestjs/common';
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { addDays, addWeeks, addMonths } from 'date-fns';
+import type { Job } from 'pg-boss';
 import { PrismaService, RecurrenceType } from '@ticketbot/database';
 import { BotService } from 'bot';
 import { EVENT_REMINDERS_QUEUE } from '../jobs.constants';
+import { PgBossService } from '../pgboss.service';
 import {
   EventReminderJobData,
   EventReminderScheduler,
@@ -30,16 +30,23 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   CUSTOM: 'Etkinlik',
 };
 
-@Processor(EVENT_REMINDERS_QUEUE)
-export class EventReminderProcessor extends WorkerHost {
+@Injectable()
+export class EventReminderProcessor implements OnModuleInit {
   private readonly logger = new Logger(EventReminderProcessor.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly bot: BotService,
     private readonly scheduler: EventReminderScheduler,
-  ) {
-    super();
+    private readonly boss: PgBossService,
+  ) {}
+
+  async onModuleInit(): Promise<void> {
+    await this.boss.work<EventReminderJobData>(
+      EVENT_REMINDERS_QUEUE,
+      (job) => this.process(job),
+    );
+    this.logger.log(`Registered pg-boss worker on ${EVENT_REMINDERS_QUEUE}`);
   }
 
   async process(job: Job<EventReminderJobData>): Promise<void> {

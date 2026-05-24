@@ -4,7 +4,10 @@ export const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   PORT: z.coerce.number().default(3000),
   DATABASE_URL: z.string().url(),
-  REDIS_URL: z.string().default('redis://localhost:6379'),
+  // Direct (non-pooled) Postgres URL — required by Prisma migrate and
+  // pg-boss (advisory locks + LISTEN/NOTIFY don't survive PgBouncer txn
+  // mode). Falls back to DATABASE_URL for local dev where there's only one.
+  DIRECT_URL: z.string().url().optional(),
   SUPABASE_URL: z.string().url(),
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),

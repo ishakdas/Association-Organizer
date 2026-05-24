@@ -2,7 +2,7 @@ import 'dotenv/config';
 import path from 'node:path';
 import { config as loadEnv } from 'dotenv';
 import { PrismaClient } from '@prisma/client';
-import { Queue } from 'bullmq';
+import PgBoss from 'pg-boss';
 
 loadEnv({ path: path.resolve(__dirname, '..', '.env') });
 
@@ -91,35 +91,39 @@ async function main() {
     `[ok] Task created: id=${task.id} reminderAt=${task.reminderAt!.toISOString()} dueDate=${task.dueDate!.toISOString()}`,
   );
 
-  const redisUrl = new URL(process.env.REDIS_URL ?? 'redis://localhost:6379');
-  const host =
-    redisUrl.hostname === 'localhost' ? '127.0.0.1' : redisUrl.hostname;
-  const queue = new Queue(QUEUE_NAME, {
-    connection: {
-      host,
-      port: Number(redisUrl.port || 6379),
-      username: redisUrl.username || undefined,
-      password: redisUrl.password || undefined,
-      family: 4,
-    },
-  });
+  const connectionString =
+    process.env.DIRECT_URL ??
+    process.env.DATABASE_URL ??
+    'postgresql://ticketbot:ticketbot@localhost:5433/ticketbot';
+  const boss = new PgBoss({ connectionString, schema: 'pgboss' });
+  await boss.start();
+  await boss.createQueue(QUEUE_NAME);
 
-  const reminderDelay = reminderAt.getTime() - Date.now();
-  await queue.add(
-    'REMINDER',
+  const jobId = await boss.send(
+    QUEUE_NAME,
     { type: 'REMINDER', taskId: task.id },
     {
-      jobId: `reminder-${task.id}`,
-      delay: reminderDelay,
-      removeOnComplete: { age: 3600, count: 1000 },
-      removeOnFail: { age: 24 * 3600 },
+      startAfter: reminderAt,
+      retryLimit: 3,
+      retryDelay: 60,
+      retentionMinutes: 60,
+      expireInMinutes: 15,
     },
   );
-  console.log(
-    `[ok] BullMQ REMINDER queued: jobId=reminder-${task.id} delay=${reminderDelay}ms (~${Math.round(reminderDelay / 1000)}s)`,
-  );
 
-  await queue.close();
+  if (jobId) {
+    await prisma.task.update({
+      where: { id: task.id },
+      data: { reminderJobId: jobId },
+    });
+    console.log(
+      `[ok] pg-boss REMINDER queued: jobId=${jobId} startAfter=${reminderAt.toISOString()}`,
+    );
+  } else {
+    console.warn(`[warn] pg-boss send returned null (job not queued)`);
+  }
+
+  await boss.stop({ graceful: true, wait: true });
   await prisma.$disconnect();
 
   console.log(

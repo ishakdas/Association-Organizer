@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
+import { PrismaService } from '@ticketbot/database';
 import { TASK_REMINDERS_QUEUE } from './jobs.constants';
+import { PgBossService } from './pgboss.service';
 
 export type TaskReminderJobType = 'DUE' | 'REMINDER';
 
@@ -21,7 +21,8 @@ export class TaskReminderScheduler {
   private readonly logger = new Logger(TaskReminderScheduler.name);
 
   constructor(
-    @InjectQueue(TASK_REMINDERS_QUEUE) private readonly queue: Queue,
+    private readonly prisma: PrismaService,
+    private readonly boss: PgBossService,
   ) {}
 
   async scheduleTask(task: SchedulableTask): Promise<void> {
@@ -30,11 +31,11 @@ export class TaskReminderScheduler {
     if (task.dueDate) {
       const delay = task.dueDate.getTime() - now;
       if (delay > 0) {
-        await this.addJob(
-          this.dueJobId(task.id),
+        const id = await this.sendJob(
           { type: 'DUE', taskId: task.id },
-          delay,
+          task.dueDate,
         );
+        if (id) await this.persistJobId(task.id, 'dueJobId', id);
       } else {
         this.logger.warn(
           `Task ${task.id}: dueDate ${task.dueDate.toISOString()} is in the past (delay=${delay}ms); skipping DUE job`,
@@ -45,11 +46,11 @@ export class TaskReminderScheduler {
     if (task.reminderAt) {
       const delay = task.reminderAt.getTime() - now;
       if (delay > 0) {
-        await this.addJob(
-          this.reminderJobId(task.id),
+        const id = await this.sendJob(
           { type: 'REMINDER', taskId: task.id },
-          delay,
+          task.reminderAt,
         );
+        if (id) await this.persistJobId(task.id, 'reminderJobId', id);
       } else {
         this.logger.warn(
           `Task ${task.id}: reminderAt ${task.reminderAt.toISOString()} is in the past (delay=${delay}ms); skipping REMINDER job`,
@@ -59,10 +60,27 @@ export class TaskReminderScheduler {
   }
 
   async cancelTask(taskId: string): Promise<void> {
-    await Promise.all([
-      this.safeRemove(this.dueJobId(taskId)),
-      this.safeRemove(this.reminderJobId(taskId)),
-    ]);
+    const row = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      select: { dueJobId: true, reminderJobId: true },
+    });
+    if (!row) return;
+
+    const cancels: Promise<unknown>[] = [];
+    if (row.dueJobId) {
+      cancels.push(this.boss.cancel(TASK_REMINDERS_QUEUE, row.dueJobId));
+    }
+    if (row.reminderJobId) {
+      cancels.push(this.boss.cancel(TASK_REMINDERS_QUEUE, row.reminderJobId));
+    }
+    await Promise.all(cancels);
+
+    if (row.dueJobId || row.reminderJobId) {
+      await this.prisma.task.update({
+        where: { id: taskId },
+        data: { dueJobId: null, reminderJobId: null },
+      });
+    }
   }
 
   async rescheduleTask(task: SchedulableTask): Promise<void> {
@@ -73,42 +91,45 @@ export class TaskReminderScheduler {
   async scheduleNextReminder(taskId: string, nextAt: Date): Promise<void> {
     const delay = nextAt.getTime() - Date.now();
     if (delay <= 0) return;
-    await this.safeRemove(this.reminderJobId(taskId));
-    await this.addJob(
-      this.reminderJobId(taskId),
-      { type: 'REMINDER', taskId },
-      delay,
-    );
+
+    const row = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      select: { reminderJobId: true },
+    });
+    if (row?.reminderJobId) {
+      await this.boss.cancel(TASK_REMINDERS_QUEUE, row.reminderJobId);
+    }
+
+    const id = await this.sendJob({ type: 'REMINDER', taskId }, nextAt);
+    if (id) await this.persistJobId(taskId, 'reminderJobId', id);
   }
 
-  private dueJobId(taskId: string): string {
-    return `due-${taskId}`;
-  }
-
-  private reminderJobId(taskId: string): string {
-    return `reminder-${taskId}`;
-  }
-
-  private async addJob(
-    jobId: string,
+  private async sendJob(
     data: TaskReminderJobData,
-    delay: number,
-  ): Promise<void> {
-    await this.queue.add(data.type, data, {
-      jobId,
-      delay,
-      removeOnComplete: { age: 3600, count: 1000 },
-      removeOnFail: { age: 24 * 3600 },
+    runAt: Date,
+  ): Promise<string | null> {
+    return this.boss.send(TASK_REMINDERS_QUEUE, data, {
+      startAfter: runAt,
+      retryLimit: 3,
+      retryDelay: 60,
+      retentionMinutes: 60,
+      expireInMinutes: 15,
     });
   }
 
-  private async safeRemove(jobId: string): Promise<void> {
+  private async persistJobId(
+    taskId: string,
+    field: 'dueJobId' | 'reminderJobId',
+    jobId: string,
+  ): Promise<void> {
     try {
-      const job = await this.queue.getJob(jobId);
-      if (job) await job.remove();
+      await this.prisma.task.update({
+        where: { id: taskId },
+        data: { [field]: jobId },
+      });
     } catch (err) {
       this.logger.warn(
-        `Failed to remove job ${jobId}: ${(err as Error).message}`,
+        `Failed to persist ${field} for task ${taskId}: ${(err as Error).message}`,
       );
     }
   }
