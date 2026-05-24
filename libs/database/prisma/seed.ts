@@ -545,73 +545,29 @@ async function main() {
   await seedPromptTemplates();
 
   // Dev-only system admin. Gated behind SEED_DEV_ADMIN=true so this block
-  // NEVER runs in production. Production admins are created manually via
-  // Supabase Studio + a separate SQL grant (see deployment runbook).
+  // NEVER runs in production. Production admins are created via Supabase
+  // Studio + a single INSERT into users with isSystemAdmin=true (see runbook).
   if (process.env.SEED_DEV_ADMIN === 'true') {
-    const admin = await prisma.user.upsert({
+    await prisma.user.upsert({
       where: { email: 'admin@dev.local' },
-      update: { fullName: 'Sistem Yöneticisi', isActive: true },
+      update: { fullName: 'Sistem Yöneticisi', isActive: true, isSystemAdmin: true },
       create: {
         email: 'admin@dev.local',
         fullName: 'Sistem Yöneticisi',
         isActive: true,
+        isSystemAdmin: true,
       },
     });
-
-    // Sentinel "system root" association — its only purpose is to carry the
-    // SYSTEM_ADMIN membership grant. RolesGuard / AssociationRolesGuard derive
-    // systemRole from any active SYSTEM_ADMIN membership row.
-    const SYSTEM_ROOT_ID = 'ckv_seed_systemroot______';
-    await prisma.association.upsert({
-      where: { id: SYSTEM_ROOT_ID },
-      update: { isActive: true },
-      create: {
-        id: SYSTEM_ROOT_ID,
-        name: '[SYSTEM] Root — DO NOT DELETE',
-        taxNumber: '0000000000',
-        foundedAt: new Date('2020-01-01T00:00:00.000Z'),
-        address: 'System Internal',
-        city: 'System',
-        district: 'System',
-        phone: '+905550000000',
-        email: 'system-root@internal.local',
-        activityArea: 'System Internal',
-        memberCount: 0,
-        isActive: true,
-        notes: 'Bu kayıt sistem içindir, silinmemelidir. SYSTEM_ADMIN rolünün çalışması için gereklidir.',
-        createdById: admin.id,
-      },
-    });
-
-    await prisma.associationMembership.upsert({
-      where: {
-        userId_associationId_role: {
-          userId: admin.id,
-          associationId: SYSTEM_ROOT_ID,
-          role: 'SYSTEM_ADMIN',
-        },
-      },
-      update: { isActive: true },
-      create: {
-        userId: admin.id,
-        associationId: SYSTEM_ROOT_ID,
-        role: 'SYSTEM_ADMIN',
-        isActive: true,
-      },
-    });
-
-    console.log('Dev admin (admin@dev.local) seeded');
+    console.log('Dev admin (admin@dev.local) seeded with isSystemAdmin=true');
   } else {
     console.log('Skipping dev admin block (set SEED_DEV_ADMIN=true to seed it)');
   }
 
   const titleCount = await prisma.memberTitleDefinition.count();
   const userCount = await prisma.user.count();
-  const adminCount = await prisma.associationMembership.count({
-    where: { role: 'SYSTEM_ADMIN', isActive: true },
-  });
+  const adminCount = await prisma.user.count({ where: { isSystemAdmin: true, isActive: true } });
   console.log(
-    `Seed complete: ${titleCount} titles, ${userCount} users, ${adminCount} active SYSTEM_ADMIN memberships`,
+    `Seed complete: ${titleCount} titles, ${userCount} users, ${adminCount} active system admins`,
   );
 }
 

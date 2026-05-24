@@ -133,6 +133,10 @@ model User {
   phone                 String?
   address               String?
   isActive              Boolean   @default(true)
+  // Global system-wide admin flag. Source of truth for systemRole — replaces
+  // the old pattern of a SYSTEM_ADMIN AssociationMembership row attached to a
+  // sentinel "[SYSTEM] Root" association.
+  isSystemAdmin         Boolean   @default(false)
   onboardingCompletedAt DateTime?
   activatedAt           DateTime?
   mustChangePassword    Boolean   @default(false)

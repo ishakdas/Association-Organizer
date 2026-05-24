@@ -50,9 +50,11 @@ export class AuthGuard implements CanActivate {
       fullName: user.fullName,
       supabaseUserId: user.supabaseUserId,
       memberships,
-      systemRole: memberships.some((m) => m.role === UserRole.SYSTEM_ADMIN)
-        ? UserRole.SYSTEM_ADMIN
-        : null,
+      // systemRole is now driven by the User.isSystemAdmin flag, not by a
+      // sentinel SYSTEM_ADMIN AssociationMembership. The enum value is kept
+      // for backwards compatibility with @Roles(...) decorators and existing
+      // checks against authUser.systemRole.
+      systemRole: user.isSystemAdmin ? UserRole.SYSTEM_ADMIN : null,
       telegramAccount,
       onboardingCompletedAt: user.onboardingCompletedAt?.toISOString() ?? null,
       mustChangePassword: user.mustChangePassword,
