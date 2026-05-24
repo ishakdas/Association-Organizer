@@ -18,7 +18,8 @@
     "@ticketbot/database": "workspace:*",
     "@ticketbot/shared-types": "workspace:*",
     "@ticketbot/shared-validation": "workspace:*",
-    "@ticketbot/core": "workspace:*"
+    "@ticketbot/core": "workspace:*",
+    "@ticketbot/ai": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
