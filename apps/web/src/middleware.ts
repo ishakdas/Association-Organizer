@@ -1,29 +1,5 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { type AuthenticatedUser } from '@ticketbot/shared-types';
-
-async function getRedirectPath(
-  supabase: ReturnType<typeof createServerClient>,
-): Promise<string> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (!session?.user) return '/login';
-
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
-    if (!res.ok) return '/associations';
-    const user: AuthenticatedUser = await res.json();
-    if (user.systemRole === 'SYSTEM_ADMIN') return '/dashboard';
-    const active = user.memberships.filter((m) => m.isActive);
-    if (active.length > 0) return `/associations/${active[0].associationId}`;
-    return '/settings';
-  } catch {
-    return '/associations';
-  }
-}
 
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
@@ -47,9 +23,13 @@ export async function middleware(request: NextRequest) {
     },
   );
 
+  // getSession() reads the cookie locally — no Supabase Auth round-trip.
+  // The layout re-checks the session and the Nest API verifies the JWT
+  // signature, so a tampered cookie cannot reach protected data.
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
 
   const { pathname } = request.nextUrl;
 
@@ -65,14 +45,13 @@ export async function middleware(request: NextRequest) {
   }
 
   if (user && pathname.startsWith('/login')) {
-    const dest = await getRedirectPath(supabase);
     const url = request.nextUrl.clone();
-    url.pathname = dest;
+    url.pathname = '/associations';
     return NextResponse.redirect(url);
   }
 
-  // Onboarding gate: authenticated + not yet onboarded + not on onboarding/auth routes
-  // System admins skip onboarding entirely — they go straight to /dashboard.
+  // Cookie-only onboarding gate. /onboarding/page.tsx handles the admin-skip
+  // case itself, so we avoid a per-navigation fetch to /auth/me here.
   if (
     user &&
     !pathname.startsWith('/onboarding') &&
@@ -84,26 +63,6 @@ export async function middleware(request: NextRequest) {
   ) {
     const done = request.cookies.get('onboarding_done')?.value === '1';
     if (!done) {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (session?.access_token) {
-          const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/me`, {
-            headers: { Authorization: `Bearer ${session.access_token}` },
-          });
-          if (res.ok) {
-            const me: AuthenticatedUser = await res.json();
-            if (me.systemRole === 'SYSTEM_ADMIN') {
-              const url = request.nextUrl.clone();
-              url.pathname = '/dashboard';
-              return NextResponse.redirect(url);
-            }
-          }
-        }
-      } catch {
-        // If the API call fails, fall through to the normal onboarding redirect.
-      }
       const url = request.nextUrl.clone();
       url.pathname = '/onboarding';
       return NextResponse.redirect(url);
