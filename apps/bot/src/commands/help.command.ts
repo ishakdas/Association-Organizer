@@ -9,7 +9,7 @@ export function registerHelpCommand(bot: Telegraf) {
         `/toplanti — Yeni toplantı notu ekle (adım adım sihirbaz)\n` +
         `/finans — Finans menüsü (gider/bağış/aidat/kasa)\n` +
         `/gider <tutar> [açıklama] — Hızlı gider kaydı\n` +
-        `/bagis <tutar> [açıklama] — Bağış kaydı\n` +
+        `/bagis [tutar] [açıklama] — Bağış kaydı (tutar verilirse Genel'e; sadece /bagis ile tür seçilir)\n` +
         `/aidat — Aidat kaydı (üye ve ay seçimi)\n` +
         `/kasa — Kasa durumunu göster\n` +
         `/iptal — Devam eden sihirbazı iptal et\n` +

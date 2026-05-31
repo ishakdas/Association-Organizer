@@ -113,6 +113,18 @@ export {
   type ListMemberTitlesQuery,
 } from './schemas/title.schema';
 
+// Donation categories (Bağış türleri — global katalog)
+export {
+  donationCategoryResponseSchema,
+  createDonationCategorySchema,
+  updateDonationCategorySchema,
+  listDonationCategoriesQuerySchema,
+  type DonationCategoryResponse,
+  type CreateDonationCategoryInput,
+  type UpdateDonationCategoryInput,
+  type ListDonationCategoriesQuery,
+} from './schemas/donation-category.schema';
+
 // AI extraction (Toplantı notlarından görev üretimi)
 export {
   extractedActionItemSchema,

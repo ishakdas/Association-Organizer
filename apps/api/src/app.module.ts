@@ -5,6 +5,7 @@ import configuration from './config/configuration';
 import { AuthModule } from './modules/auth/auth.module';
 import { AssociationsModule } from './modules/associations/associations.module';
 import { TitlesModule } from './modules/titles/titles.module';
+import { DonationCategoriesModule } from './modules/donation-categories/donation-categories.module';
 import { UsersModule } from './modules/users/users.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { TasksModule } from './modules/tasks/tasks.module';
@@ -33,6 +34,7 @@ import { BotModule } from 'bot';
     AuthModule,
     AssociationsModule,
     TitlesModule,
+    DonationCategoriesModule,
     UsersModule,
     JobsModule,
     TasksModule,

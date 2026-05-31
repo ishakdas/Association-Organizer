@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import {
   Building2,
+  HandCoins,
   Info,
   KeyRound,
   MessageSquare,
@@ -45,6 +46,14 @@ const CARDS: readonly SettingsCard[] = [
     label: 'Üye Unvanları',
     description: 'Atanabilir unvanları ekle, düzenle, pasife çek.',
     icon: Tags,
+    systemAdminOnly: true,
+    badge: 'Sistem',
+  },
+  {
+    href: '/settings/donation-categories',
+    label: 'Bağış Türleri',
+    description: 'Tüm dernekler için ortak bağış türlerini (Zekat, Genel…) yönet.',
+    icon: HandCoins,
     systemAdminOnly: true,
     badge: 'Sistem',
   },

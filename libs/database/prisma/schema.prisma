@@ -122,6 +122,25 @@ model MemberTitleDefinition {
   @@map("member_title_definitions")
 }
 
+// System-admin-managed catalog of donation types (bağış türleri) offered as
+// templates in the bot /bagis picker for every association — e.g. Genel,
+// Zekat. Associations may still add their own custom donation categories via
+// TransactionCategory (type = INCOME); these definitions are the shared,
+// global baseline. Materialized per-association as a TransactionCategory the
+// first time a donation is recorded under the name.
+model DonationCategoryDefinition {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("donation_category_definitions")
+}
+
 // -----------------------------------------------------------------------------
 // User & Auth
 // -----------------------------------------------------------------------------

@@ -687,10 +687,12 @@ export class FinanceService {
   ) {
     await this.assertFinanceAccess(user, associationId);
 
+    // "Genel" is the default donation type when none is selected (matches the
+    // bot /bagis quick path and the global donation-category catalog default).
     let category = await this.prisma.transactionCategory.findFirst({
       where: {
         associationId,
-        name: 'Bağış',
+        name: 'Genel',
         type: 'INCOME',
         deletedAt: null,
       },
@@ -699,7 +701,7 @@ export class FinanceService {
       category = await this.prisma.transactionCategory.create({
         data: {
           associationId,
-          name: 'Bağış',
+          name: 'Genel',
           type: 'INCOME',
         },
       });

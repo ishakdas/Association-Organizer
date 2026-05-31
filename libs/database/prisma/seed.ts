@@ -46,6 +46,14 @@ const TITLES: { name: string; description: string }[] = [
   },
 ];
 
+// System-admin-managed catalog of donation types offered in the bot /bagis
+// picker for every association. Order matters for UI sortOrder. "Genel" stays
+// first because it is the default when no type is selected.
+const DONATION_CATEGORIES: { name: string; description: string }[] = [
+  { name: 'Genel', description: 'Tür belirtilmeden yapılan genel bağışlar (varsayılan)' },
+  { name: 'Zekat', description: 'Zekat olarak verilen bağışlar' },
+];
+
 const TURKISH_TR_MAP: Record<string, string> = {
   ç: 'c', Ç: 'c',
   ğ: 'g', Ğ: 'g',
@@ -541,13 +549,27 @@ async function main() {
     });
   }
 
+  // Reference data — global donation type catalog
+  for (let i = 0; i < DONATION_CATEGORIES.length; i++) {
+    const { name, description } = DONATION_CATEGORIES[i];
+    const slug = slugify(name);
+    await prisma.donationCategoryDefinition.upsert({
+      where: { slug },
+      update: { name, description, sortOrder: i, isActive: true },
+      create: { name, slug, description, sortOrder: i, isActive: true },
+    });
+  }
+
   // AI prompt templates
   await seedPromptTemplates();
 
-  // Dev-only system admin. Gated behind SEED_DEV_ADMIN=true so this block
-  // NEVER runs in production. Production admins are created via Supabase
-  // Studio + a single INSERT into users with isSystemAdmin=true (see runbook).
-  if (process.env.SEED_DEV_ADMIN === 'true') {
+  // Dev-only system admin. Runs by default in non-production environments
+  // (NODE_ENV unset or !== 'production'). Production container sets
+  // NODE_ENV=production in the Dockerfile so this block stays skipped on
+  // prod boot — prod admins are provisioned manually via Supabase Studio
+  // + UPDATE on users.isSystemAdmin (see runbook).
+  const isProd = process.env.NODE_ENV === 'production';
+  if (!isProd) {
     await prisma.user.upsert({
       where: { email: 'admin@dev.local' },
       update: { fullName: 'Sistem Yöneticisi', isActive: true, isSystemAdmin: true },
@@ -560,7 +582,7 @@ async function main() {
     });
     console.log('Dev admin (admin@dev.local) seeded with isSystemAdmin=true');
   } else {
-    console.log('Skipping dev admin block (set SEED_DEV_ADMIN=true to seed it)');
+    console.log('Skipping dev admin block (NODE_ENV=production)');
   }
 
   const titleCount = await prisma.memberTitleDefinition.count();

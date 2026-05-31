@@ -30,6 +30,7 @@ interface FinanceWizardSession {
   membershipId?: string;
   membershipName?: string;
   memberOptions?: Array<{ id: string; name: string }>;
+  donationTypeOptions?: Array<{ name: string }>;
   month?: string;
   amountInKurus?: number;
   description?: string;
@@ -467,7 +468,8 @@ async function quickDonation(
   const hasAccess = await assertFinanceAccess(prisma, account.userId, a.id);
   if (!hasAccess) return ctx.reply('💰 Finans yetkiniz yok.');
 
-  const category = await getOrCreateCategory(prisma, a.id, 'Bağış', 'INCOME');
+  // Quick path (/bagis 500): no type selected → default "Genel".
+  const category = await getOrCreateCategory(prisma, a.id, 'Genel', 'INCOME');
   const tx = await prisma.transaction.create({
     data: {
       associationId: a.id,
@@ -502,6 +504,68 @@ async function quickDonation(
 // -------------------------------------------------------------------------
 // WIZARD (detaylı akış - /finans menüden)
 // -------------------------------------------------------------------------
+
+// Bağış türü seçici: global katalog (DonationCategoryDefinition) + derneğin
+// kendi özel INCOME kategorileri birleştirilir. "Genel" her zaman ilk ve
+// varsayılan ("atla") seçenektir. Seçenekler session'da indeksli tutulur ki
+// callback_data 64 byte sınırını aşmasın.
+async function showDonationTypePicker(
+  ctx: Context,
+  prisma: PrismaService,
+  s: FinanceWizardSession,
+) {
+  if (!s.associationId) return;
+  s.step = 'pickCategory';
+  touch(s);
+
+  const [defs, custom] = await Promise.all([
+    prisma.donationCategoryDefinition.findMany({
+      where: { isActive: true },
+      select: { name: true },
+      orderBy: { sortOrder: 'asc' },
+    }),
+    prisma.transactionCategory.findMany({
+      where: {
+        associationId: s.associationId,
+        type: 'INCOME',
+        deletedAt: null,
+        isActive: true,
+      },
+      select: { name: true },
+      orderBy: { name: 'asc' },
+    }),
+  ]);
+
+  const names: string[] = [];
+  const seen = new Set<string>();
+  const push = (raw: string) => {
+    const n = raw.trim();
+    const key = n.toLowerCase();
+    if (n && !seen.has(key)) {
+      seen.add(key);
+      names.push(n);
+    }
+  };
+  push('Genel'); // varsayılan, her zaman ilk
+  for (const d of defs) push(d.name);
+  for (const c of custom) push(c.name);
+
+  s.donationTypeOptions = names.map((name) => ({ name }));
+
+  const buttons = names.map((name, idx) => [
+    Markup.button.callback(
+      idx === 0 ? '🏷️ Genel (atla)' : name,
+      `fin:dtype:${idx}`,
+    ),
+  ]);
+  buttons.push([Markup.button.callback('🔙 Geri', 'fin:back_menu')]);
+  buttons.push([Markup.button.callback('❌ İptal', 'fin:cancel')]);
+
+  return ctx.reply(
+    `🎁 ${s.associationName} — Bağış türü seçin:\n💵 ${kurusToTl(s.amountInKurus!)}`,
+    Markup.inlineKeyboard(buttons),
+  );
+}
 
 async function showCategoryPicker(ctx: Context, prisma: PrismaService, s: FinanceWizardSession) {
   if (!s.associationId || !s.action) return;
@@ -794,6 +858,7 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
       s.action = undefined;
       s.categoryId = undefined;
       s.categoryName = undefined;
+      s.donationTypeOptions = undefined;
       s.membershipId = undefined;
       s.membershipName = undefined;
       s.month = undefined;
@@ -812,12 +877,13 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
   bot.action('fin:back_menu', async (ctx) => {
     const fromId = ctx.from?.id;
     if (!fromId) return ctx.answerCbQuery();
-    let s = sessions.get(fromId);
+    const s = sessions.get(fromId);
     if (!s) { await ctx.answerCbQuery(); return startWizard(ctx, prisma, fromId); }
     s.step = 'pickType';
     s.action = undefined;
     s.categoryId = undefined;
     s.categoryName = undefined;
+    s.donationTypeOptions = undefined;
     s.membershipId = undefined;
     s.membershipName = undefined;
     s.month = undefined;
@@ -1022,7 +1088,7 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
   bot.action(/^fin:(expense|donation|fee|summary|history|stats)$/, async (ctx) => {
     const fromId = ctx.from?.id;
     if (!fromId) return ctx.answerCbQuery();
-    let s = sessions.get(fromId);
+    const s = sessions.get(fromId);
     const action = ctx.match[1] as FinanceAction;
 
     if (!s) { await ctx.answerCbQuery(); return startWizard(ctx, prisma, fromId, action); }
@@ -1051,6 +1117,34 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     if (action === 'fee') { s.step = 'pickCategory'; return showCategoryPicker(ctx, prisma, s); }
     if (['expense', 'donation'].includes(action)) { s.step = 'pickAmount'; return showAmountPicker(ctx, s); }
     return showMainMenu(ctx);
+  });
+
+  // Bağış türü seçimi (indeksli — callback_data sınırı için). Seçilen tür adı
+  // session'daki donationTypeOptions'dan çözülür; executeConfirm o ad için
+  // kategoriyi getOrCreateCategory ile derneğe materyalize eder.
+  bot.action(/^fin:dtype:(\d+)$/, async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return ctx.answerCbQuery();
+    const s = sessions.get(fromId);
+    if (!s || s.step !== 'pickCategory') {
+      return ctx.answerCbQuery('Akış güncel değil');
+    }
+    const idx = parseInt(ctx.match[1], 10);
+    const picked = s.donationTypeOptions?.[idx];
+    if (!picked) return ctx.answerCbQuery('Geçersiz seçim');
+    if (s.amountInKurus == null) {
+      return ctx.answerCbQuery('Tutar bilgisi eksik', { show_alert: true });
+    }
+
+    s.categoryName = picked.name;
+    s.categoryId = undefined;
+    s.transactionDate =
+      s.transactionDate ?? new Date().toISOString().split('T')[0];
+    touch(s);
+
+    await ctx.answerCbQuery(picked.name);
+    await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
+    return executeConfirm(ctx, s, fromId);
   });
 
   bot.action(/^fin:cat:([^:]+):(.+)$/, async (ctx) => {
@@ -1110,7 +1204,7 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
       const category = await getOrCreateCategory(
         prisma,
         s.associationId!,
-        s.action === 'fee' ? 'Aidat Geliri' : (s.action === 'donation' ? 'Bağış' : (s.categoryName || 'Genel Gider')),
+        s.action === 'fee' ? 'Aidat Geliri' : (s.action === 'donation' ? (s.categoryName || 'Genel') : (s.categoryName || 'Genel Gider')),
         s.action === 'expense' ? 'EXPENSE' : 'INCOME',
       );
 
@@ -1193,6 +1287,11 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
         }
         s.amountInKurus = Math.round(amount * 100);
         s.transactionDate = new Date().toISOString().split('T')[0];
+        // Bağışta tutar girildikten sonra tür seçtir (henüz seçilmediyse).
+        // Seçilmezse "Genel" varsayılanı kullanılır.
+        if (s.action === 'donation' && !s.categoryName) {
+          return showDonationTypePicker(ctx, prisma, s);
+        }
         return executeConfirm(ctx, s, fromId);
       }
     } catch (err) {
