@@ -106,7 +106,7 @@ export function registerTaskCreateWizard(bot: Telegraf, prisma: PrismaService, b
         session.step = 'assignee';
         return showAssigneeSelection(ctx, prisma, fromId, session);
 
-      case 'dueDate':
+      case 'dueDate': {
         if (text.toLowerCase() === 'boş') {
           session.dueDate = undefined;
           session.step = 'confirm';
@@ -127,6 +127,7 @@ export function registerTaskCreateWizard(bot: Telegraf, prisma: PrismaService, b
         session.dueDate = parsed.toISOString();
         session.step = 'confirm';
         return showConfirmation(ctx, prisma, fromId, session);
+      }
 
       default:
         return next();

@@ -157,7 +157,7 @@ function parseDateInput(raw: string): Date | null {
   if (s === 'yarın' || s === 'yarin') return utcDate(y, m, d + 1);
   if (s === 'dün' || s === 'dun') return utcDate(y, m, d - 1);
 
-  const dmy = s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/);
+  const dmy = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
   if (dmy) {
     const dd = parseInt(dmy[1], 10);
     const mm = parseInt(dmy[2], 10);
@@ -166,7 +166,7 @@ function parseDateInput(raw: string): Date | null {
     return utcDate(yy, mm - 1, dd);
   }
 
-  const dm = s.match(/^(\d{1,2})[.\/-](\d{1,2})$/);
+  const dm = s.match(/^(\d{1,2})[./-](\d{1,2})$/);
   if (dm) {
     const dd = parseInt(dm[1], 10);
     const mm = parseInt(dm[2], 10);

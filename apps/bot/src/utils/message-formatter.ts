@@ -1,4 +1,4 @@
-const SPECIAL_CHARS = /([_*\[\]()~`>#+\-=|{}.!])/g;
+const SPECIAL_CHARS = /([_*[\]()~`>#+\-=|{}.!])/g;
 
 export function escapeMarkdown(text: string): string {
   return text.replace(SPECIAL_CHARS, '\\$1');
