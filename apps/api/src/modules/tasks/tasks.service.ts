@@ -959,6 +959,7 @@ export class TasksService {
       where: { id: taskId, deletedAt: null },
       select: {
         id: true,
+        associationId: true,
         status: true,
         dueDate: true,
         reminderAt: true,
@@ -969,6 +970,7 @@ export class TasksService {
     if (task.assignedToUserId !== actingUserId) {
       throw new ForbiddenException('Bu görevi erteleyemezsiniz');
     }
+    await this.assertActiveMembershipViaBot(actingUserId, task.associationId);
     if (
       task.status === TaskStatus.COMPLETED ||
       task.status === TaskStatus.CANCELLED
@@ -1029,6 +1031,7 @@ export class TasksService {
       where: { id: taskId, deletedAt: null },
       select: {
         id: true,
+        associationId: true,
         status: true,
         assignedToUserId: true,
         disputed: true,
@@ -1038,6 +1041,7 @@ export class TasksService {
     if (task.assignedToUserId !== actingUserId) {
       throw new ForbiddenException('Bu görevi siz üstlenemezsiniz');
     }
+    await this.assertActiveMembershipViaBot(actingUserId, task.associationId);
     if (
       task.status === TaskStatus.COMPLETED ||
       task.status === TaskStatus.CANCELLED
@@ -1122,6 +1126,7 @@ export class TasksService {
     if (task.assignedToUserId !== actingUserId) {
       throw new ForbiddenException('Bu görevde itiraz hakkınız yok');
     }
+    await this.assertActiveMembershipViaBot(actingUserId, task.associationId);
     if (
       task.status === TaskStatus.COMPLETED ||
       task.status === TaskStatus.CANCELLED
@@ -1246,6 +1251,7 @@ export class TasksService {
       where: { id: taskId, deletedAt: null },
       select: {
         id: true,
+        associationId: true,
         status: true,
         dueDate: true,
         reminderAt: true,
@@ -1256,6 +1262,7 @@ export class TasksService {
     if (task.assignedToUserId !== actingUserId) {
       throw new ForbiddenException('Bu görevi erteleyemezsiniz');
     }
+    await this.assertActiveMembershipViaBot(actingUserId, task.associationId);
     if (
       task.status === TaskStatus.COMPLETED ||
       task.status === TaskStatus.CANCELLED
@@ -1356,6 +1363,27 @@ export class TasksService {
     });
     if (!exists) {
       throw new BadRequestException('Kullanıcı bu derneğe üye değil');
+    }
+  }
+
+  // Bot akışlarında elimizde yalnızca userId var (AuthenticatedUser yok).
+  // İşlemi yapanın ilgili dernekte hâlâ aktif üyeliği olduğunu doğrular;
+  // üyelikten çıkarılmış biri eski Telegram bağlantısıyla işlem yapamasın diye.
+  private async assertActiveMembershipViaBot(
+    actingUserId: string,
+    associationId: string,
+  ): Promise<void> {
+    const membership = await this.prisma.associationMembership.findFirst({
+      where: {
+        associationId,
+        userId: actingUserId,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+    if (!membership) {
+      throw new ForbiddenException('Bu dernekte aktif üyeliğiniz yok');
     }
   }
 
