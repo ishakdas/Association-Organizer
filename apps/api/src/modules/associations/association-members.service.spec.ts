@@ -6,6 +6,7 @@ jest.mock('jose', () => ({}));
 import { Test } from '@nestjs/testing';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   NotFoundException,
@@ -550,6 +551,141 @@ describe('AssociationMembersService', () => {
       );
 
       expect(result.role).toBe('ASSOCIATION_MEMBER');
+    });
+  });
+
+  describe('transferManager', () => {
+    it('forbids a non-SYSTEM_ADMIN actor', async () => {
+      await expect(
+        service.transferManager(
+          sampleAssociation.id,
+          { toMembershipId: sampleMembership.id, demoteToRole: 'ASSOCIATION_MEMBER' },
+          MANAGER_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(prisma.associationMembership.update).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when the target member does not exist', async () => {
+      prisma.association.findFirst.mockResolvedValue(sampleAssociation as never);
+      prisma.associationMembership.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.transferManager(
+          sampleAssociation.id,
+          { toMembershipId: 'missing', demoteToRole: 'ASSOCIATION_MEMBER' },
+          SYSTEM_ADMIN_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.associationMembership.update).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when the target is already the manager', async () => {
+      prisma.association.findFirst.mockResolvedValue(sampleAssociation as never);
+      prisma.associationMembership.findFirst.mockResolvedValue({
+        id: sampleMembership.id,
+        role: 'ASSOCIATION_MANAGER',
+        userId: sampleUser.id,
+      } as never);
+
+      await expect(
+        service.transferManager(
+          sampleAssociation.id,
+          { toMembershipId: sampleMembership.id, demoteToRole: 'ASSOCIATION_MEMBER' },
+          SYSTEM_ADMIN_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(prisma.associationMembership.update).not.toHaveBeenCalled();
+    });
+
+    it('demotes the current manager then promotes the target in one transaction', async () => {
+      prisma.association.findFirst.mockResolvedValue(sampleAssociation as never);
+      // 1st findFirst → target member, 2nd → current active manager
+      prisma.associationMembership.findFirst
+        .mockResolvedValueOnce({
+          id: sampleMembership.id,
+          role: 'ASSOCIATION_MEMBER',
+          userId: sampleUser.id,
+        } as never)
+        .mockResolvedValueOnce({ id: 'mem-old-manager' } as never);
+      prisma.associationMembership.update.mockResolvedValue({
+        ...sampleMembership,
+        role: 'ASSOCIATION_MANAGER',
+      } as never);
+
+      const result = await service.transferManager(
+        sampleAssociation.id,
+        { toMembershipId: sampleMembership.id, demoteToRole: 'ASSOCIATION_SECRETARY' },
+        SYSTEM_ADMIN_ACTOR,
+      );
+
+      // Demote runs first (old manager → chosen role)…
+      expect(prisma.associationMembership.update).toHaveBeenNthCalledWith(1, {
+        where: { id: 'mem-old-manager' },
+        data: { role: 'ASSOCIATION_SECRETARY' },
+      });
+      // …then promote the target to MANAGER.
+      expect(prisma.associationMembership.update).toHaveBeenNthCalledWith(2, {
+        where: { id: sampleMembership.id },
+        data: { role: 'ASSOCIATION_MANAGER' },
+        include: MEMBER_INCLUDE,
+      });
+      expect(result.role).toBe('ASSOCIATION_MANAGER');
+    });
+
+    it('promotes the target even when the dernek has no current manager', async () => {
+      prisma.association.findFirst.mockResolvedValue(sampleAssociation as never);
+      prisma.associationMembership.findFirst
+        .mockResolvedValueOnce({
+          id: sampleMembership.id,
+          role: 'ASSOCIATION_MEMBER',
+          userId: sampleUser.id,
+        } as never)
+        .mockResolvedValueOnce(null);
+      prisma.associationMembership.update.mockResolvedValue({
+        ...sampleMembership,
+        role: 'ASSOCIATION_MANAGER',
+      } as never);
+
+      const result = await service.transferManager(
+        sampleAssociation.id,
+        { toMembershipId: sampleMembership.id, demoteToRole: 'ASSOCIATION_MEMBER' },
+        SYSTEM_ADMIN_ACTOR,
+      );
+
+      // Only the promotion update fires — no demotion.
+      expect(prisma.associationMembership.update).toHaveBeenCalledTimes(1);
+      expect(prisma.associationMembership.update).toHaveBeenCalledWith({
+        where: { id: sampleMembership.id },
+        data: { role: 'ASSOCIATION_MANAGER' },
+        include: MEMBER_INCLUDE,
+      });
+      expect(result.role).toBe('ASSOCIATION_MANAGER');
+    });
+
+    it('translates Prisma P2002 into ConflictException', async () => {
+      prisma.association.findFirst.mockResolvedValue(sampleAssociation as never);
+      prisma.associationMembership.findFirst
+        .mockResolvedValueOnce({
+          id: sampleMembership.id,
+          role: 'ASSOCIATION_MEMBER',
+          userId: sampleUser.id,
+        } as never)
+        .mockResolvedValueOnce({ id: 'mem-old-manager' } as never);
+      prisma.associationMembership.update.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError(
+          'one_active_manager_per_association',
+          { code: 'P2002', clientVersion: 'test', meta: { target: ['associationId'] } },
+        ),
+      );
+
+      await expect(
+        service.transferManager(
+          sampleAssociation.id,
+          { toMembershipId: sampleMembership.id, demoteToRole: 'ASSOCIATION_MEMBER' },
+          SYSTEM_ADMIN_ACTOR,
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
     });
   });
 

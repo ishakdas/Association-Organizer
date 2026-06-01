@@ -121,6 +121,16 @@ export const updateMemberSchema = z
   });
 export type UpdateMemberInput = z.infer<typeof updateMemberSchema>;
 
+// Atomic başkanlık handover: demote the current active manager and promote
+// an existing member to ASSOCIATION_MANAGER in a single transaction.
+export const transferManagerSchema = z.object({
+  toMembershipId: z.string().cuid('Geçersiz üyelik'),
+  demoteToRole: z
+    .enum(['ASSOCIATION_SECRETARY', 'ASSOCIATION_MEMBER'])
+    .default('ASSOCIATION_MEMBER'),
+});
+export type TransferManagerInput = z.infer<typeof transferManagerSchema>;
+
 export const listMembersQuerySchema = z.object({
   role: userRoleEnum.optional(),
   isActive: z

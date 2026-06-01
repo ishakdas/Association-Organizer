@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   ChevronRight,
+  Crown,
   Loader2,
   RotateCcw,
   Search,
@@ -33,6 +34,7 @@ import {
 } from '@/lib/api/admin';
 import { isSystemAdmin } from '@/lib/permissions';
 import { DeleteAssociationDialog } from './_components/delete-association-dialog';
+import { AssignManagerDialog } from './_components/assign-manager-dialog';
 
 async function getToken(): Promise<string> {
   const supabase = createClient();
@@ -50,6 +52,7 @@ export default function AssociationsAdminPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminAssociationResponse | null>(null);
+  const [manageTarget, setManageTarget] = useState<AdminAssociationResponse | null>(null);
 
   async function refresh(opts?: { search?: string; includeDeleted?: boolean }) {
     const token = await getToken();
@@ -108,6 +111,11 @@ export default function AssociationsAdminPage() {
       toast.success(`"${deleteTarget.name}" kalıcı olarak silindi`);
     }
     setDeleteTarget(null);
+    refresh();
+  }
+
+  function handleManagerSuccess() {
+    setManageTarget(null);
     refresh();
   }
 
@@ -255,21 +263,33 @@ export default function AssociationsAdminPage() {
                           Geri Yükle
                         </Button>
                       ) : (
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          className="text-destructive"
-                          onClick={() => handleOpenDeleteDialog(r)}
-                          disabled={busyId === r.id}
-                        >
-                          {busyId === r.id ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="h-3.5 w-3.5" />
-                          )}
-                          Sil
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setManageTarget(r)}
+                            disabled={busyId === r.id}
+                          >
+                            <Crown className="h-3.5 w-3.5 text-amber-500" />
+                            Başkan
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive"
+                            onClick={() => handleOpenDeleteDialog(r)}
+                            disabled={busyId === r.id}
+                          >
+                            {busyId === r.id ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
+                            Sil
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
@@ -284,6 +304,12 @@ export default function AssociationsAdminPage() {
         association={deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onSuccess={handleDeleteSuccess}
+      />
+
+      <AssignManagerDialog
+        association={manageTarget}
+        onClose={() => setManageTarget(null)}
+        onSuccess={handleManagerSuccess}
       />
     </div>
   );

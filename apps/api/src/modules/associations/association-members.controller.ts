@@ -25,6 +25,7 @@ import {
 import { AssociationMembersService } from './association-members.service';
 import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
+import { TransferManagerDto } from './dto/transfer-manager.dto';
 import { ListMembersQueryDto } from './dto/list-members-query.dto';
 import { telegramLinkGenerateSchema, type TelegramLinkGenerateInput } from '@ticketbot/shared-validation';
 
@@ -54,6 +55,20 @@ export class AssociationMembersController {
     @Query() query: ListMembersQueryDto,
   ) {
     return this.service.list(associationId, query);
+  }
+
+  // System-admin-only handover; the service enforces the systemRole check.
+  // The static `transfer-manager` segment cannot collide with the
+  // `:membershipId` Patch/Delete routes (those are not POST).
+  @Post('transfer-manager')
+  @AssociationRoles(UserRole.ASSOCIATION_MANAGER)
+  @HttpCode(HttpStatus.OK)
+  transferManager(
+    @Param('id') associationId: string,
+    @Body() body: TransferManagerDto,
+    @CurrentUser() actor: RequestUser,
+  ) {
+    return this.service.transferManager(associationId, body, actor);
   }
 
   @Patch(':membershipId')

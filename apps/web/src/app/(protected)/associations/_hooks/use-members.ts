@@ -7,12 +7,18 @@ import {
   addMember,
   updateMember,
   removeMember,
+  transferManager,
   generateMemberTelegramLink,
   generateMemberTelegramLinkWithEmail,
   unlinkMemberTelegramAccount,
   type ListMembersParams,
 } from '@/lib/api/members';
-import type { AddMemberInput, MemberResponse, UpdateMemberInput } from '@ticketbot/shared-validation';
+import type {
+  AddMemberInput,
+  MemberResponse,
+  TransferManagerInput,
+  UpdateMemberInput,
+} from '@ticketbot/shared-validation';
 import { getAccessToken } from './use-associations';
 
 export const membersQueryKey = (associationId: string, params: ListMembersParams) =>
@@ -74,6 +80,22 @@ export function useRemoveMember(associationId: string) {
       removeMember(await getAccessToken(), associationId, membershipId),
     onSuccess: (member) => {
       toast.success(`${member.user.fullName} dernekten çıkarıldı`);
+      queryClient.invalidateQueries({ queryKey: ['members', associationId] });
+    },
+    onError: (err: Error) => {
+      toast.error(err.message);
+    },
+  });
+}
+
+export function useTransferManager(associationId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: TransferManagerInput) =>
+      transferManager(await getAccessToken(), associationId, input),
+    onSuccess: (member) => {
+      toast.success(`${member.user.fullName} yeni başkan oldu`);
       queryClient.invalidateQueries({ queryKey: ['members', associationId] });
     },
     onError: (err: Error) => {

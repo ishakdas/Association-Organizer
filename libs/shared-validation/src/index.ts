@@ -92,10 +92,12 @@ export {
 export {
   addMemberSchema,
   updateMemberSchema,
+  transferManagerSchema,
   listMembersQuerySchema,
   memberResponseSchema,
   type AddMemberInput,
   type UpdateMemberInput,
+  type TransferManagerInput,
   type ListMembersQuery,
   type MemberResponse,
   type MembershipRole,

@@ -15,6 +15,7 @@ import {
 import {
   AddMemberInput,
   ListMembersQuery,
+  TransferManagerInput,
   UpdateMemberInput,
 } from '@ticketbot/shared-validation';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
@@ -252,6 +253,89 @@ export class AssociationMembersService {
           input.titleAssignments.map((a) => a.titleId ?? null),
         );
       }
+
+      return result;
+    } catch (e) {
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === 'P2002'
+      ) {
+        throw new ConflictException(
+          'Bu dernek için belirtilen rol zaten aktif bir kişiye atanmış',
+        );
+      }
+      throw e;
+    }
+  }
+
+  /**
+   * Atomic başkanlık handover. System-admin only (mirrors the manager-role
+   * guard in `update`/`remove`). In one transaction the current active
+   * başkan is demoted and the target member promoted to ASSOCIATION_MANAGER,
+   * so there is never a "no manager" window and the
+   * `one_active_manager_per_association` partial unique index is never
+   * violated. The demotion runs first because Postgres checks the unique
+   * index per statement, not at commit.
+   */
+  async transferManager(
+    associationId: string,
+    input: TransferManagerInput,
+    actor: AuthenticatedUser,
+  ) {
+    if (actor.systemRole !== UserRole.SYSTEM_ADMIN) {
+      throw new ForbiddenException(
+        'Başkanlık devrini yalnızca sistem yöneticisi yapabilir',
+      );
+    }
+
+    await this.ensureAssociation(associationId);
+
+    const target = await this.prisma.associationMembership.findFirst({
+      where: {
+        id: input.toMembershipId,
+        associationId,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: { id: true, role: true, userId: true },
+    });
+    if (!target) {
+      throw new NotFoundException('Devredilecek üye bulunamadı');
+    }
+    if (target.role === UserRole.ASSOCIATION_MANAGER) {
+      throw new BadRequestException('Bu üye zaten başkan');
+    }
+
+    const currentManager = await this.prisma.associationMembership.findFirst({
+      where: {
+        associationId,
+        role: UserRole.ASSOCIATION_MANAGER,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: { id: true },
+    });
+
+    try {
+      const result = await this.prisma.$transaction(async (tx) => {
+        if (currentManager) {
+          await tx.associationMembership.update({
+            where: { id: currentManager.id },
+            data: { role: input.demoteToRole },
+          });
+        }
+        return tx.associationMembership.update({
+          where: { id: target.id },
+          data: { role: UserRole.ASSOCIATION_MANAGER },
+          include: MEMBER_INCLUDE,
+        });
+      });
+
+      // Baseline command permissions for the incoming başkan (idempotent).
+      await this.permissions.applyMembershipDefaults(
+        associationId,
+        target.userId,
+      );
 
       return result;
     } catch (e) {

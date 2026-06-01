@@ -3,6 +3,7 @@ import type {
   AddMemberInput,
   MemberResponse,
   MembershipRole,
+  TransferManagerInput,
   UpdateMemberInput,
 } from '@ticketbot/shared-validation';
 
@@ -68,6 +69,21 @@ export function removeMember(
     {
       token,
       method: 'DELETE',
+    },
+  );
+}
+
+export function transferManager(
+  token: string,
+  associationId: string,
+  input: TransferManagerInput,
+) {
+  return apiClient<MemberResponse>(
+    `/associations/${associationId}/members/transfer-manager`,
+    {
+      token,
+      method: 'POST',
+      body: JSON.stringify(input),
     },
   );
 }

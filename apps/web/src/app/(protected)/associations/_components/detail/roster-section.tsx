@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import {
+  ArrowLeftRight,
   Briefcase,
   Crown,
   Loader2,
@@ -56,7 +57,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { useMembers, useRemoveMember, useUpdateMember } from '../../_hooks/use-members';
+import {
+  useMembers,
+  useRemoveMember,
+  useUpdateMember,
+  useTransferManager,
+} from '../../_hooks/use-members';
 import { useTitles } from '../../_hooks/use-titles';
 import { AddMemberDialog } from '../add-member-dialog';
 import { TelegramLinkDialog } from './telegram-link-dialog';
@@ -83,6 +89,7 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
   const [telegramFor, setTelegramFor] = useState<MemberResponse | null>(null);
   const [editingMember, setEditingMember] = useState<MemberResponse | null>(null);
   const [addingSecondaryFor, setAddingSecondaryFor] = useState<MemberResponse | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
 
   const manager = managers?.[0] ?? null;
 
@@ -121,13 +128,23 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
             <Crown className="h-4 w-4 text-amber-500" />
             <h2 className="text-[14px] font-semibold tracking-tight">Başkan</h2>
           </div>
-          {canManageManager && (
-            <AddMemberDialog
-              associationId={associationId}
-              defaultRole="ASSOCIATION_MANAGER"
-              triggerLabel={manager ? 'Başkan değiştir' : 'Başkan ata'}
-            />
-          )}
+          {canManageManager &&
+            (manager ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setTransferOpen(true)}
+              >
+                <ArrowLeftRight className="h-3.5 w-3.5" />
+                Başkanlığı devret
+              </Button>
+            ) : (
+              <AddMemberDialog
+                associationId={associationId}
+                defaultRole="ASSOCIATION_MANAGER"
+                triggerLabel="Başkan ata"
+              />
+            ))}
         </header>
         <div className="px-5 py-5">
           {loadingManagers && <Skeleton className="h-16 w-full" />}
@@ -485,7 +502,139 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
           onOpenChange={(open) => { if (!open) setAddingSecondaryFor(null); }}
         />
       )}
+
+      {canManageManager && manager && (
+        <TransferManagerDialog
+          associationId={associationId}
+          currentManager={manager}
+          candidates={[...(secretaries ?? []), ...(members ?? [])]}
+          open={transferOpen}
+          onOpenChange={setTransferOpen}
+        />
+      )}
     </div>
+  );
+}
+
+function TransferManagerDialog({
+  associationId,
+  currentManager,
+  candidates,
+  open,
+  onOpenChange,
+}: {
+  associationId: string;
+  currentManager: MemberResponse;
+  candidates: MemberResponse[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const mutation = useTransferManager(associationId);
+  const [toMembershipId, setToMembershipId] = useState<string>('');
+  const [demoteToRole, setDemoteToRole] = useState<
+    'ASSOCIATION_SECRETARY' | 'ASSOCIATION_MEMBER'
+  >('ASSOCIATION_MEMBER');
+
+  const eligible = candidates.filter(
+    (c) => c.id !== currentManager.id && c.role !== 'ASSOCIATION_MANAGER',
+  );
+
+  function handleSubmit() {
+    if (!toMembershipId) {
+      toast.error('Yeni başkanı seçin');
+      return;
+    }
+    mutation.mutate(
+      { toMembershipId, demoteToRole },
+      {
+        onSuccess: () => {
+          onOpenChange(false);
+          setToMembershipId('');
+          setDemoteToRole('ASSOCIATION_MEMBER');
+        },
+      },
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[460px]">
+        <DialogHeader>
+          <DialogTitle>Başkanlığı Devret</DialogTitle>
+          <DialogDescription>
+            Mevcut başkan <strong>{currentManager.user.fullName}</strong>{' '}
+            görevinden alınıp seçtiğiniz üye başkan yapılır. İşlem tek adımda,
+            geri alınabilir şekilde gerçekleşir.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Yeni başkan *</label>
+            <Select value={toMembershipId} onValueChange={setToMembershipId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Üye seç" />
+              </SelectTrigger>
+              <SelectContent>
+                {eligible.length === 0 ? (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
+                    Uygun üye yok
+                  </div>
+                ) : (
+                  eligible.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.user.fullName}
+                      {c.role === 'ASSOCIATION_SECRETARY' ? ' (Sekreter)' : ''}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Eski başkanın yeni rolü
+            </label>
+            <Select
+              value={demoteToRole}
+              onValueChange={(v) =>
+                setDemoteToRole(v as 'ASSOCIATION_SECRETARY' | 'ASSOCIATION_MEMBER')
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ASSOCIATION_MEMBER">Üye</SelectItem>
+                <SelectItem value="ASSOCIATION_SECRETARY">Sekreter</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={mutation.isPending}
+          >
+            <X className="h-3.5 w-3.5" />
+            Vazgeç
+          </Button>
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={mutation.isPending || eligible.length === 0}
+          >
+            {mutation.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <ArrowLeftRight className="h-3.5 w-3.5" />
+            )}
+            Devret
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
