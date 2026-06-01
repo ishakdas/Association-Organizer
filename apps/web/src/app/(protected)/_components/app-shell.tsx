@@ -25,6 +25,7 @@ import {
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/theme-toggle';
 import { cn } from '@/lib/utils';
 import { isSystemAdmin, activeMemberships, userRoleLabel } from '@/lib/permissions';
 import { usePendingRegistrationsCount } from '../admin/pending-registrations/_hooks/use-pending-count';
@@ -149,7 +150,7 @@ function Sidebar({
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col border-r border-border bg-card shadow-xl transition-transform duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 lg:shadow-none',
+          'fixed inset-y-0 left-0 z-40 flex w-[280px] flex-col border-r border-border bg-card shadow-xl transition-[transform,background-color,border-color] duration-300 ease-in-out lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 lg:shadow-none',
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
         )}
       >
@@ -316,6 +317,7 @@ function UserFooter({ user }: { user: AuthenticatedUser }) {
             {role}
           </div>
         </div>
+        <ThemeToggle />
       </div>
       <Button
         variant="ghost"
@@ -335,13 +337,16 @@ function MobileTopbar({ onMenu }: { onMenu: () => void }) {
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border bg-background/85 px-4 backdrop-blur lg:hidden">
       <Brand homeHref="/associations" />
-      <button
-        onClick={onMenu}
-        className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
-        aria-label="Menüyü aç"
-      >
-        <Menu className="h-5 w-5" />
-      </button>
+      <div className="flex items-center gap-1">
+        <ThemeToggle />
+        <button
+          onClick={onMenu}
+          className="rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground"
+          aria-label="Menüyü aç"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      </div>
     </header>
   );
 }

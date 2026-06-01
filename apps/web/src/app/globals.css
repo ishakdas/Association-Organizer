@@ -114,6 +114,40 @@
   * {
     @apply border-border;
   }
+
+  /* İlk yükleme: `next-themes` tema sınıfını uygularken HİÇBİR geçiş çalışmasın.
+     Aksi halde sayfa gündüz modunda boyanıp animasyonla geceye kayıyor (flaş).
+     `theme-ready` sınıfı yalnızca ilk boyamadan sonra eklenir; o ana dek
+     !important ile Tailwind'in kendi geçişleri de dahil her şey kilitlenir. */
+  html:not(.theme-ready) *,
+  html:not(.theme-ready) *::before,
+  html:not(.theme-ready) *::after {
+    transition: none !important;
+  }
+
+  /* Gece ↔ gündüz geçişinde tüm yüzeylerin rengini yumuşatır.
+     Tailwind'in `transition-colors` gibi utility sınıfları (hover vb.) bunu
+     kendi süreleriyle ezer; bu yalnızca temel zemin/metin/kenarlık geçişine etki eder. */
+  *,
+  *::before,
+  *::after {
+    transition:
+      background-color 300ms ease,
+      border-color 300ms ease,
+      color 200ms ease,
+      fill 300ms ease,
+      stroke 300ms ease;
+  }
+
+  /* Hareket azaltma tercihine saygı */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      transition-duration: 0.01ms !important;
+    }
+  }
+
   html {
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
