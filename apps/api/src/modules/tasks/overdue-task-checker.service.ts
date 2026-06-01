@@ -17,7 +17,11 @@ export class OverdueTaskChecker implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
-    this.enabled = process.env.ENABLE_OVERDUE_CHECKER === 'true';
+    // Varsayılan AÇIK: süresi geçen görev + çözülmemiş itiraz hatırlatması
+    // ürünün temel davranışı, opsiyonel bir eklenti değil. Yalnızca API
+    // birden fazla instance olarak ölçeklenirse, çift bildirim olmasın diye
+    // yan kopyalarda ENABLE_OVERDUE_CHECKER='false' ile kapatılır.
+    this.enabled = process.env.ENABLE_OVERDUE_CHECKER !== 'false';
     if (this.enabled) {
       this.logger.log('Overdue task checker enabled (hourly)');
       this.cronJob = new CronJob('0 * * * *', () => this.checkOverdueTasks().catch((err) => {

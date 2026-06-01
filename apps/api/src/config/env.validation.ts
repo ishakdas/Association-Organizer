@@ -32,6 +32,10 @@ export const envSchema = z.object({
   RESEND_API_KEY: z.string().min(1).optional(),
   RESEND_FROM_EMAIL: z.string().email().optional(),
   RESEND_FROM_NAME: z.string().default('Dernek Yönetim Sistemi'),
+  // Süresi geçen görev + çözülmemiş itiraz hatırlatma cron'u (saatlik).
+  // Varsayılan AÇIK; yalnızca çok-instance deploy'da yan kopyalarda
+  // 'false' yapılarak çift bildirim engellenir.
+  ENABLE_OVERDUE_CHECKER: z.enum(['true', 'false']).default('true'),
 });
 
 export type Env = z.infer<typeof envSchema>;
