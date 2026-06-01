@@ -56,9 +56,10 @@ export function DatePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-auto overflow-hidden rounded-xl border border-border/60 bg-popover p-0 shadow-lg shadow-black/5"
+        className="max-h-[var(--radix-popover-content-available-height)] w-auto overflow-y-auto overflow-x-hidden rounded-xl border border-border/60 bg-popover p-0 shadow-lg shadow-black/5"
         align="start"
         sideOffset={6}
+        collisionPadding={12}
       >
         <Calendar
           mode="single"

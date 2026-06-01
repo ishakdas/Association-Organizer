@@ -19,24 +19,24 @@ function Calendar({
     <DayPicker
       locale={tr}
       showOutsideDays={showOutsideDays}
+      navLayout="around"
       className={cn('p-3.5 select-none', className)}
       classNames={{
         months: 'flex flex-col sm:flex-row gap-4',
-        month: 'flex flex-col gap-4',
+        month: 'relative flex flex-col gap-4',
         month_caption:
-          'relative flex h-8 items-center justify-center pt-0.5 px-9',
+          'relative flex h-8 items-center justify-center pt-0.5 px-10',
         caption_label:
           'text-[13.5px] font-semibold tracking-tight text-foreground capitalize',
-        nav: 'absolute inset-x-0 top-1 flex items-center justify-between px-1',
         button_previous: cn(
-          'inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors',
-          'hover:bg-accent hover:text-foreground',
+          'absolute left-0.5 top-0 z-20 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors',
+          'hover:bg-accent hover:text-foreground [&_svg]:pointer-events-none',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
           'disabled:pointer-events-none disabled:opacity-30',
         ),
         button_next: cn(
-          'inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors',
-          'hover:bg-accent hover:text-foreground',
+          'absolute right-0.5 top-0 z-20 inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors',
+          'hover:bg-accent hover:text-foreground [&_svg]:pointer-events-none',
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
           'disabled:pointer-events-none disabled:opacity-30',
         ),

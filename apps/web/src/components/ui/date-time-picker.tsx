@@ -86,7 +86,11 @@ export function DateTimePicker({
           <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent
+        className="max-h-[var(--radix-popover-content-available-height)] w-auto overflow-y-auto overflow-x-hidden p-0"
+        align="start"
+        collisionPadding={12}
+      >
         <Calendar
           mode="single"
           selected={value}
