@@ -238,6 +238,12 @@ function NavLink({
     // swaps instantly client-side (useSearchParams picks up the pushState).
     if (instant) {
       e.preventDefault();
+      // Stop the event before it reaches the global NextTopLoader click listener
+      // on document: it would start the progress bar on this anchor but only
+      // completes on a pathname change, so a search-param-only switch would leave
+      // the bar hanging. stopImmediatePropagation works regardless of where React
+      // delegates the listener.
+      e.nativeEvent.stopImmediatePropagation();
       window.history.pushState(null, '', href);
     }
     onClick();

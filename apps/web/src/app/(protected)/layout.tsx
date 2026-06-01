@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import NextTopLoader from 'nextjs-toploader';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { createServerClient } from '@/lib/supabase/server';
 import { getMe } from '@/lib/api/me';
@@ -37,5 +38,15 @@ export default async function ProtectedLayout({
     };
   }
 
-  return <AppShell user={me}>{children}</AppShell>;
+  return (
+    <>
+      <NextTopLoader
+        color="#FCC200"
+        height={3}
+        showSpinner={false}
+        shadow="0 0 10px #FCC200,0 0 5px #FCC200"
+      />
+      <AppShell user={me}>{children}</AppShell>
+    </>
+  );
 }
