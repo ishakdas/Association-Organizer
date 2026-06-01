@@ -890,11 +890,21 @@ export class TasksService {
   async markCompletedViaBot(taskId: string, actingUserId: string) {
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, deletedAt: null },
-      select: { id: true, status: true, assignedToUserId: true, associationId: true, title: true, createdAt: true },
+      select: { id: true, status: true, assignedToUserId: true, associationId: true, title: true, createdAt: true, disputed: true },
     });
     if (!task) throw new NotFoundException('Görev bulunamadı');
     if (task.assignedToUserId !== actingUserId) {
       throw new ForbiddenException('Bu görevi tamamlayamazsınız');
+    }
+    await this.assertActiveMembershipViaBot(actingUserId, task.associationId);
+    if (
+      task.disputed &&
+      task.status !== TaskStatus.COMPLETED &&
+      task.status !== TaskStatus.CANCELLED
+    ) {
+      throw new BadRequestException(
+        'Bu görev itiraz edilmiş; önce yönetici çözmeli',
+      );
     }
 
     if (
@@ -1022,6 +1032,13 @@ export class TasksService {
         `Failed to reschedule task ${updated.id}: ${(err as Error).message}`,
       );
     }
+
+    await this.maybeEscalateDueDateChurn(
+      taskId,
+      task.associationId,
+      actingUserId,
+      newDueDate,
+    );
 
     return updated;
   }
@@ -1314,6 +1331,13 @@ export class TasksService {
       );
     }
 
+    await this.maybeEscalateDueDateChurn(
+      taskId,
+      task.associationId,
+      actingUserId,
+      newDue,
+    );
+
     return updated;
   }
 
@@ -1385,6 +1409,47 @@ export class TasksService {
     if (!membership) {
       throw new ForbiddenException('Bu dernekte aktif üyeliğiniz yok');
     }
+  }
+
+  // Bir görevin bitiş tarihi tekrar tekrar değiştirilirse (üyenin sürekli
+  // ertelemesi gibi) yöneticileri bilgilendir. Eşik aşılınca fire-and-forget
+  // bildirim; akışı bloklamaz.
+  private async maybeEscalateDueDateChurn(
+    taskId: string,
+    associationId: string,
+    actingUserId: string,
+    newDueDate: Date,
+  ): Promise<void> {
+    const ALERT_THRESHOLD = 3;
+    const changeCount = await this.prisma.taskActivity.count({
+      where: { taskId, action: TaskActivityAction.DUE_DATE_CHANGED },
+    });
+    if (changeCount < ALERT_THRESHOLD) return;
+
+    const [assignee, taskRow] = await Promise.all([
+      this.prisma.user.findUnique({
+        where: { id: actingUserId },
+        select: { fullName: true },
+      }),
+      this.prisma.task.findUnique({
+        where: { id: taskId },
+        select: { title: true },
+      }),
+    ]);
+
+    void this.notificationService
+      .notifyExcessiveSnooze(
+        associationId,
+        taskRow?.title ?? 'Görev',
+        assignee?.fullName ?? 'Üye',
+        changeCount,
+        newDueDate,
+      )
+      .catch((err) =>
+        this.logger.warn(
+          `Erteleme eskalasyon bildirimi gönderilemedi: ${(err as Error).message}`,
+        ),
+      );
   }
 
   private isMemberOnly(user: AuthenticatedUser, associationId: string): boolean {

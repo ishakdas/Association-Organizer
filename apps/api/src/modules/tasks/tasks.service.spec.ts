@@ -156,15 +156,20 @@ describe('TasksService', () => {
         assignedToUserId: validInput.assignedToUserId,
         assignedById: SECRETARY_USER.id,
         assignedBy: { id: SECRETARY_USER.id, fullName: 'Sekreter' },
-      } as never;
+      };
       prisma.$transaction.mockImplementation(async (cb: any) => cb(prisma));
-      prisma.task.create.mockResolvedValue(createdTask);
+      prisma.task.create.mockResolvedValue(createdTask as never);
       prisma.taskActivity.create.mockResolvedValue({} as never);
 
       const result = await service.create(ASSOC, validInput, SECRETARY_USER);
 
       expect(prisma.task.create).toHaveBeenCalledTimes(1);
-      expect(result).toEqual(createdTask);
+      // create() enriches the row with computed fields before returning.
+      expect(result).toEqual({
+        ...createdTask,
+        durationHours: null,
+        workloadWarning: null,
+      });
     });
 
     it('creates the task and stamps assignedById from the authenticated user', async () => {
@@ -199,7 +204,11 @@ describe('TasksService', () => {
           }),
         }),
       );
-      expect(result).toEqual(sampleTask);
+      expect(result).toEqual({
+        ...sampleTask,
+        durationHours: null,
+        workloadWarning: null,
+      });
     });
 
     it('coerces optional dueDate / reminderAt strings to Date', async () => {
@@ -211,12 +220,15 @@ describe('TasksService', () => {
       } as never);
       prisma.task.create.mockResolvedValue(sampleTask as never);
 
+      // Use far-future dates so the "past dueDate" guard never trips as the
+      // wall clock advances. (Earlier this test pinned 2026-05 dates that
+      // silently went stale.)
       await service.create(
         ASSOC,
         {
           ...validInput,
-          dueDate: '2026-05-01T00:00:00.000Z',
-          reminderAt: '2026-04-30T09:00:00.000Z',
+          dueDate: '2099-05-01T00:00:00.000Z',
+          reminderAt: '2099-04-30T09:00:00.000Z',
         },
         SECRETARY_USER,
       );

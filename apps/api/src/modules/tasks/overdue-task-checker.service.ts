@@ -80,4 +80,60 @@ export class OverdueTaskChecker implements OnModuleInit, OnModuleDestroy {
       }
     }
   }
+
+  // Uzun süredir (~2 gün) çözülmemiş itirazlı görevleri yöneticilere
+  // hatırlatır. Saatlik cron + 1 saatlik pencere → her görev yalnızca bir
+  // kez eskale edilir (şema değişikliği / spam yok). Cron kapalıyken (env)
+  // çalışmaz; itiraz anında zaten takipçi/atayan bilgilendiriliyor.
+  async checkUnresolvedDisputes(): Promise<void> {
+    if (!this.enabled) return;
+
+    const DAY = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const upper = new Date(now - 2 * DAY);
+    const lower = new Date(now - 2 * DAY - 60 * 60 * 1000);
+
+    const disputed = await this.prisma.task.findMany({
+      where: {
+        disputed: true,
+        disputedAt: { gte: lower, lt: upper },
+        status: { in: [TaskStatus.PENDING, TaskStatus.IN_PROGRESS] },
+        deletedAt: null,
+      },
+      include: {
+        assignedTo: { select: { fullName: true } },
+      },
+      take: BATCH_SIZE,
+      orderBy: { disputedAt: 'asc' },
+    });
+
+    if (disputed.length === 0) return;
+
+    this.logger.log(`Found ${disputed.length} long-unresolved disputed tasks`);
+
+    const byAssociation = new Map<string, typeof disputed>();
+    for (const task of disputed) {
+      const arr = byAssociation.get(task.associationId) ?? [];
+      arr.push(task);
+      byAssociation.set(task.associationId, arr);
+    }
+
+    for (const [assocId, tasks] of byAssociation) {
+      try {
+        await this.notificationService.notifyUnresolvedDisputes(
+          assocId,
+          tasks.map((t) => ({
+            taskId: t.id,
+            title: t.title,
+            assigneeName: t.assignedTo?.fullName ?? 'Bilinmeyen',
+            disputedAt: t.disputedAt!,
+          })),
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Dispute escalation notification failed for ${assocId}: ${(err as Error).message}`,
+        );
+      }
+    }
+  }
 }

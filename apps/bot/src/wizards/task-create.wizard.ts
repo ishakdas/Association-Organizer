@@ -1,11 +1,12 @@
 import { Telegraf, Markup } from 'telegraf';
 import { PrismaService, UserRole, TaskPriority } from '@ticketbot/database';
 import { BotService } from '../bot.service';
+import { escapeMarkdown } from '../utils/message-formatter';
 
 interface TaskCreateSession {
   userId: string;
   associationId: string;
-  step: 'title' | 'description' | 'assignee' | 'priority' | 'dueDate' | 'confirm';
+  step: 'association' | 'title' | 'description' | 'assignee' | 'priority' | 'dueDate' | 'confirm';
   title?: string;
   description?: string;
   assignedToUserId?: string;
@@ -16,6 +17,20 @@ interface TaskCreateSession {
 
 const taskCreateSessions = new Map<number, TaskCreateSession>();
 const SESSION_TTL_MS = 30 * 60 * 1000;
+
+// Görev oluşturma sihirbazının bu kullanıcı için son aktivite zamanı (epoch
+// ms) veya yoksa null. Diğer metin-yakalayan handler'lar (ör. görev listesi
+// numara girişi) "en son hangi akış kullanıldıysa o kazanır" kararı için
+// kullanır. lastActivity = expiresAt - TTL.
+export function taskCreateSessionActivity(telegramId: number): number | null {
+  const s = taskCreateSessions.get(telegramId);
+  if (!s) return null;
+  if (s.expiresAt <= Date.now()) {
+    taskCreateSessions.delete(telegramId);
+    return null;
+  }
+  return s.expiresAt - SESSION_TTL_MS;
+}
 
 const PRIORITY_MAP: Record<string, TaskPriority> = {
   'Düşük': TaskPriority.LOW,
@@ -51,6 +66,27 @@ export function registerTaskCreateWizard(bot: Telegraf, prisma: PrismaService, b
       return ctx.reply('📋 Görev oluşturmak için Başkan veya Sekreter yetkisine sahip olmalısın.');
     }
 
+    // Birden fazla dernekte yetkiliyse önce dernek seçtir; tek dernek
+    // varsa doğrudan başlığa geç.
+    if (memberships.length > 1) {
+      taskCreateSessions.set(fromId, {
+        userId: account.userId,
+        associationId: '',
+        step: 'association',
+        expiresAt: Date.now() + SESSION_TTL_MS,
+      });
+      const buttons = memberships.map((m) => [
+        Markup.button.callback(
+          m.association.name,
+          `tcreate:assoc:${m.association.id}`,
+        ),
+      ]);
+      buttons.push([Markup.button.callback('❌ İptal', 'tcreate:cancel')]);
+      return ctx.reply('🏢 Hangi dernek için görev oluşturacaksın?', {
+        ...Markup.inlineKeyboard(buttons),
+      });
+    }
+
     const assoc = memberships[0].association;
     taskCreateSessions.set(fromId, {
       userId: account.userId,
@@ -60,8 +96,42 @@ export function registerTaskCreateWizard(bot: Telegraf, prisma: PrismaService, b
     });
 
     return ctx.reply(
-      `📝 *${assoc.name}* - Yeni Görev Oluştur\n\nGörev başlığını yaz:`,
+      `📝 *${escapeMarkdown(assoc.name)}* - Yeni Görev Oluştur\n\nGörev başlığını yaz:`,
       { parse_mode: 'Markdown', ...Markup.removeKeyboard() },
+    );
+  });
+
+  // Dernek seçimi (çok-dernekli yetkili).
+  bot.action(/^tcreate:assoc:(.+)$/, async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return ctx.answerCbQuery();
+
+    const session = taskCreateSessions.get(fromId);
+    if (!session) return ctx.answerCbQuery('Oturum bulunamadı');
+
+    const associationId = ctx.match[1];
+
+    // Seçilen dernekte hâlâ yetkili mi, doğrula.
+    const membership = await prisma.associationMembership.findFirst({
+      where: {
+        userId: session.userId,
+        associationId,
+        isActive: true,
+        deletedAt: null,
+        role: { in: [UserRole.ASSOCIATION_MANAGER, UserRole.ASSOCIATION_SECRETARY] },
+      },
+      include: { association: { select: { name: true } } },
+    });
+    if (!membership) {
+      return ctx.answerCbQuery('Bu dernekte yetkiniz yok');
+    }
+
+    session.associationId = associationId;
+    session.step = 'title';
+    await ctx.answerCbQuery();
+    return ctx.editMessageText(
+      `📝 *${escapeMarkdown(membership.association.name)}* - Yeni Görev Oluştur\n\nGörev başlığını yaz:`,
+      { parse_mode: 'Markdown' },
     );
   });
 
@@ -225,72 +295,36 @@ export function registerTaskCreateWizard(bot: Telegraf, prisma: PrismaService, b
     await ctx.answerCbQuery();
 
     try {
-      const task = await prisma.task.create({
-        data: {
-          associationId: session.associationId,
+      const created = await botService.createTask(
+        session.associationId,
+        {
           title: session.title,
           description: session.description ?? null,
           assignedToUserId: session.assignedToUserId,
-          assignedById: session.userId,
           priority: session.priority ?? TaskPriority.MEDIUM,
-          dueDate: session.dueDate ? new Date(session.dueDate) : null,
+          dueDate: session.dueDate ?? null,
         },
-        include: {
-          assignedTo: { select: { fullName: true } },
-        },
-      });
-
-      await prisma.taskActivity.create({
-        data: {
-          taskId: task.id,
-          actorId: session.userId,
-          action: 'CREATED' as any,
-          payload: {
-            assigneeId: task.assignedToUserId,
-            priority: task.priority,
-            dueDate: task.dueDate?.toISOString() ?? null,
-            via: 'telegram',
-          },
-        },
-      });
+        session.userId,
+      );
 
       taskCreateSessions.delete(fromId);
 
-      const assigneeTelegram = await prisma.telegramAccount.findUnique({
-        where: { userId: session.assignedToUserId },
-        select: { userId: true },
-      });
-
-      let notifyMsg = '';
-      if (assigneeTelegram) {
-        try {
-          await botService.sendToUser(session.assignedToUserId,
-            `📋 *Yeni Görev Atandı*\n\n` +
-            `*${task.title}*\n\n` +
-            (task.description ? `${task.description}\n\n` : '') +
-            (task.dueDate ? `📅 Bitiş: ${fmtDate(task.dueDate.toISOString())}\n` : '') +
-            `📌 Öncelik: ${priorityLabel(task.priority)}\n\n` +
-            `Görevi kabul etmek veya tamamlamak için /gorevlerim komutunu kullan.`,
-            { parseMode: 'Markdown' },
-          );
-          notifyMsg = '\n\n✅ Atanan kişiye bildirim gönderildi.';
-        } catch {
-          notifyMsg = '\n\n⚠️ Atanan kişiye bildirim gönderilemedi (Telegram bağlı değil).';
-        }
-      }
-
+      // TasksService.create atama bildirimini (Kabul/İtiraz klavyesi) ve
+      // hatırlatma işlerini kendisi kurar; burada yalnızca özet gösteriyoruz.
       return ctx.editMessageText(
         `✅ *Görev Oluşturuldu!*\n\n` +
-        `📝 Başlık: *${task.title}*\n` +
-        `👤 Atanan: *${task.assignedTo.fullName}*\n` +
-        `📌 Öncelik: ${priorityLabel(task.priority)}\n` +
-        (task.dueDate ? `📅 Bitiş: ${fmtDate(task.dueDate.toISOString())}\n` : '') +
-        notifyMsg,
+        `📝 Başlık: *${escapeMarkdown(created.title)}*\n` +
+        `👤 Atanan: *${escapeMarkdown(created.assignedTo?.fullName ?? '—')}*\n` +
+        `📌 Öncelik: ${priorityLabel(session.priority ?? TaskPriority.MEDIUM)}\n` +
+        (created.dueDate ? `📅 Bitiş: ${fmtDate(created.dueDate.toISOString())}\n` : '') +
+        `\nℹ️ Atanan kişiye (Telegram bağlıysa) bildirim ve hatırlatma ayarlandı.`,
         { parse_mode: 'Markdown' },
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Bilinmeyen hata';
-      return ctx.editMessageText(`❌ Görev oluşturulamadı: ${msg}`);
+      return ctx.editMessageText(
+        `❌ Görev oluşturulamadı: ${escapeMarkdown(msg)}`,
+      );
     }
   });
 

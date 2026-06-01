@@ -22,11 +22,38 @@ export interface SendToUserOptions {
   parseMode?: 'MarkdownV2' | 'Markdown' | 'HTML';
 }
 
+export interface BotTaskCreateInput {
+  title: string;
+  description?: string | null;
+  assignedToUserId: string;
+  priority: 'LOW' | 'MEDIUM' | 'HIGH';
+  dueDate?: string | null;
+}
+
+export interface BotCreatedTask {
+  id: string;
+  title: string;
+  dueDate: Date | null;
+  assignedTo?: { fullName: string } | null;
+}
+
+// Dependency-inversion port: the bot lib cannot import the API's
+// TasksService (the API depends on the bot, not the reverse). The API
+// registers an adapter at startup so wizard-created tasks go through the
+// same TasksService.create path (reminder scheduling, atama klavyesi,
+// üyelik doğrulaması) as web-created ones.
+export type BotTaskCreatePort = (
+  associationId: string,
+  input: BotTaskCreateInput,
+  actingUserId: string,
+) => Promise<BotCreatedTask>;
+
 @Injectable()
 export class BotService implements OnModuleInit, OnModuleDestroy {
   private bot: Telegraf;
   private readonly logger = new Logger(BotService.name);
   private polling = false;
+  private taskCreatePort: BotTaskCreatePort | null = null;
 
   constructor(
     private readonly config: ConfigService,
@@ -176,6 +203,25 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
 
   getBot(): Telegraf {
     return this.bot;
+  }
+
+  // Registered by the API (TasksBotIntegration) at startup.
+  setTaskCreatePort(port: BotTaskCreatePort): void {
+    this.taskCreatePort = port;
+  }
+
+  // Create a task through the API's TasksService (reminder jobs, atama
+  // klavyesi, üyelik kontrolü dahil). Throws if the API hasn't wired the
+  // port — the bot always runs inside the API process, so that is a bug.
+  async createTask(
+    associationId: string,
+    input: BotTaskCreateInput,
+    actingUserId: string,
+  ): Promise<BotCreatedTask> {
+    if (!this.taskCreatePort) {
+      throw new Error('Görev oluşturma servisi hazır değil');
+    }
+    return this.taskCreatePort(associationId, input, actingUserId);
   }
 
   async sendToUser(

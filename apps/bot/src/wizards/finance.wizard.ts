@@ -48,6 +48,18 @@ const SESSION_TTL_MS = 10 * 60 * 1000;
 const HISTORY_PAGE_SIZE = 8;
 const UNDO_TIMEOUT_MS = 5000;
 
+// Finans sihirbazının bu kullanıcı için son aktivite zamanı (epoch ms) veya
+// yoksa null. (Bkz. görev listesi numara girişi — en-son-kazanır kararı.)
+export function financeSessionActivity(telegramId: number): number | null {
+  const s = sessions.get(telegramId);
+  if (!s) return null;
+  if (s.expiresAt <= Date.now()) {
+    sessions.delete(telegramId);
+    return null;
+  }
+  return s.expiresAt - SESSION_TTL_MS;
+}
+
 const undoTimers = new Map<number, NodeJS.Timeout>();
 
 function evictExpired(now: number) {

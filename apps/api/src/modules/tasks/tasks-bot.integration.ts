@@ -13,6 +13,8 @@ import {
   snoozeSubmenuKeyboard,
 } from 'bot';
 import { PrismaService } from '@ticketbot/database';
+import type { CreateTaskInput } from '@ticketbot/shared-validation';
+import type { AuthenticatedUser } from '@ticketbot/shared-types';
 import { TasksService } from './tasks.service';
 import { IcsTokenService } from './ics-token.service';
 
@@ -50,12 +52,83 @@ export class TasksBotIntegration implements OnModuleInit {
   onModuleInit() {
     const bot = this.botService.getBot();
 
+    // Wire the dependency-inversion port so wizard-created (/gorev) tasks
+    // go through TasksService.create — same reminder scheduling, atama
+    // klavyesi and üyelik doğrulaması as web-created tasks.
+    this.botService.setTaskCreatePort(
+      async (associationId, input, actingUserId) => {
+        const created = await this.tasks.create(
+          associationId,
+          {
+            title: input.title,
+            description: input.description ?? undefined,
+            assignedToUserId: input.assignedToUserId,
+            priority: input.priority,
+            reminderFrequency: 'NONE',
+            dueDate: input.dueDate ?? undefined,
+          } as unknown as CreateTaskInput,
+          { id: actingUserId } as unknown as AuthenticatedUser,
+        );
+        return {
+          id: created.id,
+          title: created.title,
+          dueDate: created.dueDate ?? null,
+          assignedTo: created.assignedTo ?? null,
+        };
+      },
+    );
+
     bot.action(/^task_done:(.+)$/, async (ctx) => {
+      const taskId = ctx.match[1];
+      await this.handleWithUser(ctx, async (userId) => {
+        // Erken tamamlama koruması: bitiş tarihi gelmemişse önce onay iste;
+        // yanlışlıkla "Tamamla"ya basıp görevi kapatmayı önler.
+        const t = await this.tasks.getAssignmentBotContext(taskId, userId);
+        if (t.dueDate && t.dueDate.getTime() > Date.now()) {
+          await ctx
+            .editMessageReplyMarkup({
+              inline_keyboard: [
+                [
+                  {
+                    text: '✅ Evet, tamamla',
+                    callback_data: `task_done_y:${taskId}`,
+                  },
+                  {
+                    text: '↩️ Vazgeç',
+                    callback_data: `task_done_n:${taskId}`,
+                  },
+                ],
+              ],
+            })
+            .catch(() => undefined);
+          await ctx.answerCbQuery('Süresi dolmadan tamamlanıyor — onaylayın');
+          return;
+        }
+        await this.tasks.markCompletedViaBot(taskId, userId);
+        await ctx.editMessageText('✅ Tamamlandı').catch(() => undefined);
+        await ctx.answerCbQuery('Tamamlandı');
+      });
+    });
+
+    // Erken tamamlama onayı.
+    bot.action(/^task_done_y:(.+)$/, async (ctx) => {
       const taskId = ctx.match[1];
       await this.handleWithUser(ctx, async (userId) => {
         await this.tasks.markCompletedViaBot(taskId, userId);
         await ctx.editMessageText('✅ Tamamlandı').catch(() => undefined);
         await ctx.answerCbQuery('Tamamlandı');
+      });
+    });
+
+    // Erken tamamlamadan vazgeç → hatırlatma klavyesine dön.
+    bot.action(/^task_done_n:(.+)$/, async (ctx) => {
+      const taskId = ctx.match[1];
+      await this.handleWithUser(ctx, async (userId) => {
+        await this.tasks.getAssignmentBotContext(taskId, userId);
+        await ctx
+          .editMessageReplyMarkup(reminderActionsKeyboard(taskId).reply_markup)
+          .catch(() => undefined);
+        await ctx.answerCbQuery('İptal edildi');
       });
     });
 

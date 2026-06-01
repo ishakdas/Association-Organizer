@@ -90,6 +90,53 @@ export class TaskNotificationService {
     await this.sendToAll(managers, message);
   }
 
+  async notifyExcessiveSnooze(
+    associationId: string,
+    taskTitle: string,
+    assigneeName: string,
+    snoozeCount: number,
+    newDueDate: Date,
+  ): Promise<void> {
+    const managers = await this.getManagersWithTelegram(associationId);
+    if (managers.length === 0) return;
+
+    const title = escapeMarkdown(taskTitle);
+    const name = escapeMarkdown(assigneeName);
+    const dueStr = TR_FORMATTER.format(newDueDate);
+
+    const message =
+      `⏰ *Görev Tekrar Ertelendi*\n\n` +
+      `👤 *${name}* "${title}" görevinin bitiş tarihini ${snoozeCount}. kez değiştirdi.\n` +
+      `Yeni bitiş: *${dueStr}*\n\n` +
+      `Gözden geçirmenizde fayda olabilir başkanım.`;
+
+    await this.sendToAll(managers, message);
+  }
+
+  async notifyUnresolvedDisputes(
+    associationId: string,
+    disputes: Array<{
+      taskId: string;
+      title: string;
+      assigneeName: string;
+      disputedAt: Date;
+    }>,
+  ): Promise<void> {
+    const managers = await this.getManagersWithTelegram(associationId);
+    if (managers.length === 0) return;
+
+    let message = `⚠️ *Çözülmemiş İtirazlar*\n\n`;
+    for (const d of disputes) {
+      const title = escapeMarkdown(d.title);
+      const name = escapeMarkdown(d.assigneeName);
+      const since = TR_FORMATTER.format(d.disputedAt);
+      message += `• "${title}" — ${name} itiraz etti (${since})\n`;
+    }
+    message += `\nBu görevler beklemede; web panelinden yeniden atayın başkanım.`;
+
+    await this.sendToAll(managers, message);
+  }
+
   private async getManagersWithTelegram(associationId: string): Promise<Array<{ userId: string; fullName: string }>> {
     const memberships = await this.prisma.associationMembership.findMany({
       where: {

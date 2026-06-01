@@ -116,6 +116,18 @@ interface MeetingWizardSession {
 const sessions = new Map<number, MeetingWizardSession>();
 const SESSION_TTL_MS = 30 * 60 * 1000;
 
+// Toplantı sihirbazının bu kullanıcı için son aktivite zamanı (epoch ms)
+// veya yoksa null. (Bkz. görev listesi numara girişi — en-son-kazanır.)
+export function meetingSessionActivity(telegramId: number): number | null {
+  const s = sessions.get(telegramId);
+  if (!s) return null;
+  if (s.expiresAt <= Date.now()) {
+    sessions.delete(telegramId);
+    return null;
+  }
+  return s.expiresAt - SESSION_TTL_MS;
+}
+
 function evictExpired(now: number) {
   for (const [k, v] of sessions) {
     if (v.expiresAt <= now) sessions.delete(k);

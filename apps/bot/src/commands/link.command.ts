@@ -1,5 +1,5 @@
 import { Telegraf, Markup, Context } from 'telegraf';
-import { PrismaService } from '@ticketbot/database';
+import { PrismaService, UserRole } from '@ticketbot/database';
 import { ConfigService } from '@nestjs/config';
 import { parsePhoneE164 } from '@ticketbot/shared-validation';
 
@@ -109,6 +109,59 @@ export async function startPendingLink(
   }
 }
 
+// Role'e göre Telegram komut menüsü (kişiye özel scope). Üyeler görev/
+// toplantı OLUŞTURMA komutlarını görmez; Başkan/Sekreter/Sistem yöneticisi
+// görür. Finans komutları mevcut işleyiş korunarak herkeste kalır.
+async function setScopedCommandsForChat(
+  bot: Telegraf,
+  prisma: PrismaService,
+  userId: string,
+  chatId: number,
+): Promise<void> {
+  const base = [
+    { command: 'gorevlerim', description: 'Görevlerim' },
+    { command: 'toplantilarim', description: 'Toplantılarım' },
+    { command: 'finans', description: 'Finans menüsü' },
+    { command: 'gider', description: 'Gider ekle' },
+    { command: 'bagis', description: 'Bağış kaydet' },
+    { command: 'aidat', description: 'Aidat al' },
+    { command: 'kasa', description: 'Kasa durumu' },
+    { command: 'gecmis', description: 'İşlem geçmişi' },
+    { command: 'ozet', description: 'Aylık özet' },
+    { command: 'help', description: 'Yardım ve komutlar' },
+    { command: 'iptal', description: 'İşlemi iptal et' },
+  ];
+  const managerExtra = [
+    { command: 'gorev', description: 'Yeni görev oluştur' },
+    { command: 'toplanti', description: 'Toplantı notu ekle' },
+  ];
+
+  const [user, memberships] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { isSystemAdmin: true },
+    }),
+    prisma.associationMembership.findMany({
+      where: { userId, isActive: true, deletedAt: null },
+      select: { role: true },
+    }),
+  ]);
+
+  const privileged =
+    user?.isSystemAdmin === true ||
+    memberships.some(
+      (m) =>
+        m.role === UserRole.ASSOCIATION_MANAGER ||
+        m.role === UserRole.ASSOCIATION_SECRETARY,
+    );
+
+  const commands = privileged ? [...managerExtra, ...base] : base;
+
+  await bot.telegram.setMyCommands(commands, {
+    scope: { type: 'chat', chat_id: chatId },
+  });
+}
+
 export function registerLinkCommand(
   bot: Telegraf,
   prisma: PrismaService,
@@ -214,6 +267,15 @@ export function registerLinkCommand(
     }
 
     pendingLinks.delete(fromId);
+
+    // Role'e göre kişiye özel komut menüsü. Sadece bu sohbet için; başarısız
+    // olursa bağlamayı bozmasın.
+    try {
+      await setScopedCommandsForChat(bot, prisma, pending.userId, fromId);
+    } catch (err) {
+      console.warn('[link.command] setScopedCommands failed:', err);
+    }
+
     return ctx.reply(
       'Hesap başarıyla bağlandı! ✅\n\nGörev hatırlatmalarını bu sohbette göndereceğim.',
       removeKeyboard,
