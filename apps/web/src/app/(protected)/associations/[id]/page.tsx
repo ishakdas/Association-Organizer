@@ -16,14 +16,12 @@ import { MeetingsSection } from '../_components/detail/meetings-section';
 import { TelegramSection } from '../_components/detail/telegram-section';
 import { FinanceSection } from '../_components/detail/finance-section';
 import { PermissionsSection } from '../_components/detail/permissions-section';
+import { SectionRouter } from '../_components/detail/section-router';
 
 interface Props {
   params: Promise<{ id: string }>;
   searchParams: Promise<{ section?: string }>;
 }
-
-const VALID_SECTIONS = ['dashboard', 'finans', 'uyeler', 'gorevler', 'toplantilar', 'telegram', 'yetkiler', 'ayarlar'] as const;
-type Section = (typeof VALID_SECTIONS)[number];
 
 export default async function AssociationDetailPage({ params, searchParams }: Props) {
   const { id } = await params;
@@ -35,15 +33,11 @@ export default async function AssociationDetailPage({ params, searchParams }: Pr
 
   if (!session) notFound();
 
-  let me: AuthenticatedUser | null = null;
   try {
-    me = await getMe(session.access_token);
-  } catch {
-    me = null;
-  }
-
-  try {
-    const a = await getAssociation(session.access_token, id);
+    const [me, a] = await Promise.all([
+      getMe(session.access_token).catch((): AuthenticatedUser | null => null),
+      getAssociation(session.access_token, id),
+    ]);
 
     const canManageRoster = canManageMembers(me, id);
     const canManageManagerCard = isSystemAdmin(me);
@@ -77,37 +71,31 @@ export default async function AssociationDetailPage({ params, searchParams }: Pr
       );
     }
 
-    // Member: sidebar handles navigation, no tabs inside the page
-    const activeSection: Section = VALID_SECTIONS.includes(section as Section)
-      ? (section as Section)
-      : 'dashboard';
-
+    // Member: sidebar handles navigation. All sections are rendered as slots and
+    // SectionRouter shows the one matching `?section` — switching happens fully
+    // client-side (via history.pushState) with no server round-trip.
     return (
       <div className="pb-10">
         <MemberDetailHeader name={a.name} />
         <div className="mt-8">
-          {activeSection === 'dashboard' && <DashboardSection associationId={a.id} />}
-          {activeSection === 'finans' && <FinanceSection associationId={a.id} />}
-          {activeSection === 'uyeler' && (
-            <RosterSection
-              associationId={a.id}
-              canManage={canManageRoster}
-              canManageManager={canManageManagerCard}
-            />
-          )}
-          {activeSection === 'gorevler' && (
-            <TasksSection associationId={a.id} canManage={canCreateWork} currentUserId={me?.id} />
-          )}
-          {activeSection === 'toplantilar' && (
-            <MeetingsSection associationId={a.id} canManage={canCreateWork} />
-          )}
-          {activeSection === 'telegram' && (
-            <TelegramSection associationId={a.id} canManage={canManageRoster} />
-          )}
-          {activeSection === 'yetkiler' && (
-            <PermissionsSection associationId={a.id} />
-          )}
-          {activeSection === 'ayarlar' && <GeneralSection a={a} />}
+          <SectionRouter
+            dashboard={<DashboardSection associationId={a.id} />}
+            finans={<FinanceSection associationId={a.id} />}
+            uyeler={
+              <RosterSection
+                associationId={a.id}
+                canManage={canManageRoster}
+                canManageManager={canManageManagerCard}
+              />
+            }
+            gorevler={
+              <TasksSection associationId={a.id} canManage={canCreateWork} currentUserId={me?.id} />
+            }
+            toplantilar={<MeetingsSection associationId={a.id} canManage={canCreateWork} />}
+            telegram={<TelegramSection associationId={a.id} canManage={canManageRoster} />}
+            yetkiler={<PermissionsSection associationId={a.id} />}
+            ayarlar={<GeneralSection a={a} />}
+          />
         </div>
       </div>
     );

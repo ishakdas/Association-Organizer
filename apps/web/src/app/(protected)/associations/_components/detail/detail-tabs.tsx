@@ -1,6 +1,6 @@
 'use client';
 
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   BookOpen,
   ClipboardList,
@@ -60,7 +60,6 @@ export function DetailTabs({
   yetkiler,
 }: DetailTabsProps) {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const pathname = usePathname();
 
   const section = searchParams.get('section') ?? defaultValue;
@@ -82,7 +81,10 @@ export function DetailTabs({
   function handleTabChange(value: string) {
     const params = new URLSearchParams(searchParams.toString());
     params.set('section', value);
-    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    // Update the URL via the History API instead of router.replace, so the tab
+    // switches instantly client-side with no server RSC round-trip
+    // (useSearchParams reflects replaceState; all panes are already client slots).
+    window.history.replaceState(null, '', `${pathname}?${params.toString()}`);
   }
 
   return (

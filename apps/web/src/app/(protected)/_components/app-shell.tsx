@@ -180,6 +180,7 @@ function Sidebar({
               icon={item.icon}
               badge={item.badge}
               active={isNavActive(pathname, searchParams, item)}
+              instant={!!item.matchSection && pathname === item.href.split('?')[0]}
               onClick={onClose}
             />
           ))}
@@ -220,6 +221,7 @@ function NavLink({
   icon: Icon,
   active,
   badge,
+  instant,
   onClick,
 }: {
   href: string;
@@ -227,12 +229,24 @@ function NavLink({
   icon: LucideIcon;
   active: boolean;
   badge?: number;
+  instant?: boolean;
   onClick: () => void;
 }) {
+  function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
+    // Same-route section switch: update the URL via the History API instead of a
+    // full Link navigation, so there's no server RSC round-trip — the section
+    // swaps instantly client-side (useSearchParams picks up the pushState).
+    if (instant) {
+      e.preventDefault();
+      window.history.pushState(null, '', href);
+    }
+    onClick();
+  }
+
   return (
     <Link
       href={href}
-      onClick={onClick}
+      onClick={handleClick}
       aria-current={active ? 'page' : undefined}
       className={cn(
         'group relative flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150',
