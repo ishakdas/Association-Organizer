@@ -20,6 +20,7 @@ import {
 import { AuthService } from './auth.service';
 import { SupabaseAdminService } from '../supabase/supabase-admin.service';
 import { EmailService } from '../email/email.service';
+import { PermissionService } from '../permissions/permission.service';
 
 type PrismaMock = DeepMockProxy<PrismaClient>;
 
@@ -95,6 +96,13 @@ describe('AuthService.approveBranchRegistration — saga rollback discipline', (
         { provide: ConfigService, useValue: config },
         { provide: SupabaseAdminService, useValue: supabaseAdmin },
         { provide: EmailService, useValue: emailService },
+        {
+          provide: PermissionService,
+          useValue: {
+            applyMembershipDefaults: jest.fn(),
+            applyTitleDerivedPermissions: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -301,6 +309,13 @@ describe('AuthService.generateLinkTokenWithEmail — Telegram deep link email de
         { provide: ConfigService, useValue: config },
         { provide: SupabaseAdminService, useValue: {} },
         { provide: EmailService, useValue: emailService },
+        {
+          provide: PermissionService,
+          useValue: {
+            applyMembershipDefaults: jest.fn(),
+            applyTitleDerivedPermissions: jest.fn(),
+          },
+        },
       ],
     }).compile();
 

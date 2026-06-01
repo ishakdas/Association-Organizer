@@ -26,6 +26,9 @@ const sampleAssociation = {
   createdAt: new Date('2026-01-01'),
   updatedAt: new Date('2026-01-01'),
   deletedAt: null,
+  // findById/findMany select an aggregate _count and derive memberCount from
+  // it (memberCount: a._count.memberships), so the mock row must carry it.
+  _count: { memberships: 10 },
 };
 
 describe('AssociationsRepository', () => {
@@ -78,9 +81,9 @@ describe('AssociationsRepository', () => {
 
       const result = await repository.findById('assoc-1');
 
-      expect(prisma.association.findFirst).toHaveBeenCalledWith({
-        where: { id: 'assoc-1', deletedAt: null },
-      });
+      expect(prisma.association.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: 'assoc-1', deletedAt: null } }),
+      );
       expect(result).toEqual(sampleAssociation);
     });
 
@@ -99,12 +102,14 @@ describe('AssociationsRepository', () => {
 
       const result = await repository.findMany({ page: 2, pageSize: 10 });
 
-      expect(prisma.association.findMany).toHaveBeenCalledWith({
-        where: { deletedAt: null },
-        skip: 10,
-        take: 10,
-        orderBy: { createdAt: 'desc' },
-      });
+      expect(prisma.association.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { deletedAt: null },
+          skip: 10,
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+        }),
+      );
       expect(prisma.association.count).toHaveBeenCalledWith({
         where: { deletedAt: null },
       });

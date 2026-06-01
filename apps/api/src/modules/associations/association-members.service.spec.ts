@@ -18,6 +18,7 @@ import {
 } from './association-members.service';
 import { UsersService } from '../users/users.service';
 import { AuthService } from '../auth/auth.service';
+import { PermissionService } from '../permissions/permission.service';
 
 const SYSTEM_ADMIN_ACTOR: AuthenticatedUser = {
   id: 'sysadmin-1',
@@ -139,6 +140,13 @@ describe('AssociationMembersService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: UsersService, useValue: users },
         { provide: AuthService, useValue: auth },
+        {
+          provide: PermissionService,
+          useValue: {
+            applyMembershipDefaults: jest.fn(),
+            applyTitleDerivedPermissions: jest.fn(),
+          },
+        },
       ],
     }).compile();
 

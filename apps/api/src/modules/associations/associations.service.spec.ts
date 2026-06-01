@@ -5,6 +5,7 @@ import { PrismaClient, PrismaService } from '@ticketbot/database';
 import { AssociationsService } from './associations.service';
 import { AssociationsRepository } from './associations.repository';
 import { UsersService } from '../users/users.service';
+import { PermissionService } from '../permissions/permission.service';
 
 type RepoMock = DeepMockProxy<AssociationsRepository>;
 type PrismaMock = DeepMockProxy<PrismaClient>;
@@ -85,6 +86,13 @@ describe('AssociationsService', () => {
         { provide: AssociationsRepository, useValue: repo },
         { provide: PrismaService, useValue: prisma },
         { provide: UsersService, useValue: users },
+        {
+          provide: PermissionService,
+          useValue: {
+            applyMembershipDefaults: jest.fn(),
+            applyTitleDerivedPermissions: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
