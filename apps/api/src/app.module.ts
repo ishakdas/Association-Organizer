@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { PrismaModule } from '@ticketbot/database';
 import configuration from './config/configuration';
 import { AuthModule } from './modules/auth/auth.module';
@@ -29,6 +30,13 @@ import { BotModule } from 'bot';
       load: [configuration],
       envFilePath: ['.env.local', '.env'],
     }),
+    // Rate limiting is NOT global (no APP_GUARD) — it only applies where
+    // ThrottlerGuard is explicitly attached, namely the unauthenticated auth
+    // endpoints (enumeration / email-spam / token brute-force). The `strict`
+    // named limiter below is referenced via @Throttle on those handlers.
+    ThrottlerModule.forRoot([
+      { name: 'strict', ttl: 60_000, limit: 8 },
+    ]),
     PrismaModule,
     SupabaseModule,
     AuthModule,

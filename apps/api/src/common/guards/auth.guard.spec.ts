@@ -172,6 +172,14 @@ describe('AuthGuard — request.user enrichment', () => {
         isActive: true,
       },
     ] as never);
+    // A valid bot token always has a matching live TelegramAccount (issued
+    // only after the link is upserted). The guard now enforces this.
+    prisma.telegramAccount.findUnique.mockResolvedValue({
+      telegramId: BigInt(123),
+      username: 'tg_user',
+      firstName: 'Tg',
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    } as never);
 
     const token = mintBotToken(userId);
     const { ctx, request } = ctxWith({ authorization: `Bearer ${token}` });
@@ -192,7 +200,12 @@ describe('AuthGuard — request.user enrichment', () => {
         },
       ],
       systemRole: null,
-      telegramAccount: null,
+      telegramAccount: {
+        telegramId: '123',
+        username: 'tg_user',
+        firstName: 'Tg',
+        linkedAt: '2026-01-01T00:00:00.000Z',
+      },
       onboardingCompletedAt: null,
       mustChangePassword: undefined,
     });
@@ -206,6 +219,9 @@ describe('AuthGuard — request.user enrichment', () => {
       fullName: 'Sistem Admin',
       supabaseUserId: null,
       isActive: true,
+      // systemRole is derived from the User.isSystemAdmin flag (not from a
+      // SYSTEM_ADMIN membership) — see AuthGuard.canActivate.
+      isSystemAdmin: true,
     } as never);
     prisma.associationMembership.findMany.mockResolvedValue([
       {
@@ -221,6 +237,12 @@ describe('AuthGuard — request.user enrichment', () => {
         isActive: true,
       },
     ] as never);
+    prisma.telegramAccount.findUnique.mockResolvedValue({
+      telegramId: BigInt(123),
+      username: 'tg_user',
+      firstName: 'Tg',
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    } as never);
 
     const token = mintBotToken(userId);
     const { ctx, request } = ctxWith({ authorization: `Bearer ${token}` });
@@ -240,6 +262,12 @@ describe('AuthGuard — request.user enrichment', () => {
       isActive: true,
     } as never);
     prisma.associationMembership.findMany.mockResolvedValue([] as never);
+    prisma.telegramAccount.findUnique.mockResolvedValue({
+      telegramId: BigInt(123),
+      username: 'tg_user',
+      firstName: 'Tg',
+      createdAt: new Date('2026-01-01T00:00:00.000Z'),
+    } as never);
 
     const token = mintBotToken(userId);
     const { ctx, request } = ctxWith({ authorization: `Bearer ${token}` });
@@ -247,6 +275,53 @@ describe('AuthGuard — request.user enrichment', () => {
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
     expect((request.user as any).systemRole).toBeNull();
     expect((request.user as any).memberships).toEqual([]);
+  });
+
+  it('rejects a bot token whose Telegram account was unlinked (no row)', async () => {
+    const userId = 'user-unlinked';
+    prisma.user.findUnique.mockResolvedValue({
+      id: userId,
+      email: 'unlinked@dev.local',
+      fullName: 'Eski Kullanıcı',
+      supabaseUserId: null,
+      isActive: true,
+    } as never);
+    prisma.associationMembership.findMany.mockResolvedValue([] as never);
+    // unlinkTelegram deleted the row → findUnique resolves null.
+    prisma.telegramAccount.findUnique.mockResolvedValue(null as never);
+
+    const token = mintBotToken(userId);
+    const { ctx } = ctxWith({ authorization: `Bearer ${token}` });
+
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('rejects a bot token whose telegramId no longer matches the linked account', async () => {
+    const userId = 'user-relinked';
+    prisma.user.findUnique.mockResolvedValue({
+      id: userId,
+      email: 'relinked@dev.local',
+      fullName: 'Yeni Cihaz',
+      supabaseUserId: null,
+      isActive: true,
+    } as never);
+    prisma.associationMembership.findMany.mockResolvedValue([] as never);
+    // Re-linked a different Telegram account (id 999) → stale token (id 123) rejected.
+    prisma.telegramAccount.findUnique.mockResolvedValue({
+      telegramId: BigInt(999),
+      username: 'tg_new',
+      firstName: 'New',
+      createdAt: new Date('2026-02-01T00:00:00.000Z'),
+    } as never);
+
+    const token = mintBotToken(userId);
+    const { ctx } = ctxWith({ authorization: `Bearer ${token}` });
+
+    await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 
   it('rejects missing Authorization header', async () => {

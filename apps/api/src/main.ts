@@ -24,6 +24,7 @@ for (const envPath of possiblePaths) {
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { ConfigService } from '@nestjs/config';
+import helmet from '@fastify/helmet';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { BotService } from 'bot';
@@ -38,9 +39,19 @@ async function bootstrap() {
 
   app.enableShutdownHooks();
 
+  // Security headers (HSTS, X-Content-Type-Options, frame-ancestors, etc.).
+  // CSP is disabled because this process serves JSON (and server-side PDFs),
+  // not HTML pages, so a page-level CSP adds nothing. CORP is cross-origin so
+  // the separate web frontend can still read API responses.
+  await app.register(helmet, {
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  });
+
   const webUrl = config.get<string>('webUrl');
   const nodeEnv = config.get<string>('nodeEnv');
   const isProd = nodeEnv === 'production';
+  const webhookSecret = config.get<string>('bot.webhookSecret') ?? null;
 
   app.enableCors({
     origin: (origin, callback) => {
@@ -62,44 +73,31 @@ async function bootstrap() {
 
   // Mount Telegram webhook outside the /api/v1 prefix
   const botService = app.get(BotService);
-  console.log('### [MAIN] BotService instance:', botService?.constructor?.name);
-  console.log('### [MAIN] Has handleUpdate method:', typeof botService?.handleUpdate === 'function');
-  console.log('### [MAIN] BotService prototype methods:', Object.getOwnPropertyNames(Object.getPrototypeOf(botService)));
   const fastify = app.getHttpAdapter().getInstance();
 
   fastify.post('/telegram/webhook', async (request: any, reply: any) => {
-    process.stdout.write('\n### [WEBHOOK] START ###\n');
-    console.log('[WEBHOOK] === Telegram Webhook Received ===');
-    console.log('[WEBHOOK] Request body type:', typeof request.body);
-    
+    // Reject forged updates: Telegram echoes our configured secret in this
+    // header on every webhook call. When a secret is configured, anything
+    // that doesn't match it is not from Telegram. (No secret configured →
+    // accept, e.g. local long-polling dev where the webhook isn't used.)
+    if (webhookSecret) {
+      const headerToken = request.headers['x-telegram-bot-api-secret-token'];
+      if (headerToken !== webhookSecret) {
+        return reply.code(401).send({ ok: false });
+      }
+    }
+
     const body = request.body;
     if (!body) {
-      console.error('[WEBHOOK] Empty body received');
       return reply.send({ ok: false });
     }
-    
-    const updateType = body.callback_query ? 'callback_query' : body.message ? 'message' : 'unknown';
-    console.log('[WEBHOOK] Update type:', updateType);
-    if (body.callback_query) {
-      console.log('[WEBHOOK] Callback data:', body.callback_query.data);
-    }
-    
-    process.stdout.write('### [WEBHOOK] About to call botService.handleUpdate ###\n');
-    process.stdout.write('### [WEBHOOK] botService type: ' + typeof botService + ' ###\n');
-    process.stdout.write('### [WEBHOOK] handleUpdate type: ' + typeof botService?.handleUpdate + ' ###\n');
-    
-    // DEBUG: Remove this after testing
-    if (body?.callback_query?.data?.startsWith('mtg:')) {
-      process.stdout.write('### [WEBHOOK] MEETING CALLBACK DETECTED: ' + body.callback_query.data + ' ###\n');
-    }
-    
+
     try {
       await botService.handleUpdate(body);
-      process.stdout.write('### [WEBHOOK] handleUpdate returned ###\n');
-      console.log('[WEBHOOK] Update processed successfully');
       return reply.send({ ok: true });
     } catch (err) {
-      console.error('[WEBHOOK] Error handling update:', err);
+      // Always 200 so Telegram doesn't retry-storm on a handler bug.
+      console.error('[WEBHOOK] Error handling update:', (err as Error)?.message);
       return reply.send({ ok: true });
     }
   });
@@ -118,9 +116,17 @@ async function bootstrap() {
     !apiUrl.includes('127.0.0.1') &&
     !apiUrl.startsWith('http://0.0.0.0');
   if (isPublicApiUrl && nodeEnv !== 'test') {
-    await botService.setWebhook(`${apiUrl}/telegram/webhook`).catch((err) => {
-      console.warn('Failed to set webhook:', err.message);
-    });
+    if (isProd && !webhookSecret) {
+      console.warn(
+        'TELEGRAM_WEBHOOK_SECRET is not set — the webhook will accept ' +
+          'unauthenticated requests. Set it to reject forged updates.',
+      );
+    }
+    await botService
+      .setWebhook(`${apiUrl}/telegram/webhook`, webhookSecret ?? undefined)
+      .catch((err) => {
+        console.warn('Failed to set webhook:', err.message);
+      });
   }
 }
 bootstrap();

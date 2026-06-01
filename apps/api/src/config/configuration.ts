@@ -13,7 +13,10 @@ export default () => {
       jwtSecret: env.SUPABASE_JWT_SECRET,
     },
     jwt: { secret: env.JWT_SECRET },
-    bot: { token: env.TELEGRAM_BOT_TOKEN },
+    bot: {
+      token: env.TELEGRAM_BOT_TOKEN,
+      webhookSecret: env.TELEGRAM_WEBHOOK_SECRET ?? null,
+    },
     telegramBotUsername: env.TELEGRAM_BOT_USERNAME,
     apiUrl: env.API_URL,
     webUrl: env.WEB_URL,

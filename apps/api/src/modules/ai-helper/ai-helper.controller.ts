@@ -1,7 +1,10 @@
 import { Body, Controller, Get, NotFoundException, Param, Post, Put, Query, UseGuards, UsePipes } from '@nestjs/common';
 import { ZodValidationPipe } from 'nestjs-zod';
+import { UserRole } from '@ticketbot/database';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { SupabaseUserGuard } from '../../common/guards/supabase-user.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { AiService } from '@ticketbot/ai';
 import { AiHelperService } from './ai-helper.service';
 import { GenerateScheduleDto } from './dto/generate-schedule.dto';
@@ -9,8 +12,12 @@ import { GenerateSocialDto } from './dto/generate-social.dto';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { CreatePromptTemplateDto, UpdatePromptTemplateDto } from './dto/prompt-template.dto';
 
+// NOTE: this controller is NOT association-scoped (no :associationId in the
+// path), so it uses RolesGuard. RolesGuard passes for SYSTEM_ADMIN OR any
+// active membership holding one of the listed roles. EVERY handler must carry
+// a @Roles decorator — without one the guard is open to any authenticated user.
 @Controller('ai')
-@UseGuards(AuthGuard, SupabaseUserGuard)
+@UseGuards(AuthGuard, SupabaseUserGuard, RolesGuard)
 @UsePipes(ZodValidationPipe)
 export class AiHelperController {
   constructor(
@@ -19,6 +26,7 @@ export class AiHelperController {
   ) {}
 
   @Post('generate-schedule')
+  @Roles(UserRole.ASSOCIATION_MANAGER, UserRole.ASSOCIATION_SECRETARY)
   generateSchedule(@Body() body: GenerateScheduleDto) {
     return this.ai.generateEventSchedule(
       body.title,
@@ -29,6 +37,7 @@ export class AiHelperController {
   }
 
   @Post('generate-social')
+  @Roles(UserRole.ASSOCIATION_MANAGER, UserRole.ASSOCIATION_SECRETARY)
   generateSocialContent(@Body() body: GenerateSocialDto) {
     return this.ai.generateInstagramContent(
       body.title,
@@ -48,6 +57,11 @@ export class AiHelperController {
   // -------------------------------------------------------------------------
 
   @Post('suggestions/:id/feedback')
+  @Roles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
   createFeedback(
     @Param('id') suggestionId: string,
     @Body() dto: CreateFeedbackDto,
@@ -56,6 +70,11 @@ export class AiHelperController {
   }
 
   @Get('suggestions/:id/feedback')
+  @Roles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
   async getFeedback(@Param('id') suggestionId: string) {
     try {
       return await this.helper.getFeedback(suggestionId);
@@ -69,21 +88,25 @@ export class AiHelperController {
   // -------------------------------------------------------------------------
 
   @Get('prompt-templates')
+  @Roles(UserRole.SYSTEM_ADMIN)
   listPromptTemplates(@Query('key') key?: string) {
     return this.helper.listPromptTemplates(key);
   }
 
   @Get('prompt-templates/active')
+  @Roles(UserRole.SYSTEM_ADMIN)
   getActivePromptTemplate(@Query('key') key: string) {
     return this.helper.getActivePromptTemplate(key);
   }
 
   @Post('prompt-templates')
+  @Roles(UserRole.SYSTEM_ADMIN)
   createPromptTemplate(@Body() dto: CreatePromptTemplateDto) {
     return this.helper.createPromptTemplate(dto);
   }
 
   @Put('prompt-templates/:id')
+  @Roles(UserRole.SYSTEM_ADMIN)
   updatePromptTemplate(
     @Param('id') id: string,
     @Body() dto: UpdatePromptTemplateDto,

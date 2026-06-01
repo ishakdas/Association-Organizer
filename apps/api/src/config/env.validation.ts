@@ -11,8 +11,10 @@ export const envSchema = z.object({
   SUPABASE_URL: z.string().url(),
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
-  SUPABASE_JWT_SECRET: z.string().min(1),
-  JWT_SECRET: z.string().min(1),
+  // HS256 signing secrets. Enforce a minimum length so a short/weak secret
+  // (brute-forceable → forged tokens, full impersonation) can never boot.
+  SUPABASE_JWT_SECRET: z.string().min(32),
+  JWT_SECRET: z.string().min(32),
   // Optional — AiModule logs a warning and AI-dependent endpoints
   // return 503 when this is missing, so the rest of the API still boots.
   // AI_API_KEY is the primary; GROQ_API_KEY is kept for backward compatibility.
@@ -25,6 +27,10 @@ export const envSchema = z.object({
   AI_MAX_TOKENS: z.string().min(1).optional(),
   TELEGRAM_BOT_TOKEN: z.string().min(1),
   TELEGRAM_BOT_USERNAME: z.string().min(1).default('yedi_hilal_organizator_bot'),
+  // Shared secret echoed by Telegram in the X-Telegram-Bot-Api-Secret-Token
+  // header. When set, the webhook rejects any request that doesn't match it,
+  // blocking forged updates. Optional so local long-polling dev still boots.
+  TELEGRAM_WEBHOOK_SECRET: z.string().min(16).optional(),
   API_URL: z.string().url().default('http://localhost:3000'),
   WEB_URL: z.string().url().default('http://localhost:3001'),
   // ─── Resend (email delivery — magic link, telegram link, etc.) ─────

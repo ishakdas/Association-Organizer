@@ -88,45 +88,48 @@ export class AuthService {
   }
 
   async redeemLinkToken(input: TelegramLinkRedeemInput) {
-    const linkToken = await this.prisma.telegramLinkToken.findUnique({
-      where: { token: input.token },
+    const now = new Date();
+
+    // Atomically claim the token: the WHERE clause only matches a token that
+    // is still unused AND unexpired, so a single UPDATE both checks and marks
+    // it used in one statement. Concurrent redemptions race on this row —
+    // exactly one flips usedAt, the rest see count === 0. This closes the
+    // check-then-act (TOCTOU) window of the previous findUnique-then-update.
+    const claim = await this.prisma.telegramLinkToken.updateMany({
+      where: { token: input.token, usedAt: null, expiresAt: { gt: now } },
+      data: { usedAt: now },
     });
 
-    if (!linkToken) {
-      throw new BadRequestException('Invalid link token');
-    }
-
-    if (linkToken.usedAt) {
-      throw new BadRequestException('Token already used');
-    }
-
-    if (linkToken.expiresAt < new Date()) {
+    if (claim.count === 0) {
+      // Disambiguate for a helpful (non-leaky) error message.
+      const existing = await this.prisma.telegramLinkToken.findUnique({
+        where: { token: input.token },
+      });
+      if (!existing) throw new BadRequestException('Invalid link token');
+      if (existing.usedAt) throw new BadRequestException('Token already used');
       throw new BadRequestException('Token expired');
     }
+
+    const linkToken = await this.prisma.telegramLinkToken.findUniqueOrThrow({
+      where: { token: input.token },
+    });
 
     // Create or update telegram account
     const telegramId = BigInt(input.telegramId);
 
-    await this.prisma.$transaction(async (tx) => {
-      await tx.telegramLinkToken.update({
-        where: { id: linkToken.id },
-        data: { usedAt: new Date() },
-      });
-
-      await tx.telegramAccount.upsert({
-        where: { userId: linkToken.userId },
-        create: {
-          telegramId,
-          username: input.username,
-          firstName: input.firstName,
-          userId: linkToken.userId,
-        },
-        update: {
-          telegramId,
-          username: input.username,
-          firstName: input.firstName,
-        },
-      });
+    await this.prisma.telegramAccount.upsert({
+      where: { userId: linkToken.userId },
+      create: {
+        telegramId,
+        username: input.username,
+        firstName: input.firstName,
+        userId: linkToken.userId,
+      },
+      update: {
+        telegramId,
+        username: input.username,
+        firstName: input.firstName,
+      },
     });
 
     // Issue a bot JWT

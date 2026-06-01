@@ -10,13 +10,17 @@ import {
 } from '@nestjs/common';
 import { PermissionAction, UserRole } from '@ticketbot/database';
 import { AuthGuard } from '../../common/guards/auth.guard';
+import { SupabaseUserGuard } from '../../common/guards/supabase-user.guard';
 import { AssociationRolesGuard } from '../../common/guards/association-roles.guard';
 import { AssociationRoles } from '../../common/decorators/association-roles.decorator';
 import { CurrentUser, RequestUser } from '../../common/decorators/current-user.decorator';
 import { PermissionService } from './permission.service';
 
+// Permission management is a web-admin surface — SupabaseUserGuard rejects
+// bot-token requests so a long-lived bot JWT can't be used to grant/revoke
+// permissions, even for a user who holds a MANAGER membership.
 @Controller('associations/:associationId/permissions')
-@UseGuards(AuthGuard, AssociationRolesGuard)
+@UseGuards(AuthGuard, SupabaseUserGuard, AssociationRolesGuard)
 export class PermissionsController {
   constructor(private readonly permissionService: PermissionService) {}
 

@@ -328,11 +328,12 @@ export class EventPdfService implements OnModuleDestroy {
   </head>
   <body>
     <div class="header">
-      <div class="logo">${
-        association?.logoUrl
-          ? `<img src="${escapeAttr(association.logoUrl)}" alt="logo" />`
-          : escapeHtml(initials(dernek))
-      }</div>
+      <div class="logo">${(() => {
+        const safeLogo = safeHttpImageUrl(association?.logoUrl);
+        return safeLogo
+          ? `<img src="${escapeAttr(safeLogo)}" alt="logo" />`
+          : escapeHtml(initials(dernek));
+      })()}</div>
       <div class="header-text">
         <h1>${escapeHtml(dernek)}</h1>
         <div class="sub">${escapeHtml(dernekFull)} ${
@@ -422,6 +423,20 @@ function escapeHtml(s: string): string {
 
 function escapeAttr(s: string): string {
   return escapeHtml(s);
+}
+
+// Only allow http(s) image URLs into the Puppeteer-rendered HTML. A stored
+// logoUrl like file:///etc/passwd or http://169.254.169.254/… would otherwise
+// make the headless browser fetch local files / internal hosts (SSRF) while
+// rendering the <img>. Returns null for anything that isn't a plain http(s) URL.
+function safeHttpImageUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    return u.protocol === 'http:' || u.protocol === 'https:' ? raw : null;
+  } catch {
+    return null;
+  }
 }
 
 function initials(name: string): string {

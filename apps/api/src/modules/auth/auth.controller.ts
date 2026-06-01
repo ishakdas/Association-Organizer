@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { UserRole } from '@ticketbot/database';
 import { AuthGuard } from '../../common/guards/auth.guard';
 import { SupabaseUserGuard } from '../../common/guards/supabase-user.guard';
@@ -87,23 +88,32 @@ export class AuthController {
     return this.authService.unlinkTelegram(user.id);
   }
 
+  // Public endpoint — throttle to slow token brute-force/abuse.
   @Post('redeem-telegram-link')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ strict: { limit: 10, ttl: 60_000 } })
   redeemTelegramLink(
     @Body(new ZodValidationPipe(telegramLinkRedeemSchema)) body: TelegramLinkRedeemInput,
   ) {
     return this.authService.redeemLinkToken(body);
   }
 
+  // Public endpoint — throttle to blunt email-enumeration probing.
   @Post('check-branch-email')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ strict: { limit: 10, ttl: 60_000 } })
   checkBranchEmail(
     @Body(new ZodValidationPipe(checkBranchEmailSchema)) body: CheckBranchEmailInput,
   ) {
     return this.authService.checkBranchEmail(body.email);
   }
 
+  // Public endpoint that sends email — throttle hard to prevent spam abuse.
   @Post('request-branch-registration')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ strict: { limit: 3, ttl: 60_000 } })
   requestBranchRegistration(
     @Body(new ZodValidationPipe(requestBranchRegistrationSchema)) body: RequestBranchRegistrationInput,
   ) {

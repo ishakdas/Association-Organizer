@@ -44,6 +44,20 @@ export class AuthGuard implements CanActivate {
     const memberships = await this.loadMemberships(user.id);
     const telegramAccount = await this.loadTelegramAccount(user.id);
 
+    // Bot-token revocation: a bot JWT lives 30 days and is otherwise
+    // irrevocable. Tie it to the live TelegramAccount link — if the user
+    // unlinked Telegram (row deleted) or re-linked a different Telegram id,
+    // the token's telegramId claim no longer matches and we reject it. This
+    // makes unlinkTelegram an immediate kill-switch without a revocation table.
+    if (verified.kind === 'bot') {
+      const claimTelegramId = String(
+        (verified.payload as { telegramId?: string | number }).telegramId ?? '',
+      );
+      if (!telegramAccount || telegramAccount.telegramId !== claimTelegramId) {
+        throw new UnauthorizedException('Telegram account is no longer linked');
+      }
+    }
+
     const authUser: AuthenticatedUser = {
       id: user.id,
       email: user.email,
