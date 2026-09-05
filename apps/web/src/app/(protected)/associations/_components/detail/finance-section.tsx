@@ -2,13 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { getAccessToken } from '../../_hooks/use-associations';
-import { getFinanceSummary, listCategories, getMonthlyStats, getReport } from '@/lib/api/finance';
+import {
+  getFinanceSummary,
+  getMonthlyStats,
+  getReport,
+  listCategories,
+  listTransactions,
+} from '@/lib/api/finance';
 import { FinanceDashboard } from '../../[id]/finance/_components/finance-dashboard';
-import type { TransactionResponse } from '@ticketbot/shared-validation';
 
 interface FinanceData {
   summary: Awaited<ReturnType<typeof getFinanceSummary>>;
-  transactions: { data: TransactionResponse[]; meta: { total: number; page: number; pageSize: number; totalPages: number } };
+  transactions: Awaited<ReturnType<typeof listTransactions>>;
   categories: Awaited<ReturnType<typeof listCategories>>;
   monthlyStats: Awaited<ReturnType<typeof getMonthlyStats>>;
   report: Awaited<ReturnType<typeof getReport>>;
@@ -24,10 +29,7 @@ export function FinanceSection({ associationId }: { associationId: string }) {
         const token = await getAccessToken();
         const [summary, transactions, categories, monthlyStats, report] = await Promise.all([
           getFinanceSummary(token, associationId),
-          fetch(
-            `${process.env.NEXT_PUBLIC_API_URL}/api/v1/associations/${associationId}/finance/transactions?page=1&pageSize=20`,
-            { headers: { Authorization: `Bearer ${token}` } },
-          ).then((r) => (r.ok ? r.json() : { data: [], meta: { total: 0 } })),
+          listTransactions(token, associationId, { page: 1, pageSize: 20 }),
           listCategories(token, associationId),
           getMonthlyStats(token, associationId),
           getReport(token, associationId),
@@ -69,10 +71,10 @@ export function FinanceSection({ associationId }: { associationId: string }) {
       <FinanceDashboard
         associationId={associationId}
         summary={data.summary}
-        transactions={data.transactions}
-        categories={data.categories}
-        monthlyStats={data.monthlyStats}
-        report={data.report}
-      />
+      transactions={data.transactions}
+      categories={data.categories}
+      monthlyStats={data.monthlyStats}
+      report={data.report}
+    />
   );
 }

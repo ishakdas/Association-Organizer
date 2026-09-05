@@ -9,7 +9,6 @@
       "@ticketbot/shared-types": ["../shared-types/src/index.ts"],
       "@ticketbot/shared-validation": ["../shared-validation/src/index.ts"],
       "@ticketbot/database": ["../database/src/index.ts"],
-      "@ticketbot/core": ["../core/src/index.ts"],
       "@ticketbot/ai": ["./src/index.ts"]
     }
   },

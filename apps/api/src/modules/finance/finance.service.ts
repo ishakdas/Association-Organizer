@@ -4,7 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService, Prisma, UserRole, PermissionAction } from '@ticketbot/database';
+import {
+  PermissionAction,
+  Prisma,
+  PrismaService,
+  TransactionType,
+  UserRole,
+} from '@ticketbot/database';
 import type {
   CreateTransactionInput,
   CreateTransactionCategoryInput,
@@ -30,18 +36,14 @@ export class FinanceService {
   // Authorization
   // -------------------------------------------------------------------------
 
-  private async assertFinanceAccess(
-    user: AuthenticatedUser,
-    associationId: string,
-  ): Promise<void> {
+  private async assertFinanceAccess(user: AuthenticatedUser, associationId: string): Promise<void> {
     if (user.systemRole === UserRole.SYSTEM_ADMIN) return;
 
     const hasRole = user.memberships.some(
       (m) =>
         m.isActive &&
         m.associationId === associationId &&
-        (m.role === UserRole.ASSOCIATION_MANAGER ||
-          m.role === UserRole.ASSOCIATION_SECRETARY),
+        (m.role === UserRole.ASSOCIATION_MANAGER || m.role === UserRole.ASSOCIATION_SECRETARY),
     );
     if (hasRole) return;
 
@@ -55,16 +57,11 @@ export class FinanceService {
     throw new ForbiddenException('Finans işlemleri için yetkiniz yok');
   }
 
-  private assertManagerAccess(
-    user: AuthenticatedUser,
-    associationId: string,
-  ): void {
+  private assertManagerAccess(user: AuthenticatedUser, associationId: string): void {
     if (user.systemRole === UserRole.SYSTEM_ADMIN) return;
     const isManager = user.memberships.some(
       (m) =>
-        m.isActive &&
-        m.associationId === associationId &&
-        m.role === UserRole.ASSOCIATION_MANAGER,
+        m.isActive && m.associationId === associationId && m.role === UserRole.ASSOCIATION_MANAGER,
     );
     if (!isManager) {
       throw new ForbiddenException('Bu işlem için yönetici yetkisi gerekli');
@@ -105,7 +102,7 @@ export class FinanceService {
       deletedAt: null,
       isActive: true,
     };
-    if (type) where.type = type as any;
+    if (type) where.type = type as TransactionType;
 
     return this.prisma.transactionCategory.findMany({
       where,
@@ -137,11 +134,7 @@ export class FinanceService {
     });
   }
 
-  async softDeleteCategory(
-    associationId: string,
-    categoryId: string,
-    user: AuthenticatedUser,
-  ) {
+  async softDeleteCategory(associationId: string, categoryId: string, user: AuthenticatedUser) {
     this.assertManagerAccess(user, associationId);
 
     const category = await this.prisma.transactionCategory.findFirst({
@@ -156,9 +149,7 @@ export class FinanceService {
       select: { id: true },
     });
     if (hasTransactions) {
-      throw new BadRequestException(
-        'Bu kategoriye ait işlemler var, önce silin veya taşının',
-      );
+      throw new BadRequestException('Bu kategoriye ait işlemler var, önce silin veya taşının');
     }
 
     return this.prisma.transactionCategory.update({
@@ -236,19 +227,14 @@ export class FinanceService {
         type: input.type,
         amountInKurus: input.amountInKurus,
         description: input.description ?? null,
-        transactionDate: input.transactionDate
-          ? new Date(input.transactionDate)
-          : new Date(),
+        transactionDate: input.transactionDate ? new Date(input.transactionDate) : new Date(),
         receiptUrl: input.receiptUrl ?? null,
         createdById: user.id,
       },
     });
   }
 
-  async listTransactions(
-    associationId: string,
-    query: ListTransactionsQuery,
-  ) {
+  async listTransactions(associationId: string, query: ListTransactionsQuery) {
     const where: Prisma.TransactionWhereInput = {
       associationId,
       deletedAt: null,
@@ -411,9 +397,7 @@ export class FinanceService {
       },
     });
     if (existing) {
-      throw new BadRequestException(
-        `${input.month} ayı için bu üyeye ait aidat kaydı zaten var`,
-      );
+      throw new BadRequestException(`${input.month} ayı için bu üyeye ait aidat kaydı zaten var`);
     }
 
     let category = await this.prisma.transactionCategory.findFirst({
@@ -440,9 +424,7 @@ export class FinanceService {
         categoryId: category.id,
         type: 'INCOME',
         amountInKurus: input.amountInKurus,
-        description:
-          input.description ||
-          `Aidat - ${input.month} - ${membership.user.fullName}`,
+        description: input.description || `Aidat - ${input.month} - ${membership.user.fullName}`,
         transactionDate: new Date(),
         createdById: user.id,
       },
@@ -607,8 +589,7 @@ export class FinanceService {
         type: 'INCOME',
         amountInKurus: payment.amountInKurus,
         description:
-          payment.description ||
-          `Aidat - ${payment.month} - ${membership.user.fullName}`,
+          payment.description || `Aidat - ${payment.month} - ${membership.user.fullName}`,
         transactionDate: new Date(),
         createdById: user.id,
       });
@@ -621,10 +602,7 @@ export class FinanceService {
     }
 
     result.successCount = createdTransactions.length;
-    result.totalAmountKurus = createdTransactions.reduce(
-      (sum, t) => sum + t.amountInKurus,
-      0,
-    );
+    result.totalAmountKurus = createdTransactions.reduce((sum, t) => sum + t.amountInKurus, 0);
 
     return result;
   }
@@ -728,35 +706,34 @@ export class FinanceService {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-    const [allIncome, allExpense, monthIncome, monthExpense] =
-      await this.prisma.$transaction([
-        this.prisma.transaction.aggregate({
-          where: { associationId, type: 'INCOME', deletedAt: null },
-          _sum: { amountInKurus: true },
-        }),
-        this.prisma.transaction.aggregate({
-          where: { associationId, type: 'EXPENSE', deletedAt: null },
-          _sum: { amountInKurus: true },
-        }),
-        this.prisma.transaction.aggregate({
-          where: {
-            associationId,
-            type: 'INCOME',
-            deletedAt: null,
-            transactionDate: { gte: monthStart, lte: monthEnd },
-          },
-          _sum: { amountInKurus: true },
-        }),
-        this.prisma.transaction.aggregate({
-          where: {
-            associationId,
-            type: 'EXPENSE',
-            deletedAt: null,
-            transactionDate: { gte: monthStart, lte: monthEnd },
-          },
-          _sum: { amountInKurus: true },
-        }),
-      ]);
+    const [allIncome, allExpense, monthIncome, monthExpense] = await this.prisma.$transaction([
+      this.prisma.transaction.aggregate({
+        where: { associationId, type: 'INCOME', deletedAt: null },
+        _sum: { amountInKurus: true },
+      }),
+      this.prisma.transaction.aggregate({
+        where: { associationId, type: 'EXPENSE', deletedAt: null },
+        _sum: { amountInKurus: true },
+      }),
+      this.prisma.transaction.aggregate({
+        where: {
+          associationId,
+          type: 'INCOME',
+          deletedAt: null,
+          transactionDate: { gte: monthStart, lte: monthEnd },
+        },
+        _sum: { amountInKurus: true },
+      }),
+      this.prisma.transaction.aggregate({
+        where: {
+          associationId,
+          type: 'EXPENSE',
+          deletedAt: null,
+          transactionDate: { gte: monthStart, lte: monthEnd },
+        },
+        _sum: { amountInKurus: true },
+      }),
+    ]);
 
     const totalIncomeKurus = allIncome._sum.amountInKurus ?? 0;
     const totalExpenseKurus = allExpense._sum.amountInKurus ?? 0;
@@ -828,9 +805,7 @@ export class FinanceService {
             associationId,
             categoryId: cat.id,
             deletedAt: null,
-            ...(Object.keys(dateFilter).length > 0
-              ? { transactionDate: dateFilter }
-              : {}),
+            ...(Object.keys(dateFilter).length > 0 ? { transactionDate: dateFilter } : {}),
           },
           _sum: { amountInKurus: true },
           _count: { id: true },
@@ -885,10 +860,7 @@ export class FinanceService {
   // Bot helpers
   // -------------------------------------------------------------------------
 
-  async findCategoriesForBot(
-    associationId: string,
-    type: 'INCOME' | 'EXPENSE',
-  ) {
+  async findCategoriesForBot(associationId: string, type: 'INCOME' | 'EXPENSE') {
     return this.prisma.transactionCategory.findMany({
       where: { associationId, type, deletedAt: null, isActive: true },
       select: { id: true, name: true },

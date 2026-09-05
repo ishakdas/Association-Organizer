@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Param,
   Patch,
@@ -16,10 +15,7 @@ import { AuthGuard } from '../../common/guards/auth.guard';
 import { SupabaseUserGuard } from '../../common/guards/supabase-user.guard';
 import { AssociationRolesGuard } from '../../common/guards/association-roles.guard';
 import { AssociationRoles } from '../../common/decorators/association-roles.decorator';
-import {
-  CurrentUser,
-  RequestUser,
-} from '../../common/decorators/current-user.decorator';
+import { CurrentUser, RequestUser } from '../../common/decorators/current-user.decorator';
 import { MeetingsService } from './meetings.service';
 import { CreateMeetingNoteDto } from './dto/create-meeting-note.dto';
 import { UpdateMeetingNoteDto } from './dto/update-meeting-note.dto';
@@ -40,14 +36,8 @@ export class MeetingsController {
   constructor(private readonly service: MeetingsService) {}
 
   @Post('analyze')
-  @AssociationRoles(
-    UserRole.ASSOCIATION_MANAGER,
-    UserRole.ASSOCIATION_SECRETARY,
-  )
-  analyze(
-    @Param('associationId') associationId: string,
-    @Body() body: AnalyzeMeetingContentDto,
-  ) {
+  @AssociationRoles(UserRole.ASSOCIATION_MANAGER, UserRole.ASSOCIATION_SECRETARY)
+  analyze(@Param('associationId') associationId: string, @Body() body: AnalyzeMeetingContentDto) {
     return this.service.analyzeContent(associationId, body.content);
   }
 
@@ -65,14 +55,8 @@ export class MeetingsController {
   }
 
   @Post('suggest-agenda')
-  @AssociationRoles(
-    UserRole.ASSOCIATION_MANAGER,
-    UserRole.ASSOCIATION_SECRETARY,
-  )
-  suggestAgenda(
-    @Param('associationId') associationId: string,
-    @Body() body: SuggestAgendaDto,
-  ) {
+  @AssociationRoles(UserRole.ASSOCIATION_MANAGER, UserRole.ASSOCIATION_SECRETARY)
+  suggestAgenda(@Param('associationId') associationId: string, @Body() body: SuggestAgendaDto) {
     return this.service.suggestAgenda(associationId, body.content);
   }
 
@@ -111,13 +95,9 @@ export class MeetingsController {
     UserRole.ASSOCIATION_SECRETARY,
     UserRole.ASSOCIATION_MEMBER,
   )
-  list(
-    @Param('associationId') associationId: string,
-    @Query() query: ListMeetingNotesQueryDto,
-  ) {
+  list(@Param('associationId') associationId: string, @Query() query: ListMeetingNotesQueryDto) {
     return this.service.list(associationId, query);
   }
-
 }
 
 /**

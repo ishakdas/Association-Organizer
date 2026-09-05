@@ -8,8 +8,14 @@
 const { PrismaClient } = require('../libs/database/node_modules/@prisma/client');
 const { createClient } = require('../apps/api/node_modules/@supabase/supabase-js');
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://yukbwdnvgjduqauubxap.supabase.co';
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1a2J3ZG52Z2pkdXFhdXVieGFwIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Njk2MTg2MiwiZXhwIjoyMDkyNTM3ODYyfQ.oYrKBqxJA1iwHLZzLzIVnFgCT507XHcqPd5fK1iey9g';
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (process.env.APP_ENV !== 'local') throw new Error('APP_ENV must be local');
+if (!SUPABASE_URL || !['localhost', '127.0.0.1', '::1'].includes(new URL(SUPABASE_URL).hostname)) {
+  throw new Error('SUPABASE_URL must use a local host');
+}
+if (!SUPABASE_SERVICE_ROLE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required');
 
 const KEEP_EMAILS = ['admin@dev.local'];
 

@@ -20,20 +20,11 @@ import {
   ArrowUpDown,
   Filter,
 } from 'lucide-react';
-import type {
-  MyTaskItem,
-  TaskStatusValue,
-  TaskPriorityValue,
-} from '@ticketbot/shared-validation';
+import type { MyTaskItem, TaskStatusValue, TaskPriorityValue } from '@ticketbot/shared-validation';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -50,10 +41,7 @@ import {
   TASK_STATUS_LABEL,
   TASK_STATUS_ORDER,
 } from '@/lib/task-display';
-import {
-  useMyTasks,
-  useUpdateMyTaskStatus,
-} from '../_hooks/use-my-tasks';
+import { useMyTasks, useUpdateMyTaskStatus } from '../_hooks/use-my-tasks';
 import { TaskActivityDialog } from '@/app/(protected)/associations/_components/detail/task-activity-dialog';
 import { TasksKanban } from './tasks-kanban';
 
@@ -102,15 +90,16 @@ export function TasksOverview() {
     window.localStorage.setItem(VIEW_STORAGE_KEY, view);
   }, [view]);
 
-  const [sortField, sortOrder] = sortBy.split('-') as [string, 'asc' | 'desc'];
+  const [sortField, sortOrder] = sortBy.split('-') as [
+    'createdAt' | 'dueDate' | 'priority' | 'title',
+    'asc' | 'desc',
+  ];
 
   const catalog = useMyTasks({ pageSize: 200 });
 
   const associations = useMemo(() => {
     const map = new Map<string, string>();
-    catalog.data?.data.forEach((t) =>
-      map.set(t.association.id, t.association.name),
-    );
+    catalog.data?.data.forEach((t) => map.set(t.association.id, t.association.name));
     return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) =>
       a.name.localeCompare(b.name, 'tr'),
     );
@@ -121,15 +110,13 @@ export function TasksOverview() {
     status: view === 'kanban' || tab === 'ALL' ? undefined : tab,
     priority: priorityFilter === 'all' ? undefined : priorityFilter,
     search: search || undefined,
-    sortBy: sortField as any,
+    sortBy: sortField,
     sortOrder,
     pageSize: 100,
   });
 
   const updateStatus = useUpdateMyTaskStatus();
-  const pendingTaskId = updateStatus.isPending
-    ? updateStatus.variables?.taskId
-    : undefined;
+  const pendingTaskId = updateStatus.isPending ? updateStatus.variables?.taskId : undefined;
 
   return (
     <section className="space-y-6">
@@ -139,8 +126,7 @@ export function TasksOverview() {
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Görevler</h1>
             <p className="mt-1 text-[13px] text-muted-foreground">
-              Yetkili olduğunuz tüm derneklerin görevlerini buradan takip
-              edin.
+              Yetkili olduğunuz tüm derneklerin görevlerini buradan takip edin.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -174,14 +160,19 @@ export function TasksOverview() {
           />
         </div>
 
-        <Select value={priorityFilter} onValueChange={(v) => setPriorityFilter(v as TaskPriorityValue | 'all')}>
+        <Select
+          value={priorityFilter}
+          onValueChange={(v) => setPriorityFilter(v as TaskPriorityValue | 'all')}
+        >
           <SelectTrigger className="h-8 w-[140px] text-[12px]">
             <Filter className="mr-1.5 h-3 w-3" />
             <SelectValue placeholder="Öncelik" />
           </SelectTrigger>
           <SelectContent>
             {PRIORITY_FILTERS.map((p) => (
-              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+              <SelectItem key={p.value} value={p.value}>
+                {p.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -193,7 +184,9 @@ export function TasksOverview() {
           </SelectTrigger>
           <SelectContent>
             {SORT_OPTIONS.map((s) => (
-              <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              <SelectItem key={s.value} value={s.value}>
+                {s.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -206,17 +199,11 @@ export function TasksOverview() {
           errorMessage={list.error?.message}
           tasks={list.data?.data ?? []}
           showAssociation={associationId === ALL_ASSOC}
-          onStatusChange={(taskId, status) =>
-            updateStatus.mutate({ taskId, status })
-          }
+          onStatusChange={(taskId, status) => updateStatus.mutate({ taskId, status })}
           pendingTaskId={pendingTaskId}
         />
       ) : (
-        <Tabs
-          value={tab}
-          onValueChange={(v) => setTab(v as StatusTab)}
-          className="gap-4"
-        >
+        <Tabs value={tab} onValueChange={(v) => setTab(v as StatusTab)} className="gap-4">
           <TabsList className="w-fit flex-wrap">
             {STATUS_TABS.map((t) => (
               <TabsTrigger key={t.value} value={t.value}>
@@ -233,9 +220,7 @@ export function TasksOverview() {
                 errorMessage={list.error?.message}
                 tasks={list.data?.data ?? []}
                 groupByAssociation={associationId === ALL_ASSOC}
-                onStatusChange={(taskId, status) =>
-                  updateStatus.mutate({ taskId, status })
-                }
+                onStatusChange={(taskId, status) => updateStatus.mutate({ taskId, status })}
                 pendingTaskId={pendingTaskId}
               />
             </TabsContent>
@@ -246,13 +231,7 @@ export function TasksOverview() {
   );
 }
 
-function ViewToggle({
-  value,
-  onChange,
-}: {
-  value: ViewMode;
-  onChange: (v: ViewMode) => void;
-}) {
+function ViewToggle({ value, onChange }: { value: ViewMode; onChange: (v: ViewMode) => void }) {
   return (
     <div
       role="tablist"
@@ -330,9 +309,7 @@ function TasksBody({
     return (
       <div className="rounded-lg border border-dashed border-border bg-card px-6 py-12 text-center">
         <ClipboardList className="mx-auto h-6 w-6 text-muted-foreground/60" />
-        <p className="mt-3 text-[13px] text-muted-foreground">
-          Bu filtrelerle eşleşen görev yok.
-        </p>
+        <p className="mt-3 text-[13px] text-muted-foreground">Bu filtrelerle eşleşen görev yok.</p>
       </div>
     );
   }
@@ -361,8 +338,8 @@ function TasksBody({
     g.tasks.push(t);
     groups.set(t.association.id, g);
   }
-  const ordered = Array.from(groups, ([id, g]) => ({ id, ...g })).sort(
-    (a, b) => a.name.localeCompare(b.name, 'tr'),
+  const ordered = Array.from(groups, ([id, g]) => ({ id, ...g })).sort((a, b) =>
+    a.name.localeCompare(b.name, 'tr'),
   );
 
   return (
@@ -427,10 +404,7 @@ function TaskCard({
       <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:gap-4">
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              variant="outline"
-              className={cn('gap-1', TASK_PRIORITY_CLASS[task.priority])}
-            >
+            <Badge variant="outline" className={cn('gap-1', TASK_PRIORITY_CLASS[task.priority])}>
               <Flag className="h-3 w-3" />
               {TASK_PRIORITY_LABEL[task.priority]}
             </Badge>
@@ -468,18 +442,12 @@ function TaskCard({
                 {initials}
               </span>
               <span>
-                Atanan:{' '}
-                <span className="text-foreground">
-                  {task.assignee.fullName}
-                </span>
+                Atanan: <span className="text-foreground">{task.assignee.fullName}</span>
               </span>
             </span>
             {due && (
               <span
-                className={cn(
-                  'inline-flex items-center gap-1.5',
-                  isOverdue && 'text-destructive',
-                )}
+                className={cn('inline-flex items-center gap-1.5', isOverdue && 'text-destructive')}
               >
                 <Clock className="h-3 w-3" />
                 {format(due, 'd MMM yyyy', { locale: tr })}
@@ -496,8 +464,7 @@ function TaskCard({
               <span className="inline-flex items-center gap-1.5 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-primary">
                 <Eye className="h-3 w-3" />
                 <span>
-                  Takipçi:{' '}
-                  <span className="font-medium">{task.watcher.fullName}</span>
+                  Takipçi: <span className="font-medium">{task.watcher.fullName}</span>
                 </span>
               </span>
             )}

@@ -1,6 +1,5 @@
 import { Telegraf, Markup, Context } from 'telegraf';
 import { PrismaService, UserRole } from '@ticketbot/database';
-import { ConfigService } from '@nestjs/config';
 import { parsePhoneE164 } from '@ticketbot/shared-validation';
 
 interface PendingLink {
@@ -41,15 +40,11 @@ export async function startPendingLink(
       return;
     }
     if (linkToken.usedAt) {
-      await ctx.reply(
-        'Bu kod zaten kullanılmış. Lütfen panelden yenisini alın.',
-      );
+      await ctx.reply('Bu kod zaten kullanılmış. Lütfen panelden yenisini alın.');
       return;
     }
     if (linkToken.expiresAt < new Date()) {
-      await ctx.reply(
-        'Bu kodun süresi dolmuş. Lütfen panelden yenisini alın.',
-      );
+      await ctx.reply('Bu kodun süresi dolmuş. Lütfen panelden yenisini alın.');
       return;
     }
 
@@ -73,9 +68,7 @@ export async function startPendingLink(
 
     const expectedPhone = parsePhoneE164(user.phone);
     if (!expectedPhone) {
-      await ctx.reply(
-        'Hesabınızdaki telefon biçimi okunamadı. Destek ekibiyle görüşün.',
-      );
+      await ctx.reply('Hesabınızdaki telefon biçimi okunamadı. Destek ekibiyle görüşün.');
       return;
     }
 
@@ -93,19 +86,15 @@ export async function startPendingLink(
         'Hesabınızı bağlamadan önce, kayıtlı telefonunuzla aynı olduğunu ' +
         'doğrulamak için telefon numaranızı paylaşmanız gerekiyor.\n\n' +
         '👉 Aşağıdaki "📱 Telefonu paylaş" butonuna dokunun.\n' +
-        '⚠️ Telefonu elle yazmak çalışmaz — güvenlik için Telegram\'ın ' +
+        "⚠️ Telefonu elle yazmak çalışmaz — güvenlik için Telegram'ın " +
         'paylaşım butonu zorunludur.',
-      Markup.keyboard([
-        [Markup.button.contactRequest('📱 Telefonu paylaş')],
-      ])
+      Markup.keyboard([[Markup.button.contactRequest('📱 Telefonu paylaş')]])
         .oneTime()
         .resize(),
     );
   } catch (err) {
     console.error('[link.command] startPendingLink failed:', err);
-    await ctx.reply(
-      'Bir hata oluştu. Lütfen tekrar deneyin veya destekle iletişime geçin.',
-    );
+    await ctx.reply('Bir hata oluştu. Lütfen tekrar deneyin veya destekle iletişime geçin.');
   }
 }
 
@@ -150,9 +139,7 @@ async function setScopedCommandsForChat(
   const privileged =
     user?.isSystemAdmin === true ||
     memberships.some(
-      (m) =>
-        m.role === UserRole.ASSOCIATION_MANAGER ||
-        m.role === UserRole.ASSOCIATION_SECRETARY,
+      (m) => m.role === UserRole.ASSOCIATION_MANAGER || m.role === UserRole.ASSOCIATION_SECRETARY,
     );
 
   const commands = privileged ? [...managerExtra, ...base] : base;
@@ -162,19 +149,13 @@ async function setScopedCommandsForChat(
   });
 }
 
-export function registerLinkCommand(
-  bot: Telegraf,
-  prisma: PrismaService,
-  config: ConfigService,
-) {
+export function registerLinkCommand(bot: Telegraf, prisma: PrismaService) {
   bot.command('link', async (ctx) => {
     const args = ctx.message.text.split(' ').slice(1);
     const token = args[0];
 
     if (!token) {
-      return ctx.reply(
-        'Kullanım: /link <kod>\n\nWeb panelinden bir bağlantı kodu alın.',
-      );
+      return ctx.reply('Kullanım: /link <kod>\n\nWeb panelinden bir bağlantı kodu alın.');
     }
 
     return startPendingLink(ctx, prisma, token);
@@ -305,15 +286,13 @@ export function registerLinkCommand(
 
     return ctx.reply(
       '🔒 Telefon numarası elle yazılarak doğrulanamıyor — güvenlik için ' +
-        'Telegram\'ın paylaşım butonu üzerinden onay gerekiyor.\n\n' +
+        "Telegram'ın paylaşım butonu üzerinden onay gerekiyor.\n\n" +
         'Aşağıdaki "📱 Telefonu paylaş" butonuna dokunduğunuzda Telegram, ' +
         'numaranızı otomatik olarak bana iletecek.\n\n' +
         'Butonu göremiyorsanız:\n' +
-        '• Telegram\'ı mobil uygulamada açın (Web/Desktop\'ta kişi paylaşımı bazen çalışmaz).\n' +
+        "• Telegram'ı mobil uygulamada açın (Web/Desktop'ta kişi paylaşımı bazen çalışmaz).\n" +
         '• Klavyeyi kapatıp ekranın altındaki yanıt butonunu deneyin.',
-      Markup.keyboard([
-        [Markup.button.contactRequest('📱 Telefonu paylaş')],
-      ])
+      Markup.keyboard([[Markup.button.contactRequest('📱 Telefonu paylaş')]])
         .oneTime()
         .resize(),
     );

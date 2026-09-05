@@ -62,7 +62,8 @@ export class AuthService {
   async generateLinkTokenWithEmail(userId: string, email: string) {
     const { token, expiresAt } = await this.generateLinkToken(userId);
 
-    const botUsername = this.config.get<string>('telegramBotUsername') ?? 'yedi_hilal_organizator_bot';
+    const botUsername =
+      this.config.get<string>('telegramBotUsername') ?? 'yedi_hilal_organizator_bot';
     const webUrl = this.config.get<string>('webUrl') ?? 'http://localhost:3001';
     const deepLinkUrl = `https://t.me/${botUsername}?start=link_${token}`;
     const tgDirectUrl = `tg://resolve?domain=${botUsername}&start=link_${token}`;
@@ -78,13 +79,19 @@ export class AuthService {
       user?.fullName ?? email,
       botUsername,
       deepLinkUrl,
-      tgDirectUrl,
       token,
       expiresAt,
-      connectUrl,
     );
 
-    return { token, expiresAt, deepLinkUrl, tgDirectUrl, connectUrl, emailSent: true, messageId: emailResult.messageId };
+    return {
+      token,
+      expiresAt,
+      deepLinkUrl,
+      tgDirectUrl,
+      connectUrl,
+      emailSent: true,
+      messageId: emailResult.messageId,
+    };
   }
 
   async redeemLinkToken(input: TelegramLinkRedeemInput) {
@@ -200,7 +207,9 @@ export class AuthService {
     return { status: 'unknown' };
   }
 
-  async requestBranchRegistration(dto: RequestBranchRegistrationInput): Promise<{ queued: boolean }> {
+  async requestBranchRegistration(
+    dto: RequestBranchRegistrationInput,
+  ): Promise<{ queued: boolean }> {
     const existing = await this.prisma.pendingBranchRegistration.findUnique({
       where: { email: dto.email },
     });
@@ -290,7 +299,9 @@ export class AuthService {
       select: { mustChangePassword: true },
     });
     if (existingUser && !existingUser.mustChangePassword) {
-      throw new BadRequestException('Bu kullanıcı zaten şifresini belirlemiş, tekrar davet gönderilemez.');
+      throw new BadRequestException(
+        'Bu kullanıcı zaten şifresini belirlemiş, tekrar davet gönderilemez.',
+      );
     }
 
     const webUrl = this.config.get<string>('webUrl') ?? 'http://localhost:3001';
@@ -323,24 +334,14 @@ export class AuthService {
     const webUrl = this.config.get<string>('webUrl') ?? 'http://localhost:3001';
     const redirectTo = `${webUrl}/callback-magic?next=/onboarding`;
 
-    const { url: magicLink } = await this.supabase.generateMagicLink(
-      user.email,
-      redirectTo,
-    );
+    const { url: magicLink } = await this.supabase.generateMagicLink(user.email, redirectTo);
 
-    const emailResult = await this.emailService.sendMagicLink(
-      user.email,
-      user.fullName,
-      magicLink,
-    );
+    const emailResult = await this.emailService.sendMagicLink(user.email, user.fullName, magicLink);
 
     return { emailSent: true, magicLink, messageId: emailResult.messageId };
   }
 
-  async approveBranchRegistration(
-    id: string,
-    adminUserId: string,
-  ): Promise<InviteResult> {
+  async approveBranchRegistration(id: string, adminUserId: string): Promise<InviteResult> {
     // --- Pre-checks (before any Supabase call so no email is sent on error) ---
     const registration = await this.prisma.pendingBranchRegistration.findUnique({
       where: { id },
@@ -395,10 +396,7 @@ export class AuthService {
 
     let magicLink: string | null = null;
     try {
-      const linkResult = await this.supabase.generateMagicLink(
-        registration.email,
-        redirectTo,
-      );
+      const linkResult = await this.supabase.generateMagicLink(registration.email, redirectTo);
       magicLink = linkResult.url;
     } catch (linkErr) {
       this.logger.warn(
@@ -465,20 +463,14 @@ export class AuthService {
           },
         });
 
-        await this.permissions.applyMembershipDefaults(
-          newAssociation.id,
-          user.id,
-          tx,
-        );
+        await this.permissions.applyMembershipDefaults(newAssociation.id, user.id, tx);
       });
     } catch (err) {
       try {
         await auth.deleteUser(supabaseUserId);
       } catch (rollbackErr) {
         this.logger.error(
-          `Supabase rollback failed for ${supabaseUserId}: ${
-            (rollbackErr as Error).message
-          }`,
+          `Supabase rollback failed for ${supabaseUserId}: ${(rollbackErr as Error).message}`,
         );
       }
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -539,5 +531,4 @@ export class AuthService {
       await tx.association.delete({ where: { id: association.id } });
     });
   }
-
 }

@@ -9,6 +9,8 @@ import type {
   TaskPriorityValue,
   UpdateTaskInput,
 } from '@ticketbot/shared-validation';
+import type { PaginatedResponse } from '@ticketbot/shared-types';
+import { buildQuery } from './query';
 
 export interface TasksListParams {
   status?: TaskStatusValue;
@@ -21,57 +23,20 @@ export interface TasksListParams {
   pageSize?: number;
 }
 
-export interface TasksListResponse {
-  data: TaskResponse[];
-  meta: {
-    total: number;
-    page: number;
-    pageSize: number;
-    totalPages: number;
-  };
-}
+export type TasksListResponse = PaginatedResponse<TaskResponse>;
 
-function buildQuery(params: TasksListParams): string {
-  const sp = new URLSearchParams();
-  if (params.status) sp.set('status', params.status);
-  if (params.priority) sp.set('priority', params.priority);
-  if (params.assignedToUserId) sp.set('assignedToUserId', params.assignedToUserId);
-  if (params.search) sp.set('search', params.search);
-  if (params.sortBy) sp.set('sortBy', params.sortBy);
-  if (params.sortOrder) sp.set('sortOrder', params.sortOrder);
-  if (params.page) sp.set('page', String(params.page));
-  if (params.pageSize) sp.set('pageSize', String(params.pageSize));
-  const q = sp.toString();
-  return q ? `?${q}` : '';
-}
-
-export function listTasks(
-  token: string,
-  associationId: string,
-  params: TasksListParams = {},
-) {
+export function listTasks(token: string, associationId: string, params: TasksListParams = {}) {
   return apiClient<TasksListResponse>(
-    `/associations/${associationId}/tasks${buildQuery(params)}`,
+    `/associations/${associationId}/tasks${buildQuery({ ...params })}`,
     { token },
   );
 }
 
-export function getTask(
-  token: string,
-  associationId: string,
-  taskId: string,
-) {
-  return apiClient<TaskResponse>(
-    `/associations/${associationId}/tasks/${taskId}`,
-    { token },
-  );
+export function getTask(token: string, associationId: string, taskId: string) {
+  return apiClient<TaskResponse>(`/associations/${associationId}/tasks/${taskId}`, { token });
 }
 
-export function createTask(
-  token: string,
-  associationId: string,
-  input: CreateTaskInput,
-) {
+export function createTask(token: string, associationId: string, input: CreateTaskInput) {
   return apiClient<TaskResponse>(`/associations/${associationId}/tasks`, {
     token,
     method: 'POST',
@@ -79,11 +44,7 @@ export function createTask(
   });
 }
 
-export function updateTaskStatus(
-  token: string,
-  taskId: string,
-  status: TaskStatusValue,
-) {
+export function updateTaskStatus(token: string, taskId: string, status: TaskStatusValue) {
   return apiClient<TaskResponse>(`/tasks/${taskId}/status`, {
     token,
     method: 'PATCH',
@@ -91,11 +52,7 @@ export function updateTaskStatus(
   });
 }
 
-export function updateTask(
-  token: string,
-  taskId: string,
-  input: UpdateTaskInput,
-) {
+export function updateTask(token: string, taskId: string, input: UpdateTaskInput) {
   return apiClient<TaskResponse>(`/tasks/${taskId}`, {
     token,
     method: 'PATCH',
@@ -103,25 +60,14 @@ export function updateTask(
   });
 }
 
-export function deleteTask(
-  token: string,
-  associationId: string,
-  taskId: string,
-) {
-  return apiClient<TaskResponse>(
-    `/associations/${associationId}/tasks/${taskId}`,
-    {
-      token,
-      method: 'DELETE',
-    },
-  );
+export function deleteTask(token: string, associationId: string, taskId: string) {
+  return apiClient<TaskResponse>(`/associations/${associationId}/tasks/${taskId}`, {
+    token,
+    method: 'DELETE',
+  });
 }
 
-export function resolveTaskDispute(
-  token: string,
-  taskId: string,
-  input: ResolveDisputeInput,
-) {
+export function resolveTaskDispute(token: string, taskId: string, input: ResolveDisputeInput) {
   return apiClient<TaskResponse>(`/tasks/${taskId}/resolve-dispute`, {
     token,
     method: 'POST',
@@ -140,45 +86,18 @@ export interface MyTasksListParams {
   pageSize?: number;
 }
 
-export interface MyTasksListResponse {
-  data: MyTaskItem[];
-  meta: {
-    total: number;
-    page: number;
-    pageSize: number;
-    totalPages: number;
-  };
-}
-
-function buildMyQuery(params: MyTasksListParams): string {
-  const sp = new URLSearchParams();
-  if (params.associationId) sp.set('associationId', params.associationId);
-  if (params.status) sp.set('status', params.status);
-  if (params.priority) sp.set('priority', params.priority);
-  if (params.search) sp.set('search', params.search);
-  if (params.sortBy) sp.set('sortBy', params.sortBy);
-  if (params.sortOrder) sp.set('sortOrder', params.sortOrder);
-  if (params.page) sp.set('page', String(params.page));
-  if (params.pageSize) sp.set('pageSize', String(params.pageSize));
-  const q = sp.toString();
-  return q ? `?${q}` : '';
-}
+export type MyTasksListResponse = PaginatedResponse<MyTaskItem>;
 
 export function listMyTasks(token: string, params: MyTasksListParams = {}) {
-  return apiClient<MyTasksListResponse>(`/tasks/me${buildMyQuery(params)}`, {
+  return apiClient<MyTasksListResponse>(`/tasks/me${buildQuery({ ...params })}`, {
     token,
   });
 }
 
-export function listTaskActivities(
-  token: string,
-  associationId: string,
-  taskId: string,
-) {
-  return apiClient<TaskActivity[]>(
-    `/associations/${associationId}/tasks/${taskId}/activities`,
-    { token },
-  );
+export function listTaskActivities(token: string, associationId: string, taskId: string) {
+  return apiClient<TaskActivity[]>(`/associations/${associationId}/tasks/${taskId}/activities`, {
+    token,
+  });
 }
 
 export interface PrioritizedTask {
@@ -191,17 +110,11 @@ export interface PrioritizeTasksResponse {
   prioritizedTasks: PrioritizedTask[];
 }
 
-export function prioritizeTasks(
-  token: string,
-  associationId: string,
-) {
-  return apiClient<PrioritizeTasksResponse>(
-    `/associations/${associationId}/tasks/prioritize`,
-    {
-      token,
-      method: 'POST',
-    },
-  );
+export function prioritizeTasks(token: string, associationId: string) {
+  return apiClient<PrioritizeTasksResponse>(`/associations/${associationId}/tasks/prioritize`, {
+    token,
+    method: 'POST',
+  });
 }
 
 export interface ExtractTasksFromMeetingInput {

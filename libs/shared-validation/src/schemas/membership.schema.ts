@@ -26,11 +26,6 @@ const optionalPhoneSchema = z
     return e164;
   });
 
-const optionalEmail = z
-  .union([z.string().email('Geçerli bir e-posta girin').max(200), z.literal('')])
-  .optional()
-  .transform((v) => (v ? v : undefined));
-
 const titleAssignmentSchema = z.object({
   titleId: z.string().cuid('Geçersiz unvan').nullable().optional(),
   customTitle: z.string().min(2).max(100).nullable().optional(),

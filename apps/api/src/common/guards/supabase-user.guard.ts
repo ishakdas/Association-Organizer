@@ -5,7 +5,7 @@ import {
   ForbiddenException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { FastifyRequest } from 'fastify';
+import type { AuthenticatedRequest } from '../types/authenticated-request';
 
 /**
  * Runs AFTER AuthGuard. Rejects bot-issued tokens on endpoints meant for
@@ -17,8 +17,8 @@ import { FastifyRequest } from 'fastify';
 @Injectable()
 export class SupabaseUserGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    const request = context.switchToHttp().getRequest<FastifyRequest>();
-    const kind = (request as any).tokenKind;
+    const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    const kind = request.tokenKind;
 
     if (!kind) {
       throw new UnauthorizedException(
@@ -27,9 +27,7 @@ export class SupabaseUserGuard implements CanActivate {
     }
 
     if (kind !== 'supabase') {
-      throw new ForbiddenException(
-        'Bu uç yalnızca web oturumu (Supabase) ile erişilebilir',
-      );
+      throw new ForbiddenException('Bu uç yalnızca web oturumu (Supabase) ile erişilebilir');
     }
 
     return true;

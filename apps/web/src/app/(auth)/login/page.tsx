@@ -117,9 +117,7 @@ function LoginInner() {
               E-posta adresinizi girin. Sistemde kayıtlı değilse başvuru formu açılır.
             </DialogDescription>
           </DialogHeader>
-          {branchDialogOpen && (
-            <BranchLoginPanel onClose={() => setBranchDialogOpen(false)} />
-          )}
+          {branchDialogOpen && <BranchLoginPanel onClose={() => setBranchDialogOpen(false)} />}
         </DialogContent>
       </Dialog>
     </div>
@@ -139,7 +137,10 @@ function AdminLoginPanel() {
     setResetCooldown(60);
     const interval = setInterval(() => {
       setResetCooldown((prev) => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
         return prev - 1;
       });
     }, 1000);
@@ -233,7 +234,8 @@ function AdminLoginPanel() {
           role="status"
           className="rounded-md border border-green-200 bg-green-50 px-3 py-2 text-[13px] text-green-700"
         >
-          Şifre sıfırlama bağlantısı <strong>{email}</strong> adresine gönderildi. Gelen kutunuzu kontrol edin.
+          Şifre sıfırlama bağlantısı <strong>{email}</strong> adresine gönderildi. Gelen kutunuzu
+          kontrol edin.
         </div>
       )}
 
@@ -282,20 +284,8 @@ function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [resetLoading, setResetLoading] = useState(false);
-  const [resetCooldown, setResetCooldown] = useState(0);
 
   const provinces = getProvinceNames();
-
-  function startResetCooldown() {
-    setResetCooldown(60);
-    const interval = setInterval(() => {
-      setResetCooldown((prev) => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
-  }
   const districts = city ? getDistricts(city) : [];
 
   function handleCityChange(value: string) {
@@ -425,7 +415,10 @@ function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
           )}
           <button
             type="button"
-            onClick={() => { setStep('email'); setError(null); }}
+            onClick={() => {
+              setStep('email');
+              setError(null);
+            }}
             className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground"
           >
             ← Farklı e-posta dene
@@ -450,7 +443,10 @@ function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
         </div>
         <button
           type="button"
-          onClick={() => { setStep('email'); setError(null); }}
+          onClick={() => {
+            setStep('email');
+            setError(null);
+          }}
           className="w-full text-center text-[12px] text-muted-foreground hover:text-foreground"
         >
           ← Farklı e-posta kullan
@@ -463,7 +459,8 @@ function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
     return (
       <form onSubmit={handleRegisterSubmit} className="space-y-4" noValidate>
         <p className="rounded-md border border-border bg-muted/50 px-3 py-2 text-[13px] text-muted-foreground">
-          Bu e-posta sistemde kayıtlı değil. Başvuru formunu doldurun, Genel Başkan onayladıktan sonra e-posta adresinize giriş linki gönderilecektir.
+          Bu e-posta sistemde kayıtlı değil. Başvuru formunu doldurun, Genel Başkan onayladıktan
+          sonra e-posta adresinize giriş linki gönderilecektir.
         </p>
 
         <div className="space-y-1.5">
@@ -492,7 +489,9 @@ function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
             </SelectTrigger>
             <SelectContent>
               {provinces.map((p) => (
-                <SelectItem key={p} value={p}>{p}</SelectItem>
+                <SelectItem key={p} value={p}>
+                  {p}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -508,7 +507,9 @@ function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
             </SelectTrigger>
             <SelectContent>
               {districts.map((d) => (
-                <SelectItem key={d} value={d}>{d}</SelectItem>
+                <SelectItem key={d} value={d}>
+                  {d}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -518,12 +519,7 @@ function BranchLoginPanel({ onClose }: { onClose?: () => void }) {
           <Label htmlFor="reg-phone" className="text-[13px] font-medium">
             İletişim <span className="text-muted-foreground">(opsiyonel)</span>
           </Label>
-          <PhoneInput
-            id="reg-phone"
-            value={phone}
-            onChange={setPhone}
-            disabled={loading}
-          />
+          <PhoneInput id="reg-phone" value={phone} onChange={setPhone} disabled={loading} />
         </div>
 
         <div className="space-y-1.5">
@@ -649,8 +645,8 @@ function BrandPanel() {
             <span className="text-primary">tek yerden yönetin.</span>
           </h1>
           <p className="text-sm leading-relaxed text-white/65">
-            Üye kayıtları, toplantı notları, görev takibi ve şube iletişimi —
-            hepsi tek bir sekreterya merkezinde, denetlenebilir ve hızlı.
+            Üye kayıtları, toplantı notları, görev takibi ve şube iletişimi — hepsi tek bir
+            sekreterya merkezinde, denetlenebilir ve hızlı.
           </p>
         </div>
 
@@ -683,10 +679,14 @@ function Brand({ dark }: { dark?: boolean }) {
         priority
       />
       <div className="leading-tight">
-        <div className={`text-[13px] font-bold tracking-tight ${dark ? 'text-white' : 'text-foreground'}`}>
+        <div
+          className={`text-[13px] font-bold tracking-tight ${dark ? 'text-white' : 'text-foreground'}`}
+        >
           Defter-i Hilal
         </div>
-        <div className={`text-[10px] font-medium uppercase tracking-widest ${dark ? 'text-white/60' : 'text-muted-foreground'}`}>
+        <div
+          className={`text-[10px] font-medium uppercase tracking-widest ${dark ? 'text-white/60' : 'text-muted-foreground'}`}
+        >
           Şube bazlı sekreterya
         </div>
       </div>
@@ -694,15 +694,7 @@ function Brand({ dark }: { dark?: boolean }) {
   );
 }
 
-function Feature({
-  icon,
-  title,
-  body,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  body: string;
-}) {
+function Feature({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
   return (
     <li className="flex items-start gap-3">
       <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">

@@ -1,9 +1,9 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { CronJob } from 'cron';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@ticketbot/database';
 import { SupabaseAdminService } from '../supabase/supabase-admin.service';
 
-const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000; // 24 hours
 const PENDING_THRESHOLD_DAYS = 7;
 
 /**
@@ -19,9 +19,11 @@ export class PendingUserCleanupService implements OnModuleInit, OnModuleDestroy 
   constructor(
     private readonly prisma: PrismaService,
     private readonly supabase: SupabaseAdminService,
+    private readonly config: ConfigService,
   ) {}
 
   onModuleInit() {
+    if (!this.config.get<boolean>('jobs.enabled')) return;
     // Run once on startup, then every 24 hours at 03:00 server time.
     this.logger.log('Pending user cleanup service initialized');
     this.job = new CronJob('0 3 * * *', () => this.executeCleanup());
@@ -36,6 +38,7 @@ export class PendingUserCleanupService implements OnModuleInit, OnModuleDestroy 
   }
 
   async executeCleanup(): Promise<void> {
+    if (!this.config.get<boolean>('jobs.enabled')) return;
     this.logger.log('Running pending user cleanup...');
 
     const cutoff = new Date();
@@ -87,9 +90,7 @@ export class PendingUserCleanupService implements OnModuleInit, OnModuleDestroy 
         );
       } catch (err) {
         failed++;
-        this.logger.error(
-          `Failed to clean up user ${user.id}: ${(err as Error).message}`,
-        );
+        this.logger.error(`Failed to clean up user ${user.id}: ${(err as Error).message}`);
       }
     }
 

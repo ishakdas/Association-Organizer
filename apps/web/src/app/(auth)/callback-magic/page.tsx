@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import type { EmailOtpType } from '@supabase/supabase-js';
 import { createClient } from '../../../lib/supabase/client';
 import { getMe } from '../../../lib/api/me';
 
@@ -14,9 +15,10 @@ function safeNext(raw: string | null): string {
   return raw;
 }
 
-// Handles Supabase implicit-flow invite/magic links where tokens arrive as URL fragments
-// (#access_token=...). Server-side route handlers cannot read fragments, so this client
-// component reads them, calls setSession(), then redirects to ?next= (or /associations).
+// Handles Supabase invite/magic links. Depending on the project's Auth flow,
+// Supabase returns a PKCE `code`, an OTP `token_hash`, or implicit-flow tokens
+// in the URL fragment. Server-side handlers cannot read fragments, so this
+// client component establishes the session before enforcing password setup.
 function MagicLinkCallbackInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -28,6 +30,9 @@ function MagicLinkCallbackInner() {
     const refreshToken = params.get('refresh_token');
     const error = params.get('error');
     const errorDescription = params.get('error_description');
+    const code = searchParams.get('code');
+    const tokenHash = searchParams.get('token_hash');
+    const type = searchParams.get('type') as EmailOtpType | null;
 
     if (error) {
       const msg = errorDescription ? encodeURIComponent(errorDescription) : 'auth_callback_failed';
@@ -35,20 +40,38 @@ function MagicLinkCallbackInner() {
       return;
     }
 
-    if (!accessToken || !refreshToken) {
-      router.replace('/login?error=auth_callback_failed');
-      return;
-    }
-
     const next = safeNext(searchParams.get('next'));
 
     (async () => {
       const supabase = createClient();
-      const { error: sessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken,
-      });
+      let sessionError: Error | null = null;
+
+      if (code) {
+        ({ error: sessionError } = await supabase.auth.exchangeCodeForSession(code));
+      } else if (tokenHash && type) {
+        ({ error: sessionError } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type,
+        }));
+      } else if (accessToken && refreshToken) {
+        ({ error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        }));
+      } else {
+        router.replace('/login?error=auth_callback_failed');
+        return;
+      }
+
       if (sessionError) {
+        router.replace('/login?error=auth_callback_failed');
+        return;
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
         router.replace('/login?error=auth_callback_failed');
         return;
       }
@@ -60,7 +83,7 @@ function MagicLinkCallbackInner() {
       // anyway — better to over-prompt than to skip the gate silently.
       let mustChange = true;
       try {
-        const me = await getMe(accessToken);
+        const me = await getMe(session.access_token);
         mustChange = me.mustChangePassword === true;
       } catch {
         // Fail closed: route through password set if we can't tell.

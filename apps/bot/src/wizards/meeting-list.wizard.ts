@@ -2,22 +2,25 @@ import { Telegraf, Markup } from 'telegraf';
 import { PrismaService } from '@ticketbot/database';
 import { AiService } from '@ticketbot/ai';
 
-const sessions = new Map<number, {
-  userId: string;
-  meetingId?: string;
-  associationId?: string;
-  step: 'detail' | 'aiReview' | 'aiAssign';
-  members?: Array<{ userId: string; fullName: string; role: string; title?: string }>;
-  aiItems?: Array<{
-    index: number;
-    title: string;
-    description: string | null;
-    assignedToUserId: string | null;
-    dueDate: Date | null;
-    removed: boolean;
-  }>;
-  expiresAt: number;
-}>();
+const sessions = new Map<
+  number,
+  {
+    userId: string;
+    meetingId?: string;
+    associationId?: string;
+    step: 'detail' | 'aiReview' | 'aiAssign';
+    members?: Array<{ userId: string; fullName: string; role: string; title?: string }>;
+    aiItems?: Array<{
+      index: number;
+      title: string;
+      description: string | null;
+      assignedToUserId: string | null;
+      dueDate: Date | null;
+      removed: boolean;
+    }>;
+    expiresAt: number;
+  }
+>();
 
 const SESSION_TTL_MS = 30 * 60 * 1000;
 
@@ -63,7 +66,9 @@ export function registerMeetingListCommand(
     });
 
     if (meetings.length === 0) {
-      return ctx.reply('📋 Henüz katıldığın bir toplantı yok.\n\nYeni bir toplantı eklemek için /toplanti yaz.');
+      return ctx.reply(
+        '📋 Henüz katıldığın bir toplantı yok.\n\nYeni bir toplantı eklemek için /toplanti yaz.',
+      );
     }
 
     const taskCounts = await prisma.task.groupBy({
@@ -86,7 +91,7 @@ export function registerMeetingListCommand(
     message += `\nBir toplantı seç:`;
 
     const buttons = meetings.map((m, i) =>
-      Markup.button.callback(`${i + 1}`, `mtl:select:${m.id}`)
+      Markup.button.callback(`${i + 1}`, `mtl:select:${m.id}`),
     );
 
     const keyboard = Markup.inlineKeyboard(buttons, { columns: 3 });
@@ -191,7 +196,7 @@ export function registerMeetingListCommand(
     message += `\nBir toplantı seç:`;
 
     const buttons = meetings.map((m, i) =>
-      Markup.button.callback(`${i + 1}`, `mtl:select:${m.id}`)
+      Markup.button.callback(`${i + 1}`, `mtl:select:${m.id}`),
     );
 
     const keyboard = Markup.inlineKeyboard(buttons, { columns: 3 });
@@ -314,14 +319,16 @@ export function registerMeetingListCommand(
       message += '👤 Atamayı değiştirmek için butona bas';
 
       const keyboard = Markup.inlineKeyboard([
-        ...aiItems.filter((i) => !i.removed).map((item) => {
-          const member = members.find((m) => m.userId === item.assignedToUserId);
-          const label = member ? member.fullName : 'Atanmamış';
-          return [
-            Markup.button.callback(`👤 ${label}`, `mtl:ai-assign:${item.index}`),
-            Markup.button.callback('🗑', `mtl:ai-remove:${item.index}`),
-          ];
-        }),
+        ...aiItems
+          .filter((i) => !i.removed)
+          .map((item) => {
+            const member = members.find((m) => m.userId === item.assignedToUserId);
+            const label = member ? member.fullName : 'Atanmamış';
+            return [
+              Markup.button.callback(`👤 ${label}`, `mtl:ai-assign:${item.index}`),
+              Markup.button.callback('🗑', `mtl:ai-remove:${item.index}`),
+            ];
+          }),
         [
           Markup.button.callback('✅ Kaydet', 'mtl:ai-save'),
           Markup.button.callback('❌ İptal', 'mtl:ai-cancel'),
@@ -379,7 +386,7 @@ export function registerMeetingListCommand(
     message += `\nNumaraya tıkla:`;
 
     const buttons = memberships.map((m, i) =>
-      Markup.button.callback(`${i + 1}`, `mtl:ai-assign-set:${ctx.match[1]}:${m.userId}`)
+      Markup.button.callback(`${i + 1}`, `mtl:ai-assign-set:${ctx.match[1]}:${m.userId}`),
     );
 
     const keyboard = Markup.inlineKeyboard(buttons, { columns: 3 });
@@ -542,17 +549,12 @@ export function registerMeetingListCommand(
 
       console.log('[BOT] mtl:ai-save - tasks created:', created.count);
 
-      const activityData = activeItems.map((item) => ({
-        taskId: '',
-        actorId: s.userId,
-        action: 'ASSIGNED_NOTIFIED',
-        payload: { channel: 'telegram', delivered: true, source: 'meeting-ai' },
-      }));
-
       sessions.delete(fromId);
       await ctx.answerCbQuery('Kaydedildi');
       await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
-      return ctx.reply(`✅ ${created.count} görev başarıyla kaydedildi!\n\nWeb panelinden "Görevlerim" sayfasında görebilirsin.`);
+      return ctx.reply(
+        `✅ ${created.count} görev başarıyla kaydedildi!\n\nWeb panelinden "Görevlerim" sayfasında görebilirsin.`,
+      );
     } catch (err) {
       console.error('[BOT] mtl:ai-save - error:', err);
       const msg = err instanceof Error ? err.message : String(err);
@@ -567,11 +569,23 @@ function parseTurkishDateText(text: string | null | undefined, ref: Date): Date 
   const refYear = ref.getUTCFullYear();
 
   const AI_DATE_MONTHS: Record<string, number> = {
-    ocak: 0, şubat: 1, mart: 2, nisan: 3, mayıs: 4, haziran: 5,
-    temmuz: 6, ağustos: 7, eylül: 8, ekim: 9, kasım: 10, aralık: 11,
+    ocak: 0,
+    şubat: 1,
+    mart: 2,
+    nisan: 3,
+    mayıs: 4,
+    haziran: 5,
+    temmuz: 6,
+    ağustos: 7,
+    eylül: 8,
+    ekim: 9,
+    kasım: 10,
+    aralık: 11,
   };
 
-  const dayMonthYear = s.match(/(\d{1,2})\s+(ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)(?:\s+(\d{4}))?/);
+  const dayMonthYear = s.match(
+    /(\d{1,2})\s+(ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)(?:\s+(\d{4}))?/,
+  );
   if (dayMonthYear) {
     const day = parseInt(dayMonthYear[1], 10);
     const month = AI_DATE_MONTHS[dayMonthYear[2]];

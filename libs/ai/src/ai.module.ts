@@ -1,5 +1,5 @@
 import { Logger, Module, ServiceUnavailableException } from '@nestjs/common';
-import { AI_PROVIDER, AiProviderConfig } from './ai-provider.interface';
+import { AI_PROVIDER } from './ai-provider.interface';
 import { GenericAiProvider, GenericAiProviderConfig } from './providers/generic.provider';
 import { AiService } from './ai.service';
 
@@ -60,17 +60,18 @@ const PROVIDER_PRESETS: Record<string, { baseURL: string; defaultModel: string }
           return new UnconfiguredAiProvider();
         }
 
-        const model =
-          process.env.AI_MODEL ??
-          preset?.defaultModel ??
-          'llama-3.3-70b-versatile';
+        const model = process.env.AI_MODEL ?? preset?.defaultModel ?? 'llama-3.3-70b-versatile';
 
         const aiConfig: GenericAiProviderConfig = {
           apiKey,
           baseURL,
           model,
-          temperature: process.env.AI_TEMPERATURE ? parseFloat(process.env.AI_TEMPERATURE) : undefined,
-          maxTokens: process.env.AI_MAX_TOKENS ? parseInt(process.env.AI_MAX_TOKENS, 10) : undefined,
+          temperature: process.env.AI_TEMPERATURE
+            ? parseFloat(process.env.AI_TEMPERATURE)
+            : undefined,
+          maxTokens: process.env.AI_MAX_TOKENS
+            ? parseInt(process.env.AI_MAX_TOKENS, 10)
+            : undefined,
         };
 
         logger.log(`AI provider: ${presetName} (${baseURL}) — model: ${model}`);

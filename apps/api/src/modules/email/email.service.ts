@@ -2,6 +2,8 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService, EmailStatus } from '@ticketbot/database';
 import { Resend } from 'resend';
+import * as nodemailer from 'nodemailer';
+import type { Transporter } from 'nodemailer';
 import {
   renderMagicLinkTemplate,
   renderWelcomeTemplate,
@@ -13,12 +15,21 @@ export interface SendEmailResult {
   previewUrl: string | null;
 }
 
+interface EmailParams {
+  to: string;
+  subject: string;
+  html: string;
+  templateKey: string;
+}
+
 @Injectable()
 export class EmailService implements OnModuleInit {
   private readonly logger = new Logger(EmailService.name);
-  private client: Resend | null = null;
+  private resendClient: Resend | null = null;
+  private smtpTransport: Transporter | null = null;
   private fromEmail = '';
   private fromName = '';
+  private previewUrl: string | null = null;
 
   constructor(
     private readonly config: ConfigService,
@@ -26,12 +37,29 @@ export class EmailService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
+    const mode = this.config.get<string>('resend.mode') ?? 'log';
+    const fromName = this.config.get<string>('resend.fromName') ?? 'Dernek Yönetim Sistemi';
+
+    if (mode === 'mailpit') {
+      const host = this.config.get<string>('smtp.host') ?? '127.0.0.1';
+      const port = this.config.get<number>('smtp.port') ?? 54325;
+      this.smtpTransport = nodemailer.createTransport({ host, port, secure: false });
+      this.fromEmail = 'no-reply@association-organizer.local';
+      this.fromName = fromName;
+      this.previewUrl = this.config.get<string>('smtp.previewUrl') ?? 'http://127.0.0.1:54324';
+      this.logger.log(`Mailpit aktif — SMTP: ${host}:${port}`);
+      return;
+    }
+
+    if (mode === 'log') {
+      this.logger.log('E-posta teslimatı log modunda');
+      return;
+    }
     const apiKey = this.config.get<string>('resend.apiKey');
     const fromEmail = this.config.get<string>('resend.fromEmail');
-    const fromName = this.config.get<string>('resend.fromName') ?? 'Defter-i Hilal';
 
     if (apiKey && fromEmail) {
-      this.client = new Resend(apiKey);
+      this.resendClient = new Resend(apiKey);
       this.fromEmail = fromEmail;
       this.fromName = fromName;
       this.logger.log(`Resend aktif — gönderen: ${fromName} <${fromEmail}>`);
@@ -101,11 +129,7 @@ export class EmailService implements OnModuleInit {
     });
   }
 
-  async sendInvitation(
-    to: string,
-    fullName: string,
-    magicLink: string,
-  ): Promise<SendEmailResult> {
+  async sendInvitation(to: string, fullName: string, magicLink: string): Promise<SendEmailResult> {
     return this.send({
       to,
       subject: "Defter-i Hilal'e Davet — Hesabınızı Aktifleştirin",
@@ -119,19 +143,15 @@ export class EmailService implements OnModuleInit {
     fullName: string,
     botUsername: string,
     deepLinkUrl: string,
-    tgDirectUrl: string,
     token: string,
     expiresAt: string,
-    connectUrl?: string,
   ): Promise<SendEmailResult> {
     const html = await renderTelegramLinkTemplate({
       fullName,
       botUsername,
       deepLinkUrl,
-      tgDirectUrl,
       token,
       expiresAt,
-      connectUrl,
     });
     return this.send({
       to,
@@ -141,30 +161,16 @@ export class EmailService implements OnModuleInit {
     });
   }
 
-  // ─── Resend ────────────────────────────────────────────────────────────────
-
-  private async send(params: {
-    to: string;
-    subject: string;
-    html: string;
-    templateKey: string;
-  }): Promise<SendEmailResult> {
-    if (!this.client) {
-      this.logger.warn(`Email gönderim atlandı (Resend yapılandırılmamış): ${params.to}`);
+  private async send(params: EmailParams): Promise<SendEmailResult> {
+    if (!this.resendClient && !this.smtpTransport) {
+      this.logger.warn(`Email gönderim atlandı (teslimat yapılandırılmamış): ${params.to}`);
       return { messageId: null, previewUrl: null };
     }
 
     try {
-      const response = await this.client.emails.send({
-        from: `${this.fromName} <${this.fromEmail}>`,
-        to: [params.to],
-        subject: params.subject,
-        html: params.html,
-      });
-
-      if (response.error) {
-        throw new Error(response.error.message);
-      }
+      const messageId = this.smtpTransport
+        ? await this.sendWithSmtp(params)
+        : await this.sendWithResend(params);
 
       await this.prisma.emailLog.create({
         data: {
@@ -172,15 +178,15 @@ export class EmailService implements OnModuleInit {
           templateKey: params.templateKey,
           subject: params.subject,
           status: EmailStatus.SENT,
-          resendId: response.data?.id ?? null,
+          resendId: messageId,
           error: null,
         },
       });
 
-      return { messageId: response.data?.id ?? null, previewUrl: null };
+      return { messageId, previewUrl: this.previewUrl };
     } catch (err) {
       const message = (err as Error).message;
-      this.logger.error(`Resend gönderim hatası (${params.to}): ${message}`);
+      this.logger.error(`Email gönderim hatası (${params.to}): ${message}`);
 
       await this.prisma.emailLog.create({
         data: {
@@ -194,6 +200,27 @@ export class EmailService implements OnModuleInit {
 
       return { messageId: null, previewUrl: null };
     }
+  }
+
+  private async sendWithSmtp(params: EmailParams): Promise<string | null> {
+    const response = await this.smtpTransport!.sendMail({
+      from: `${this.fromName} <${this.fromEmail}>`,
+      to: params.to,
+      subject: params.subject,
+      html: params.html,
+    });
+    return response.messageId ?? null;
+  }
+
+  private async sendWithResend(params: EmailParams): Promise<string | null> {
+    const response = await this.resendClient!.emails.send({
+      from: `${this.fromName} <${this.fromEmail}>`,
+      to: [params.to],
+      subject: params.subject,
+      html: params.html,
+    });
+    if (response.error) throw new Error(response.error.message);
+    return response.data?.id ?? null;
   }
 
   // ─── HTML Templates (fallback for non-React-Email templates) ───────────────
@@ -219,7 +246,12 @@ export class EmailService implements OnModuleInit {
     `);
   }
 
-  private branchInviteHtml(email: string, fullName: string, tempPassword: string, loginUrl: string): string {
+  private branchInviteHtml(
+    email: string,
+    fullName: string,
+    tempPassword: string,
+    loginUrl: string,
+  ): string {
     return this.wrapLayout(`
       <h1>Defter-i Hilal'e Hoş Geldiniz!</h1>
       <p>Merhaba <strong>${this.escape(fullName)}</strong>,</p>

@@ -1,28 +1,15 @@
 import 'reflect-metadata';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
-import * as fs from 'fs';
+import { resolveEnvironmentFile } from './config/environment-file';
 
-// Load .env files before anything else
 const workspaceRoot = path.resolve(__dirname, '../../../..');
-const possiblePaths = [
-  path.resolve(process.cwd(), '.env.local'),
-  path.resolve(process.cwd(), '.env'),
-  path.resolve(workspaceRoot, '.env.local'),
-  path.resolve(workspaceRoot, '.env'),
-  path.resolve(__dirname, '../../.env.local'),
-  path.resolve(__dirname, '../../.env'),
-];
-
-for (const envPath of possiblePaths) {
-  if (fs.existsSync(envPath)) {
-    dotenv.config({ path: envPath, override: true });
-    break;
-  }
-}
+const environmentFile = resolveEnvironmentFile(workspaceRoot);
+if (environmentFile) dotenv.config({ path: environmentFile, quiet: true, override: true });
 
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ConfigService } from '@nestjs/config';
 import helmet from '@fastify/helmet';
 import { AppModule } from './app.module';
@@ -65,7 +52,8 @@ async function bootstrap() {
     },
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: 'Content-Type, Accept, Authorization, x-association-id, ngrok-skip-browser-warning',
+    allowedHeaders:
+      'Content-Type, Accept, Authorization, x-association-id, ngrok-skip-browser-warning',
   });
 
   app.setGlobalPrefix('api/v1');
@@ -75,32 +63,41 @@ async function bootstrap() {
   const botService = app.get(BotService);
   const fastify = app.getHttpAdapter().getInstance();
 
-  fastify.post('/telegram/webhook', async (request: any, reply: any) => {
-    // Reject forged updates: Telegram echoes our configured secret in this
-    // header on every webhook call. When a secret is configured, anything
-    // that doesn't match it is not from Telegram. (No secret configured →
-    // accept, e.g. local long-polling dev where the webhook isn't used.)
-    if (webhookSecret) {
-      const headerToken = request.headers['x-telegram-bot-api-secret-token'];
-      if (headerToken !== webhookSecret) {
-        return reply.code(401).send({ ok: false });
+  fastify.post(
+    '/telegram/webhook',
+    async (
+      request: FastifyRequest<{
+        Body: Parameters<BotService['handleUpdate']>[0];
+      }>,
+      reply: FastifyReply,
+    ) => {
+      if (!botService.isEnabled()) return reply.code(404).send({ ok: false });
+      // Reject forged updates: Telegram echoes our configured secret in this
+      // header on every webhook call. When a secret is configured, anything
+      // that doesn't match it is not from Telegram. (No secret configured →
+      // accept, e.g. local long-polling dev where the webhook isn't used.)
+      if (webhookSecret) {
+        const headerToken = request.headers['x-telegram-bot-api-secret-token'];
+        if (headerToken !== webhookSecret) {
+          return reply.code(401).send({ ok: false });
+        }
       }
-    }
 
-    const body = request.body;
-    if (!body) {
-      return reply.send({ ok: false });
-    }
+      const body = request.body;
+      if (!body) {
+        return reply.send({ ok: false });
+      }
 
-    try {
-      await botService.handleUpdate(body);
-      return reply.send({ ok: true });
-    } catch (err) {
-      // Always 200 so Telegram doesn't retry-storm on a handler bug.
-      console.error('[WEBHOOK] Error handling update:', (err as Error)?.message);
-      return reply.send({ ok: true });
-    }
-  });
+      try {
+        await botService.handleUpdate(body);
+        return reply.send({ ok: true });
+      } catch (err) {
+        // Always 200 so Telegram doesn't retry-storm on a handler bug.
+        console.error('[WEBHOOK] Error handling update:', (err as Error)?.message);
+        return reply.send({ ok: true });
+      }
+    },
+  );
 
   const port = config.get<number>('port') ?? 3000;
   await app.listen(port, '0.0.0.0');
@@ -115,7 +112,7 @@ async function bootstrap() {
     !apiUrl.includes('localhost') &&
     !apiUrl.includes('127.0.0.1') &&
     !apiUrl.startsWith('http://0.0.0.0');
-  if (isPublicApiUrl && nodeEnv !== 'test') {
+  if (botService.isEnabled() && isPublicApiUrl && nodeEnv !== 'test') {
     if (isProd && !webhookSecret) {
       console.warn(
         'TELEGRAM_WEBHOOK_SECRET is not set — the webhook will accept ' +

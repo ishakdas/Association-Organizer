@@ -1,5 +1,9 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000';
 
+export function getApiUrl(path: string): string {
+  return `${API_URL}/api/v1${path}`;
+}
+
 interface FetchOptions extends RequestInit {
   token?: string;
   associationId?: string;
@@ -25,7 +29,7 @@ export async function apiClient<T>(path: string, options: FetchOptions = {}): Pr
     headers['x-association-id'] = associationId;
   }
 
-  const response = await fetch(`${API_URL}/api/v1${path}`, {
+  const response = await fetch(getApiUrl(path), {
     ...rest,
     headers,
   });

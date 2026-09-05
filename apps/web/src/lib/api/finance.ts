@@ -9,12 +9,13 @@ import type {
   AssociationSettingsInput,
   GrantFinancePermissionInput,
 } from '@ticketbot/shared-validation';
+import type { PaginatedResponse } from '@ticketbot/shared-types';
+import { buildQuery } from './query';
 
 export function getFinanceSummary(token: string, associationId: string) {
-  return apiClient<FinanceSummaryResponse>(
-    `/associations/${associationId}/finance/summary`,
-    { token },
-  );
+  return apiClient<FinanceSummaryResponse>(`/associations/${associationId}/finance/summary`, {
+    token,
+  });
 }
 
 export function getMonthlyStats(token: string, associationId: string) {
@@ -29,16 +30,8 @@ export function listTransactions(
   associationId: string,
   params: ListTransactionsQuery,
 ) {
-  const sp = new URLSearchParams();
-  if (params.type) sp.set('type', params.type);
-  if (params.categoryId) sp.set('categoryId', params.categoryId);
-  if (params.fromDate) sp.set('fromDate', params.fromDate);
-  if (params.toDate) sp.set('toDate', params.toDate);
-  if (params.page) sp.set('page', String(params.page));
-  if (params.pageSize) sp.set('pageSize', String(params.pageSize));
-  const q = sp.toString();
-  return apiClient<{ data: TransactionResponse[]; meta: { total: number; page: number; pageSize: number; totalPages: number } }>(
-    `/associations/${associationId}/finance/transactions${q ? `?${q}` : ''}`,
+  return apiClient<PaginatedResponse<TransactionResponse>>(
+    `/associations/${associationId}/finance/transactions${buildQuery({ ...params })}`,
     { token },
   );
 }
@@ -48,21 +41,18 @@ export function createTransaction(
   associationId: string,
   data: CreateTransactionInput,
 ) {
-  return apiClient<TransactionResponse>(
-    `/associations/${associationId}/finance/transactions`,
-    { token, method: 'POST', body: JSON.stringify(data) },
-  );
+  return apiClient<TransactionResponse>(`/associations/${associationId}/finance/transactions`, {
+    token,
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
-export function deleteTransaction(
-  token: string,
-  associationId: string,
-  transactionId: string,
-) {
-  return apiClient<void>(
-    `/associations/${associationId}/finance/transactions/${transactionId}`,
-    { token, method: 'DELETE' },
-  );
+export function deleteTransaction(token: string, associationId: string, transactionId: string) {
+  return apiClient<void>(`/associations/${associationId}/finance/transactions/${transactionId}`, {
+    token,
+    method: 'DELETE',
+  });
 }
 
 export function listCategories(token: string, associationId: string, type?: string) {
@@ -84,15 +74,11 @@ export function createCategory(
   );
 }
 
-export function deleteCategory(
-  token: string,
-  associationId: string,
-  categoryId: string,
-) {
-  return apiClient<void>(
-    `/associations/${associationId}/finance/categories/${categoryId}`,
-    { token, method: 'DELETE' },
-  );
+export function deleteCategory(token: string, associationId: string, categoryId: string) {
+  return apiClient<void>(`/associations/${associationId}/finance/categories/${categoryId}`, {
+    token,
+    method: 'DELETE',
+  });
 }
 
 export function recordDonation(
@@ -101,17 +87,19 @@ export function recordDonation(
   amountInKurus: number,
   description?: string,
 ) {
-  return apiClient<TransactionResponse>(
-    `/associations/${associationId}/finance/donations`,
-    { token, method: 'POST', body: JSON.stringify({ amountInKurus, description }) },
-  );
+  return apiClient<TransactionResponse>(`/associations/${associationId}/finance/donations`, {
+    token,
+    method: 'POST',
+    body: JSON.stringify({ amountInKurus, description }),
+  });
 }
 
 export function getSettings(token: string, associationId: string) {
-  return apiClient<{ monthlyFeeAmountKurus: number | null; yearlyFeeAmountKurus: number | null; feeFrequency: string }>(
-    `/associations/${associationId}/finance/settings`,
-    { token },
-  );
+  return apiClient<{
+    monthlyFeeAmountKurus: number | null;
+    yearlyFeeAmountKurus: number | null;
+    feeFrequency: string;
+  }>(`/associations/${associationId}/finance/settings`, { token });
 }
 
 export function updateSettings(
@@ -119,10 +107,11 @@ export function updateSettings(
   associationId: string,
   data: AssociationSettingsInput,
 ) {
-  return apiClient<void>(
-    `/associations/${associationId}/finance/settings`,
-    { token, method: 'PUT', body: JSON.stringify(data) },
-  );
+  return apiClient<void>(`/associations/${associationId}/finance/settings`, {
+    token,
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
 }
 
 export function grantPermission(
@@ -130,28 +119,29 @@ export function grantPermission(
   associationId: string,
   data: GrantFinancePermissionInput,
 ) {
-  return apiClient<void>(
-    `/associations/${associationId}/permissions/${data.userId}`,
-    { token, method: 'POST', body: JSON.stringify({ action: 'VIEW_FINANCE' }) },
-  );
+  return apiClient<void>(`/associations/${associationId}/permissions/${data.userId}`, {
+    token,
+    method: 'POST',
+    body: JSON.stringify({ action: 'VIEW_FINANCE' }),
+  });
 }
 
-export function revokePermission(
-  token: string,
-  associationId: string,
-  userId: string,
-) {
-  return apiClient<void>(
-    `/associations/${associationId}/permissions/${userId}/VIEW_FINANCE`,
-    { token, method: 'DELETE' },
-  );
+export function revokePermission(token: string, associationId: string, userId: string) {
+  return apiClient<void>(`/associations/${associationId}/permissions/${userId}/VIEW_FINANCE`, {
+    token,
+    method: 'DELETE',
+  });
 }
 
 export function listPermissions(token: string, associationId: string) {
-  return apiClient<Array<{ id: string; user: { id: string; fullName: string }; grantedAt: string; isActive: boolean }>>(
-    `/associations/${associationId}/permissions`,
-    { token },
-  );
+  return apiClient<
+    Array<{
+      id: string;
+      user: { id: string; fullName: string };
+      grantedAt: string;
+      isActive: boolean;
+    }>
+  >(`/associations/${associationId}/permissions`, { token });
 }
 
 export function recordFeePayment(
@@ -159,24 +149,44 @@ export function recordFeePayment(
   associationId: string,
   data: { membershipId: string; amountInKurus: number; month: string; description?: string },
 ) {
-  return apiClient<{ id: string; membershipId: string; memberName: string; amountInKurus: number; month: string; paidAt: string }>(
-    `/associations/${associationId}/finance/fees`,
-    { token, method: 'POST', body: JSON.stringify(data) },
-  );
+  return apiClient<{
+    id: string;
+    membershipId: string;
+    memberName: string;
+    amountInKurus: number;
+    month: string;
+    paidAt: string;
+  }>(`/associations/${associationId}/finance/fees`, {
+    token,
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
 export function getMemberFeeHistory(token: string, associationId: string, membershipId: string) {
-  return apiClient<Array<{ id: string; membershipId: string; memberName: string; amountInKurus: number; month: string; paidAt: string }>>(
-    `/associations/${associationId}/finance/fees/members/${membershipId}`,
-    { token },
-  );
+  return apiClient<
+    Array<{
+      id: string;
+      membershipId: string;
+      memberName: string;
+      amountInKurus: number;
+      month: string;
+      paidAt: string;
+    }>
+  >(`/associations/${associationId}/finance/fees/members/${membershipId}`, { token });
 }
 
 export function listFeePayments(token: string, associationId: string) {
-  return apiClient<Array<{ id: string; amountInKurus: number; month: string; memberName: string; description: string; paidAt: string }>>(
-    `/associations/${associationId}/finance/fees`,
-    { token },
-  );
+  return apiClient<
+    Array<{
+      id: string;
+      amountInKurus: number;
+      month: string;
+      memberName: string;
+      description: string;
+      paidAt: string;
+    }>
+  >(`/associations/${associationId}/finance/fees`, { token });
 }
 
 export function getReport(
@@ -185,10 +195,6 @@ export function getReport(
   fromDate?: string,
   toDate?: string,
 ) {
-  const sp = new URLSearchParams();
-  if (fromDate) sp.set('fromDate', fromDate);
-  if (toDate) sp.set('toDate', toDate);
-  const q = sp.toString();
   return apiClient<
     Array<{
       categoryId: string;
@@ -197,35 +203,46 @@ export function getReport(
       totalAmountKurus: number;
       transactionCount: number;
     }>
-  >(`/associations/${associationId}/finance/report${q ? `?${q}` : ''}`, { token });
+  >(`/associations/${associationId}/finance/report${buildQuery({ fromDate, toDate })}`, { token });
 }
 
 export function bulkFeePayment(
   token: string,
   associationId: string,
-  data: { payments: Array<{ membershipId: string; amountInKurus: number; month: string; description?: string }> },
+  data: {
+    payments: Array<{
+      membershipId: string;
+      amountInKurus: number;
+      month: string;
+      description?: string;
+    }>;
+  },
 ) {
-  return apiClient<{ successCount: number; skippedCount: number; skipped: Array<{ membershipId: string; memberName: string; month: string; reason: string }>; totalAmountKurus: number }>(
-    `/associations/${associationId}/finance/fees/bulk`,
-    { token, method: 'POST', body: JSON.stringify(data) },
-  );
+  return apiClient<{
+    successCount: number;
+    skippedCount: number;
+    skipped: Array<{ membershipId: string; memberName: string; month: string; reason: string }>;
+    totalAmountKurus: number;
+  }>(`/associations/${associationId}/finance/fees/bulk`, {
+    token,
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
 }
 
-export function getUnpaidMembers(
-  token: string,
-  associationId: string,
-  month: string,
-) {
-  return apiClient<Array<{ membershipId: string; userId: string; fullName: string; hasPaid: boolean; monthlyFeeAmountKurus: number | null }>>(
-    `/associations/${associationId}/finance/fees/unpaid?month=${month}`,
-    { token },
-  );
+export function getUnpaidMembers(token: string, associationId: string, month: string) {
+  return apiClient<
+    Array<{
+      membershipId: string;
+      userId: string;
+      fullName: string;
+      hasPaid: boolean;
+      monthlyFeeAmountKurus: number | null;
+    }>
+  >(`/associations/${associationId}/finance/fees/unpaid?month=${month}`, { token });
 }
 
-export function getFrequentCategories(
-  token: string,
-  associationId: string,
-) {
+export function getFrequentCategories(token: string, associationId: string) {
   return apiClient<Array<{ id: string; name: string; type: 'INCOME' | 'EXPENSE'; count: number }>>(
     `/associations/${associationId}/finance/frequent-categories`,
     { token },

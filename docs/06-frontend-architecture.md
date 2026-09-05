@@ -61,11 +61,11 @@ apps/web/
 
 The app uses route groups to organize authentication flows:
 
-| Group | Purpose | Access |
-|-------|---------|--------|
-| `(auth)` | Login, OAuth callback | Public |
-| `(onboarding)` | First-time user flow | Authenticated (incomplete) |
-| `(protected)` | All authenticated pages | Authenticated (complete) |
+| Group          | Purpose                 | Access                     |
+| -------------- | ----------------------- | -------------------------- |
+| `(auth)`       | Login, OAuth callback   | Public                     |
+| `(onboarding)` | First-time user flow    | Authenticated (incomplete) |
+| `(protected)`  | All authenticated pages | Authenticated (complete)   |
 
 ### Protected Routes
 
@@ -75,15 +75,15 @@ The `(protected)` layout performs server-side auth check:
 // apps/web/src/app/(protected)/layout.tsx
 export default async function ProtectedLayout({ children }) {
   const user = await getAuthenticatedUser();
-  
+
   if (!user) {
     redirect('/login');
   }
-  
+
   if (!user.onboardingCompletedAt) {
     redirect('/onboarding/complete');
   }
-  
+
   return (
     <div className="protected-layout">
       <Sidebar user={user} />
@@ -117,17 +117,23 @@ import { cookies } from 'next/headers';
 
 export function createClient() {
   const cookieStore = cookies();
-  
+
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name) { return cookieStore.get(name)?.value; },
-        set(name, value, options) { cookieStore.set({ name, value, ...options }); },
-        remove(name, options) { cookieStore.set({ name, value: '', ...options }); },
+        get(name) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name, value, options) {
+          cookieStore.set({ name, value, ...options });
+        },
+        remove(name, options) {
+          cookieStore.set({ name, value: '', ...options });
+        },
       },
-    }
+    },
   );
 }
 ```
@@ -140,7 +146,7 @@ import { createBrowserClient } from '@supabase/ssr';
 export function createClient() {
   return createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   );
 }
 ```
@@ -150,6 +156,7 @@ export function createClient() {
 Location: `apps/web/src/middleware.ts`
 
 **Responsibilities**:
+
 1. Refresh session on every request
 2. Redirect unauthenticated users to `/login`
 3. Handle OAuth callback redirects
@@ -157,15 +164,15 @@ Location: `apps/web/src/middleware.ts`
 ```typescript
 export async function middleware(request: NextRequest) {
   const supabase = createServerClient(...);
-  
+
   // Refresh session
   const { data: { session } } = await supabase.auth.getSession();
-  
+
   // Protected route check
   if (!session && isProtectedRoute(request.nextUrl.pathname)) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
-  
+
   return NextResponse.next();
 }
 
@@ -181,15 +188,17 @@ Server Components fetch user from Supabase:
 ```typescript
 export async function getAuthenticatedUser() {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   if (!user) return null;
-  
+
   // Fetch full profile from API
   const response = await fetch(`${API_URL}/api/v1/auth/me`, {
-    headers: { Authorization: `Bearer ${user.access_token}` }
+    headers: { Authorization: `Bearer ${user.access_token}` },
   });
-  
+
   return response.json();
 }
 ```
@@ -203,14 +212,14 @@ Location: `apps/web/src/lib/api/client.ts`
 ```typescript
 class ApiClient {
   private baseUrl: string;
-  
+
   constructor() {
     this.baseUrl = process.env.NEXT_PUBLIC_API_URL;
   }
-  
+
   async request(endpoint: string, options: RequestInit = {}) {
     const token = await getAccessToken();
-    
+
     const response = await fetch(`${this.baseUrl}/api/v1${endpoint}`, {
       ...options,
       headers: {
@@ -219,33 +228,33 @@ class ApiClient {
         ...options.headers,
       },
     });
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new ApiError(error);
     }
-    
+
     return response.json();
   }
-  
+
   get(endpoint: string) {
     return this.request(endpoint);
   }
-  
+
   post(endpoint: string, data: any) {
     return this.request(endpoint, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   }
-  
+
   patch(endpoint: string, data: any) {
     return this.request(endpoint, {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
   }
-  
+
   delete(endpoint: string) {
     return this.request(endpoint, { method: 'DELETE' });
   }
@@ -265,13 +274,14 @@ export const associationsApi = {
   create: (data: CreateAssociationDto) => apiClient.post('/associations', data),
   update: (id: string, data: UpdateAssociationDto) => apiClient.patch(`/associations/${id}`, data),
   delete: (id: string) => apiClient.delete(`/associations/${id}`),
-  
+
   // Members
   getMembers: (id: string) => apiClient.get(`/associations/${id}/members`),
-  addMember: (id: string, data: AddMemberDto) => apiClient.post(`/associations/${id}/members`, data),
-  updateMember: (id: string, memberId: string, data: UpdateMemberDto) => 
+  addMember: (id: string, data: AddMemberDto) =>
+    apiClient.post(`/associations/${id}/members`, data),
+  updateMember: (id: string, memberId: string, data: UpdateMemberDto) =>
     apiClient.patch(`/associations/${id}/members/${memberId}`, data),
-  removeMember: (id: string, memberId: string) => 
+  removeMember: (id: string, memberId: string) =>
     apiClient.delete(`/associations/${id}/members/${memberId}`),
 };
 ```
@@ -281,14 +291,15 @@ export const associationsApi = {
 ```typescript
 export const tasksApi = {
   list: (associationId: string) => apiClient.get(`/associations/${associationId}/tasks`),
-  get: (associationId: string, id: string) => apiClient.get(`/associations/${associationId}/tasks/${id}`),
-  create: (associationId: string, data: CreateTaskDto) => 
+  get: (associationId: string, id: string) =>
+    apiClient.get(`/associations/${associationId}/tasks/${id}`),
+  create: (associationId: string, data: CreateTaskDto) =>
     apiClient.post(`/associations/${associationId}/tasks`, data),
-  update: (associationId: string, id: string, data: UpdateTaskDto) => 
+  update: (associationId: string, id: string, data: UpdateTaskDto) =>
     apiClient.patch(`/associations/${associationId}/tasks/${id}`, data),
-  delete: (associationId: string, id: string) => 
+  delete: (associationId: string, id: string) =>
     apiClient.delete(`/associations/${associationId}/tasks/${id}`),
-  dispute: (associationId: string, id: string) => 
+  dispute: (associationId: string, id: string) =>
     apiClient.post(`/associations/${associationId}/tasks/${id}/dispute`),
 };
 ```
@@ -301,7 +312,7 @@ Server Components fetch directly from API:
 // Server Component
 async function TasksPage({ params }: { params: { id: string } }) {
   const accessToken = await getAccessToken();
-  
+
   const tasks = await fetch(
     `${process.env.NEXT_PUBLIC_API_URL}/api/v1/associations/${params.id}/tasks`,
     {
@@ -309,7 +320,7 @@ async function TasksPage({ params }: { params: { id: string } }) {
       cache: 'no-store', // Disable caching
     }
   ).then(res => res.json());
-  
+
   return <TasksList tasks={tasks} />;
 }
 ```
@@ -334,16 +345,14 @@ export function hasAnyMembership(user: AuthenticatedUser): boolean {
 export function hasRoleInAssociation(
   user: AuthenticatedUser,
   associationId: string,
-  roles: UserRole[]
+  roles: UserRole[],
 ): boolean {
-  return user.memberships.some(
-    m => m.associationId === associationId && roles.includes(m.role)
-  );
+  return user.memberships.some((m) => m.associationId === associationId && roles.includes(m.role));
 }
 
 export function canAccessRoute(
   user: AuthenticatedUser,
-  route: 'member' | 'auth' | 'system_admin'
+  route: 'member' | 'auth' | 'system_admin',
 ): boolean {
   switch (route) {
     case 'member':
@@ -355,11 +364,8 @@ export function canAccessRoute(
   }
 }
 
-export function filterNav(
-  items: NavItem[],
-  user: AuthenticatedUser
-): NavItem[] {
-  return items.filter(item => {
+export function filterNav(items: NavItem[], user: AuthenticatedUser): NavItem[] {
+  return items.filter((item) => {
     if (!item.requiredRole) return true;
     return hasRoleInAssociation(user, item.associationId, item.requiredRole);
   });
@@ -367,18 +373,21 @@ export function filterNav(
 
 export function userRoleLabel(user: AuthenticatedUser, associationId?: string): string {
   if (isSystemAdmin(user)) return 'Sistem Yöneticisi';
-  
+
   if (associationId) {
-    const membership = user.memberships.find(m => m.associationId === associationId);
+    const membership = user.memberships.find((m) => m.associationId === associationId);
     if (membership) {
       switch (membership.role) {
-        case 'ASSOCIATION_MANAGER': return 'Başkan';
-        case 'ASSOCIATION_SECRETARY': return 'Sekreter';
-        case 'ASSOCIATION_MEMBER': return 'Üye';
+        case 'ASSOCIATION_MANAGER':
+          return 'Başkan';
+        case 'ASSOCIATION_SECRETARY':
+          return 'Sekreter';
+        case 'ASSOCIATION_MEMBER':
+          return 'Üye';
       }
     }
   }
-  
+
   return 'Üye';
 }
 ```
@@ -393,7 +402,7 @@ function AssociationPage({ user, associationId }) {
     'ASSOCIATION_MANAGER',
     'ASSOCIATION_SECRETARY'
   ]);
-  
+
   return (
     <div>
       <h1>Association Details</h1>
@@ -414,7 +423,7 @@ function Sidebar({ user }) {
     { label: 'Finance', href: '/finance', requiredRole: ['ASSOCIATION_MANAGER', 'ASSOCIATION_SECRETARY'] },
     { label: 'Admin', href: '/admin', requiredRole: ['SYSTEM_ADMIN'] },
   ], user);
-  
+
   return (
     <nav>
       {navItems.map(item => (
@@ -430,7 +439,7 @@ function Sidebar({ user }) {
 ```typescript
 function UserBadge({ user, associationId }) {
   const roleLabel = userRoleLabel(user, associationId);
-  
+
   return (
     <span className="badge">
       {roleLabel}
@@ -444,6 +453,7 @@ function UserBadge({ user, associationId }) {
 ### Server vs Client Components
 
 **Server Components** (default):
+
 - Data fetching from API
 - Initial page render
 - SEO-critical content
@@ -457,6 +467,7 @@ export default async function TasksPage({ params }) {
 ```
 
 **Client Components** ('use client'):
+
 - Interactive UI
 - State management
 - Event handlers
@@ -466,7 +477,7 @@ export default async function TasksPage({ params }) {
 
 export function TaskCard({ task }) {
   const [isEditing, setIsEditing] = useState(false);
-  
+
   return (
     <div onClick={() => setIsEditing(true)}>
       {task.title}
@@ -549,7 +560,7 @@ Location: `apps/web/src/app/globals.css`
   .btn-primary {
     @apply bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700;
   }
-  
+
   .card {
     @apply bg-white rounded-lg shadow-sm p-6;
   }
@@ -565,6 +576,7 @@ Server Components handle data fetching, eliminating need for client-side data fe
 ### Client State
 
 For interactive components:
+
 - `useState` for local state
 - `useReducer` for complex state
 - Context API for shared state
@@ -581,12 +593,12 @@ Forms use controlled components with React state:
 export function TaskForm({ onSubmit }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit({ title, description });
   };
-  
+
   return (
     <form onSubmit={handleSubmit}>
       <input value={title} onChange={e => setTitle(e.target.value)} />
@@ -609,7 +621,7 @@ class ApiError extends Error {
   type: string;
   detail: string;
   errors?: Record<string, string[]>;
-  
+
   constructor(response: ProblemDetail) {
     super(response.title);
     this.status = response.status;
@@ -627,11 +639,11 @@ class ApiError extends Error {
 
 export function ErrorBoundary({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState<Error | null>(null);
-  
+
   if (error) {
     return <ErrorDisplay error={error} onRetry={() => setError(null)} />;
   }
-  
+
   return (
     <React.ErrorBoundary fallback={e => setError(e)}>
       {children}
@@ -706,7 +718,7 @@ pnpm dev              # All apps in parallel
 
 ### Environment Variables
 
-Required in `apps/web/.env.local`:
+Required in the root `.env`:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=...
@@ -738,10 +750,7 @@ Next.js config transpiles shared packages:
 
 ```typescript
 const nextConfig = {
-  transpilePackages: [
-    '@ticketbot/shared-types',
-    '@ticketbot/shared-validation',
-  ],
+  transpilePackages: ['@ticketbot/shared-types', '@ticketbot/shared-validation'],
 };
 ```
 
@@ -752,20 +761,17 @@ const nextConfig = {
 ```typescript
 async function getData(endpoint: string) {
   const token = await getAccessToken();
-  
-  const response = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/v1${endpoint}`,
-    {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: 'no-store',
-    }
-  );
-  
+
+  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1${endpoint}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.detail);
   }
-  
+
   return response.json();
 }
 ```
@@ -777,7 +783,7 @@ async function getData(endpoint: string) {
 
 export function CreateForm({ associationId }) {
   const [loading, setLoading] = useState(false);
-  
+
   const handleSubmit = async (data: CreateDto) => {
     setLoading(true);
     try {
@@ -789,7 +795,7 @@ export function CreateForm({ associationId }) {
       setLoading(false);
     }
   };
-  
+
   return <Form onSubmit={handleSubmit} />;
 }
 ```

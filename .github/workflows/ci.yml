@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: ticketbot
+          POSTGRES_PASSWORD: ticketbot
+          POSTGRES_DB: ticketbot_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U ticketbot -d ticketbot_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      APP_ENV: test
+      NODE_ENV: test
+      DATABASE_URL: postgresql://ticketbot:ticketbot@localhost:5433/ticketbot_test
+      DIRECT_URL: postgresql://ticketbot:ticketbot@localhost:5433/ticketbot_test
+      SUPABASE_URL: http://127.0.0.1:54321
+      SUPABASE_ANON_KEY: test-anon-key
+      SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+      SUPABASE_JWT_SECRET: test-supabase-jwt-secret-at-least-32-characters
+      JWT_SECRET: test-bot-jwt-secret-at-least-32-characters
+      ENABLE_TELEGRAM_BOT: 'false'
+      API_URL: http://localhost:3000
+      WEB_URL: http://localhost:3001
+      NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: test-anon-key
+      NEXT_PUBLIC_API_URL: http://localhost:3000
+      EMAIL_DELIVERY_MODE: log
+      ENABLE_JOBS: 'false'
+      ENABLE_OVERDUE_CHECKER: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.29.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @ticketbot/database exec prisma generate
+      - run: pnpm --filter @ticketbot/database exec prisma migrate deploy
+      - run: pnpm lint
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm --filter api test:integration
+      - run: node scripts/check-no-secrets.mjs

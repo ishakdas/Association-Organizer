@@ -36,7 +36,6 @@ import { TaskReminderScheduler } from '../jobs/task-reminder.scheduler';
 import { IcsTokenService } from './ics-token.service';
 import { TaskNotificationService } from './task-notification.service';
 
-const PRIORITY_WEIGHT = { HIGH: 3, MEDIUM: 2, LOW: 1 };
 const MAX_OPEN_TASKS_BEFORE_WARNING = 10;
 
 @Injectable()
@@ -53,22 +52,16 @@ export class TasksService {
     private readonly notificationService: TaskNotificationService,
   ) {}
 
-  async create(
-    associationId: string,
-    input: CreateTaskInput,
-    user: AuthenticatedUser,
-  ) {
+  async create(associationId: string, input: CreateTaskInput, user: AuthenticatedUser) {
     await this.ensureAssigneeIsMember(associationId, input.assignedToUserId);
     if (input.watcherUserId) {
       await this.ensureAssigneeIsMember(associationId, input.watcherUserId);
     }
 
-    // Due date validation: prevent past dates
     if (input.dueDate && new Date(input.dueDate) < new Date()) {
       throw new BadRequestException('Bitiş tarihi geçmiş olamaz');
     }
 
-    // Workload check: warn if assignee has too many open tasks
     const workloadWarning = await this.getWorkloadWarning(associationId, input.assignedToUserId);
 
     const assigneeTelegram = await this.prisma.telegramAccount.findUnique({
@@ -171,7 +164,7 @@ export class TasksService {
   private computeDurationHours(task: { createdAt: Date; completedAt: Date | null }): number | null {
     if (!task.completedAt) return null;
     const ms = task.completedAt.getTime() - task.createdAt.getTime();
-    return Math.round(ms / (1000 * 60 * 60) * 100) / 100;
+    return Math.round((ms / (1000 * 60 * 60)) * 100) / 100;
   }
 
   private async notifyAssignment(task: {
@@ -186,9 +179,7 @@ export class TasksService {
     assignedBy: { id: string; fullName: string };
   }): Promise<void> {
     try {
-      const icsUrl = task.dueDate
-        ? this.icsTokens.signTaskIcsUrl(task.id)
-        : undefined;
+      const icsUrl = task.dueDate ? this.icsTokens.signTaskIcsUrl(task.id) : undefined;
 
       const text = formatAssignmentMessage(
         {
@@ -227,11 +218,7 @@ export class TasksService {
     }
   }
 
-  async list(
-    associationId: string,
-    query: ListTasksQuery,
-    user: AuthenticatedUser,
-  ) {
+  async list(associationId: string, query: ListTasksQuery, user: AuthenticatedUser) {
     const where: Prisma.TaskWhereInput = {
       associationId,
       deletedAt: null,
@@ -293,11 +280,7 @@ export class TasksService {
     };
   }
 
-  async getOne(
-    associationId: string,
-    taskId: string,
-    user: AuthenticatedUser,
-  ) {
+  async getOne(associationId: string, taskId: string, user: AuthenticatedUser) {
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, associationId, deletedAt: null },
       include: {
@@ -339,8 +322,7 @@ export class TasksService {
       const privilegedAssoc = active
         .filter(
           (m) =>
-            m.role === UserRole.ASSOCIATION_MANAGER ||
-            m.role === UserRole.ASSOCIATION_SECRETARY,
+            m.role === UserRole.ASSOCIATION_MANAGER || m.role === UserRole.ASSOCIATION_SECRETARY,
         )
         .map((m) => m.associationId);
       const memberOnlyAssoc = active
@@ -427,22 +409,23 @@ export class TasksService {
     };
   }
 
-  async updateStatus(
-    taskId: string,
-    input: UpdateTaskStatusInput,
-    user: AuthenticatedUser,
-  ) {
+  async updateStatus(taskId: string, input: UpdateTaskStatusInput, user: AuthenticatedUser) {
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, deletedAt: null },
-      select: { id: true, associationId: true, status: true, assignedToUserId: true, createdAt: true, title: true },
+      select: {
+        id: true,
+        associationId: true,
+        status: true,
+        assignedToUserId: true,
+        createdAt: true,
+        title: true,
+      },
     });
     if (!task) throw new NotFoundException('Görev bulunamadı');
 
     if (
       user.systemRole !== UserRole.SYSTEM_ADMIN &&
-      !user.memberships.some(
-        (m) => m.isActive && m.associationId === task.associationId,
-      )
+      !user.memberships.some((m) => m.isActive && m.associationId === task.associationId)
     ) {
       throw new ForbiddenException('Bu görev için yetkiniz yok');
     }
@@ -493,8 +476,20 @@ export class TasksService {
   }
 
   private async sendStatusNotification(
-    originalTask: { id: string; associationId: string; status: string; assignedToUserId: string; createdAt: Date; title: string },
-    updatedTask: any,
+    originalTask: {
+      id: string;
+      associationId: string;
+      status: string;
+      assignedToUserId: string;
+      createdAt: Date;
+      title: string;
+    },
+    updatedTask: {
+      status: string;
+      completedAt: Date | null;
+      assignedTo: { id: string; fullName: string } | null;
+      assignedBy: { fullName: string };
+    },
     actor: AuthenticatedUser,
   ): Promise<void> {
     if (updatedTask.status === 'COMPLETED' && originalTask.status !== 'COMPLETED') {
@@ -512,16 +507,14 @@ export class TasksService {
         originalTask.id,
         originalTask.title,
         updatedTask.assignedTo?.fullName ?? 'Bilinmeyen',
-        actor.id === updatedTask.assignedTo?.id ? updatedTask.assignedTo.fullName : (updatedTask.assignedBy?.fullName ?? 'Bilinmeyen'),
+        actor.id === updatedTask.assignedTo?.id
+          ? updatedTask.assignedTo.fullName
+          : (updatedTask.assignedBy?.fullName ?? 'Bilinmeyen'),
       );
     }
   }
 
-  async update(
-    taskId: string,
-    input: UpdateTaskInput,
-    user: AuthenticatedUser,
-  ) {
+  async update(taskId: string, input: UpdateTaskInput, user: AuthenticatedUser) {
     const existing = await this.prisma.task.findFirst({
       where: { id: taskId, deletedAt: null },
       include: {
@@ -533,37 +526,25 @@ export class TasksService {
 
     this.assertCanManageTask(user, existing.associationId);
 
-    // Due date validation: prevent past dates on update
     if (input.dueDate && new Date(input.dueDate) < new Date()) {
       throw new BadRequestException('Bitiş tarihi geçmiş olamaz');
     }
 
-    if (
-      input.assignedToUserId &&
-      input.assignedToUserId !== existing.assignedToUserId
-    ) {
-      await this.ensureAssigneeIsMember(
-        existing.associationId,
-        input.assignedToUserId,
-      );
+    if (input.assignedToUserId && input.assignedToUserId !== existing.assignedToUserId) {
+      await this.ensureAssigneeIsMember(existing.associationId, input.assignedToUserId);
     }
     if (input.watcherUserId) {
-      await this.ensureAssigneeIsMember(
-        existing.associationId,
-        input.watcherUserId,
-      );
+      await this.ensureAssigneeIsMember(existing.associationId, input.watcherUserId);
     }
 
     const data: Prisma.TaskUpdateInput = {};
     if (input.title !== undefined) data.title = input.title;
     if (input.description !== undefined) data.description = input.description;
     if (input.priority !== undefined) data.priority = input.priority;
-    if (input.dueDate !== undefined)
-      data.dueDate = input.dueDate ? new Date(input.dueDate) : null;
+    if (input.dueDate !== undefined) data.dueDate = input.dueDate ? new Date(input.dueDate) : null;
     if (input.reminderAt !== undefined)
       data.reminderAt = input.reminderAt ? new Date(input.reminderAt) : null;
-    if (input.reminderFrequency !== undefined)
-      data.reminderFrequency = input.reminderFrequency;
+    if (input.reminderFrequency !== undefined) data.reminderFrequency = input.reminderFrequency;
     if (input.assignedToUserId !== undefined) {
       data.assignedTo = { connect: { id: input.assignedToUserId } };
       data.disputed = false;
@@ -576,8 +557,7 @@ export class TasksService {
     }
 
     const reassigned =
-      input.assignedToUserId !== undefined &&
-      input.assignedToUserId !== existing.assignedToUserId;
+      input.assignedToUserId !== undefined && input.assignedToUserId !== existing.assignedToUserId;
 
     const updated = await this.prisma.$transaction(async (tx) => {
       const next = await tx.task.update({
@@ -599,10 +579,7 @@ export class TasksService {
           payload: { from: existing.title, to: next.title },
         });
       }
-      if (
-        input.description !== undefined &&
-        input.description !== existing.description
-      ) {
+      if (input.description !== undefined && input.description !== existing.description) {
         activities.push({
           taskId,
           actorId: user.id,
@@ -610,10 +587,7 @@ export class TasksService {
           payload: { from: existing.description, to: next.description },
         });
       }
-      if (
-        input.priority !== undefined &&
-        input.priority !== existing.priority
-      ) {
+      if (input.priority !== undefined && input.priority !== existing.priority) {
         activities.push({
           taskId,
           actorId: user.id,
@@ -633,10 +607,7 @@ export class TasksService {
           });
         }
       }
-      if (
-        input.reminderAt !== undefined ||
-        input.reminderFrequency !== undefined
-      ) {
+      if (input.reminderAt !== undefined || input.reminderFrequency !== undefined) {
         activities.push({
           taskId,
           actorId: user.id,
@@ -665,8 +636,11 @@ export class TasksService {
       return next;
     });
 
-    // Reschedule reminders if dueDate or reminderAt changed
-    if (input.dueDate !== undefined || input.reminderAt !== undefined || input.reminderFrequency !== undefined) {
+    if (
+      input.dueDate !== undefined ||
+      input.reminderAt !== undefined ||
+      input.reminderFrequency !== undefined
+    ) {
       try {
         await this.scheduler.rescheduleTask({
           id: updated.id,
@@ -674,9 +648,7 @@ export class TasksService {
           reminderAt: updated.reminderAt,
         });
       } catch (err) {
-        this.logger.warn(
-          `Failed to reschedule task ${updated.id}: ${(err as Error).message}`,
-        );
+        this.logger.warn(`Failed to reschedule task ${updated.id}: ${(err as Error).message}`);
       }
     }
 
@@ -718,11 +690,7 @@ export class TasksService {
     };
   }
 
-  async softDelete(
-    associationId: string,
-    taskId: string,
-    user: AuthenticatedUser,
-  ) {
+  async softDelete(associationId: string, taskId: string, user: AuthenticatedUser) {
     const existing = await this.prisma.task.findFirst({
       where: { id: taskId, associationId, deletedAt: null },
       select: { id: true, title: true, status: true, assignedToUserId: true },
@@ -772,23 +740,20 @@ export class TasksService {
     });
     if (!meeting) throw new NotFoundException('Toplantı bulunamadı');
 
-    // Use AI to extract action items from meeting content
     try {
       const extracted = await this.aiService.extractTasksFromMeeting(meeting.content);
 
       const createdTasks = [];
       for (const item of extracted.tasks) {
-        // Try to match assignee by name
         let assigneeUserId: string | null = null;
         if (item.assigneeName) {
-          const matched = meeting.attendees.find(
-            (a) => a.user.fullName.toLowerCase().includes(item.assigneeName!.toLowerCase()),
+          const matched = meeting.attendees.find((a) =>
+            a.user.fullName.toLowerCase().includes(item.assigneeName!.toLowerCase()),
           );
           if (matched) assigneeUserId = matched.user.id;
         }
 
         if (!assigneeUserId) {
-          // Default to meeting creator
           assigneeUserId = meeting.createdById;
         }
 
@@ -834,11 +799,7 @@ export class TasksService {
     }
   }
 
-  async resolveDispute(
-    taskId: string,
-    input: ResolveDisputeInput,
-    user: AuthenticatedUser,
-  ) {
+  async resolveDispute(taskId: string, input: ResolveDisputeInput, user: AuthenticatedUser) {
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, deletedAt: null },
       select: {
@@ -862,35 +823,38 @@ export class TasksService {
       throw new ForbiddenException('Bu itirazı çözme yetkiniz yok');
     }
 
-    await this.ensureAssigneeIsMember(
-      task.associationId,
-      input.assignedToUserId,
-    );
+    await this.ensureAssigneeIsMember(task.associationId, input.assignedToUserId);
 
-    return this.update(
-      taskId,
-      { assignedToUserId: input.assignedToUserId },
-      user,
-    ).then(async (updated) => {
-      await this.prisma.taskActivity.create({
-        data: {
-          taskId,
-          actorId: user.id,
-          action: TaskActivityAction.REASSIGNMENT_RESOLVED,
-          payload: {
-            previousAssignee: task.assignedToUserId,
-            newAssignee: input.assignedToUserId,
+    return this.update(taskId, { assignedToUserId: input.assignedToUserId }, user).then(
+      async (updated) => {
+        await this.prisma.taskActivity.create({
+          data: {
+            taskId,
+            actorId: user.id,
+            action: TaskActivityAction.REASSIGNMENT_RESOLVED,
+            payload: {
+              previousAssignee: task.assignedToUserId,
+              newAssignee: input.assignedToUserId,
+            },
           },
-        },
-      });
-      return updated;
-    });
+        });
+        return updated;
+      },
+    );
   }
 
   async markCompletedViaBot(taskId: string, actingUserId: string) {
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, deletedAt: null },
-      select: { id: true, status: true, assignedToUserId: true, associationId: true, title: true, createdAt: true, disputed: true },
+      select: {
+        id: true,
+        status: true,
+        assignedToUserId: true,
+        associationId: true,
+        title: true,
+        createdAt: true,
+        disputed: true,
+      },
     });
     if (!task) throw new NotFoundException('Görev bulunamadı');
     if (task.assignedToUserId !== actingUserId) {
@@ -902,15 +866,10 @@ export class TasksService {
       task.status !== TaskStatus.COMPLETED &&
       task.status !== TaskStatus.CANCELLED
     ) {
-      throw new BadRequestException(
-        'Bu görev itiraz edilmiş; önce yönetici çözmeli',
-      );
+      throw new BadRequestException('Bu görev itiraz edilmiş; önce yönetici çözmeli');
     }
 
-    if (
-      task.status === TaskStatus.COMPLETED ||
-      task.status === TaskStatus.CANCELLED
-    ) {
+    if (task.status === TaskStatus.COMPLETED || task.status === TaskStatus.CANCELLED) {
       return this.prisma.task.findUniqueOrThrow({
         where: { id: taskId },
         include: {
@@ -946,25 +905,23 @@ export class TasksService {
 
     await this.scheduler.cancelTask(taskId);
 
-    this.notificationService.notifyTaskCompleted(
-      task.associationId,
-      task.id,
-      task.title,
-      updated.assignedTo?.fullName ?? 'Bilinmeyen',
-      task.createdAt,
-      updated.completedAt ?? new Date(),
-    ).catch((err) => {
-      this.logger.warn(`Bildirim gönderilemedi: ${(err as Error).message}`);
-    });
+    this.notificationService
+      .notifyTaskCompleted(
+        task.associationId,
+        task.id,
+        task.title,
+        updated.assignedTo?.fullName ?? 'Bilinmeyen',
+        task.createdAt,
+        updated.completedAt ?? new Date(),
+      )
+      .catch((err) => {
+        this.logger.warn(`Bildirim gönderilemedi: ${(err as Error).message}`);
+      });
 
     return updated;
   }
 
-  async snoozeDueDateViaBot(
-    taskId: string,
-    actingUserId: string,
-    newDueDate: Date,
-  ) {
+  async snoozeDueDateViaBot(taskId: string, actingUserId: string, newDueDate: Date) {
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, deletedAt: null },
       select: {
@@ -981,10 +938,7 @@ export class TasksService {
       throw new ForbiddenException('Bu görevi erteleyemezsiniz');
     }
     await this.assertActiveMembershipViaBot(actingUserId, task.associationId);
-    if (
-      task.status === TaskStatus.COMPLETED ||
-      task.status === TaskStatus.CANCELLED
-    ) {
+    if (task.status === TaskStatus.COMPLETED || task.status === TaskStatus.CANCELLED) {
       throw new BadRequestException('Bu görev zaten kapalı');
     }
     if (Number.isNaN(newDueDate.getTime())) {
@@ -1028,17 +982,10 @@ export class TasksService {
         reminderAt: updated.reminderAt,
       });
     } catch (err) {
-      this.logger.warn(
-        `Failed to reschedule task ${updated.id}: ${(err as Error).message}`,
-      );
+      this.logger.warn(`Failed to reschedule task ${updated.id}: ${(err as Error).message}`);
     }
 
-    await this.maybeEscalateDueDateChurn(
-      taskId,
-      task.associationId,
-      actingUserId,
-      newDueDate,
-    );
+    await this.maybeEscalateDueDateChurn(taskId, task.associationId, actingUserId, newDueDate);
 
     return updated;
   }
@@ -1059,16 +1006,11 @@ export class TasksService {
       throw new ForbiddenException('Bu görevi siz üstlenemezsiniz');
     }
     await this.assertActiveMembershipViaBot(actingUserId, task.associationId);
-    if (
-      task.status === TaskStatus.COMPLETED ||
-      task.status === TaskStatus.CANCELLED
-    ) {
+    if (task.status === TaskStatus.COMPLETED || task.status === TaskStatus.CANCELLED) {
       throw new BadRequestException('Bu görev zaten kapalı');
     }
     if (task.disputed) {
-      throw new BadRequestException(
-        'Bu görev itiraz edilmiş; önce yönetici çözmeli',
-      );
+      throw new BadRequestException('Bu görev itiraz edilmiş; önce yönetici çözmeli');
     }
 
     const existing = await this.prisma.taskActivity.findFirst({
@@ -1144,10 +1086,7 @@ export class TasksService {
       throw new ForbiddenException('Bu görevde itiraz hakkınız yok');
     }
     await this.assertActiveMembershipViaBot(actingUserId, task.associationId);
-    if (
-      task.status === TaskStatus.COMPLETED ||
-      task.status === TaskStatus.CANCELLED
-    ) {
+    if (task.status === TaskStatus.COMPLETED || task.status === TaskStatus.CANCELLED) {
       throw new BadRequestException('Bu görev zaten kapalı');
     }
 
@@ -1280,10 +1219,7 @@ export class TasksService {
       throw new ForbiddenException('Bu görevi erteleyemezsiniz');
     }
     await this.assertActiveMembershipViaBot(actingUserId, task.associationId);
-    if (
-      task.status === TaskStatus.COMPLETED ||
-      task.status === TaskStatus.CANCELLED
-    ) {
+    if (task.status === TaskStatus.COMPLETED || task.status === TaskStatus.CANCELLED) {
       throw new BadRequestException('Bu görev zaten kapalı');
     }
     if (!task.dueDate) {
@@ -1326,26 +1262,15 @@ export class TasksService {
         reminderAt: updated.reminderAt,
       });
     } catch (err) {
-      this.logger.warn(
-        `Failed to reschedule task ${updated.id}: ${(err as Error).message}`,
-      );
+      this.logger.warn(`Failed to reschedule task ${updated.id}: ${(err as Error).message}`);
     }
 
-    await this.maybeEscalateDueDateChurn(
-      taskId,
-      task.associationId,
-      actingUserId,
-      newDue,
-    );
+    await this.maybeEscalateDueDateChurn(taskId, task.associationId, actingUserId, newDue);
 
     return updated;
   }
 
-  async listActivities(
-    associationId: string,
-    taskId: string,
-    user: AuthenticatedUser,
-  ) {
+  async listActivities(associationId: string, taskId: string, user: AuthenticatedUser) {
     const task = await this.prisma.task.findFirst({
       where: { id: taskId, associationId, deletedAt: null },
       select: { id: true, assignedToUserId: true },
@@ -1372,10 +1297,7 @@ export class TasksService {
     }));
   }
 
-  private async ensureAssigneeIsMember(
-    associationId: string,
-    assigneeUserId: string,
-  ) {
+  private async ensureAssigneeIsMember(associationId: string, assigneeUserId: string) {
     const exists = await this.prisma.associationMembership.findFirst({
       where: {
         associationId,
@@ -1446,39 +1368,28 @@ export class TasksService {
         newDueDate,
       )
       .catch((err) =>
-        this.logger.warn(
-          `Erteleme eskalasyon bildirimi gönderilemedi: ${(err as Error).message}`,
-        ),
+        this.logger.warn(`Erteleme eskalasyon bildirimi gönderilemedi: ${(err as Error).message}`),
       );
   }
 
   private isMemberOnly(user: AuthenticatedUser, associationId: string): boolean {
     if (user.systemRole === UserRole.SYSTEM_ADMIN) return false;
-    const inAssoc = user.memberships.filter(
-      (m) => m.isActive && m.associationId === associationId,
-    );
+    const inAssoc = user.memberships.filter((m) => m.isActive && m.associationId === associationId);
     if (inAssoc.length === 0) return true;
     return inAssoc.every((m) => m.role === UserRole.ASSOCIATION_MEMBER);
   }
 
-  private canManageTask(
-    user: AuthenticatedUser,
-    associationId: string,
-  ): boolean {
+  private canManageTask(user: AuthenticatedUser, associationId: string): boolean {
     if (user.systemRole === UserRole.SYSTEM_ADMIN) return true;
     return user.memberships.some(
       (m) =>
         m.isActive &&
         m.associationId === associationId &&
-        (m.role === UserRole.ASSOCIATION_MANAGER ||
-          m.role === UserRole.ASSOCIATION_SECRETARY),
+        (m.role === UserRole.ASSOCIATION_MANAGER || m.role === UserRole.ASSOCIATION_SECRETARY),
     );
   }
 
-  private assertCanManageTask(
-    user: AuthenticatedUser,
-    associationId: string,
-  ): void {
+  private assertCanManageTask(user: AuthenticatedUser, associationId: string): void {
     if (!this.canManageTask(user, associationId)) {
       throw new ForbiddenException('Bu görevi düzenleme yetkiniz yok');
     }
@@ -1513,7 +1424,10 @@ export class TasksService {
       return await this.aiService.prioritizeTasks(tasksContext);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`AI task prioritization failed: ${message}`, err instanceof Error ? err.stack : undefined);
+      this.logger.error(
+        `AI task prioritization failed: ${message}`,
+        err instanceof Error ? err.stack : undefined,
+      );
       throw new InternalServerErrorException(`AI hatası: ${message}`);
     }
   }

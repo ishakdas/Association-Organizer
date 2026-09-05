@@ -3,7 +3,7 @@ import path from 'node:path';
 import { config as loadEnv } from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 
-loadEnv({ path: path.resolve(__dirname, '..', '.env') });
+loadEnv({ path: path.resolve(__dirname, '../../..', '.env.local'), quiet: true });
 
 const TARGET_EMAIL = process.argv[2] ?? 'ishak@aa.aa';
 
@@ -110,9 +110,7 @@ async function main() {
   // pg-boss bookkeeping: query the `pgboss.job` table directly to see what
   // is queued. Replaces the old BullMQ `getJobCounts` / `getDelayed` /
   // `getWaiting` / `getFailed` calls.
-  const counts = await prisma.$queryRawUnsafe<
-    { state: string; queue_name: string; n: bigint }[]
-  >(
+  const counts = await prisma.$queryRawUnsafe<{ state: string; queue_name: string; n: bigint }[]>(
     `SELECT state, name AS queue_name, count(*)::bigint AS n
      FROM pgboss.job
      WHERE name IN ('task-reminders', 'event-reminders')
@@ -159,9 +157,7 @@ async function main() {
   );
   console.log(`\n[info] Failed task-reminders jobs (${failed.length}):`);
   for (const j of failed) {
-    console.log(
-      `  id=${j.id} data=${JSON.stringify(j.data)} output=${JSON.stringify(j.output)}`,
-    );
+    console.log(`  id=${j.id} data=${JSON.stringify(j.data)} output=${JSON.stringify(j.output)}`);
   }
 
   await prisma.$disconnect();

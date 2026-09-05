@@ -17,10 +17,7 @@ import {
   Trash2,
   UserPlus,
 } from 'lucide-react';
-import type {
-  MyTaskItem,
-  TaskStatusValue,
-} from '@ticketbot/shared-validation';
+import type { MyTaskItem, TaskStatusValue } from '@ticketbot/shared-validation';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -54,7 +51,6 @@ export function TasksKanban({
   onStatusChange,
   pendingTaskId,
   canManage,
-  currentUserId,
   onDelete,
   onEdit,
   isDeleting,
@@ -68,7 +64,6 @@ export function TasksKanban({
   onStatusChange: (taskId: string, status: TaskStatusValue) => void;
   pendingTaskId: string | undefined;
   canManage?: boolean;
-  currentUserId?: string;
   onDelete?: (taskId: string) => void;
   onEdit?: (task: MyTaskItem) => void;
   isDeleting?: boolean;
@@ -107,7 +102,6 @@ export function TasksKanban({
           draggingId={draggingId}
           pendingTaskId={pendingTaskId}
           canManage={canManage}
-          currentUserId={currentUserId}
           onDelete={onDelete}
           onEdit={onEdit}
           isDeleting={isDeleting}
@@ -132,7 +126,6 @@ function KanbanColumn({
   draggingId,
   pendingTaskId,
   canManage,
-  currentUserId,
   onDelete,
   onEdit,
   isDeleting,
@@ -148,7 +141,6 @@ function KanbanColumn({
   draggingId: string | null;
   pendingTaskId: string | undefined;
   canManage?: boolean;
-  currentUserId?: string;
   onDelete?: (taskId: string) => void;
   onEdit?: (task: MyTaskItem) => void;
   isDeleting?: boolean;
@@ -159,8 +151,7 @@ function KanbanColumn({
 }) {
   const [isOver, setIsOver] = useState(false);
   const StatusIcon = TASK_STATUS_ICON[status];
-  const draggedFromOther =
-    draggingId !== null && !tasks.some((t) => t.id === draggingId);
+  const draggedFromOther = draggingId !== null && !tasks.some((t) => t.id === draggingId);
 
   return (
     <div
@@ -176,17 +167,13 @@ function KanbanColumn({
       }}
       onDrop={(e) => {
         const taskId = e.dataTransfer.getData(DRAG_MIME);
-        const currentStatus = e.dataTransfer.getData(
-          DRAG_STATUS_MIME,
-        ) as TaskStatusValue;
+        const currentStatus = e.dataTransfer.getData(DRAG_STATUS_MIME) as TaskStatusValue;
         setIsOver(false);
         if (taskId) onDropTask(taskId, currentStatus);
       }}
       className={cn(
         'flex flex-col rounded-lg border bg-muted/30 transition-colors',
-        isOver && draggedFromOther
-          ? 'border-primary bg-primary/5'
-          : 'border-border',
+        isOver && draggedFromOther ? 'border-primary bg-primary/5' : 'border-border',
       )}
     >
       <div className="flex items-center justify-between gap-2 border-b border-border/60 px-3 py-2.5">
@@ -199,9 +186,7 @@ function KanbanColumn({
           >
             <StatusIcon className="h-3.5 w-3.5" />
           </span>
-          <h3 className="text-[13px] font-semibold tracking-tight">
-            {TASK_STATUS_LABEL[status]}
-          </h3>
+          <h3 className="text-[13px] font-semibold tracking-tight">{TASK_STATUS_LABEL[status]}</h3>
         </div>
         <span className="rounded-full bg-background px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
           {tasks.length}
@@ -227,7 +212,6 @@ function KanbanColumn({
               isDragging={draggingId === t.id}
               isUpdating={pendingTaskId === t.id}
               canManage={canManage}
-              currentUserId={currentUserId}
               onDelete={onDelete}
               onEdit={onEdit}
               isDeleting={!!isDeleting && deletingTaskId === t.id}
@@ -252,7 +236,6 @@ function KanbanCard({
   isDragging,
   isUpdating,
   canManage,
-  currentUserId,
   onDelete,
   onEdit,
   isDeleting,
@@ -264,14 +247,12 @@ function KanbanCard({
   isDragging: boolean;
   isUpdating: boolean;
   canManage?: boolean;
-  currentUserId?: string;
   onDelete?: (taskId: string) => void;
   onEdit?: (task: MyTaskItem) => void;
   isDeleting: boolean;
   onDragStart: (e: React.DragEvent<HTMLDivElement>) => void;
   onDragEnd: () => void;
 }) {
-  const [editOpen, setEditOpen] = useState(false);
   const due = task.dueDate ? new Date(task.dueDate) : null;
   const isOverdue =
     due !== null &&
@@ -284,9 +265,6 @@ function KanbanCard({
     .join('')
     .slice(0, 2)
     .toUpperCase();
-  const isAssignee = !!currentUserId && currentUserId === (task as any).assignedToUserId;
-  const canChangeStatus = canManage || isAssignee;
-
   return (
     <div
       draggable={!isUpdating}
@@ -313,7 +291,7 @@ function KanbanCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => { setEditOpen(true); onEdit?.(task); }}>
+              <DropdownMenuItem onClick={() => onEdit?.(task)}>
                 <Pencil className="mr-2 h-3.5 w-3.5" />
                 Düzenle
               </DropdownMenuItem>
@@ -341,10 +319,7 @@ function KanbanCard({
           <div className="flex flex-wrap items-center gap-1">
             <Badge
               variant="outline"
-              className={cn(
-                'h-5 gap-1 px-1.5 text-[10px]',
-                TASK_PRIORITY_CLASS[task.priority],
-              )}
+              className={cn('h-5 gap-1 px-1.5 text-[10px]', TASK_PRIORITY_CLASS[task.priority])}
             >
               <Flag className="h-2.5 w-2.5" />
               {TASK_PRIORITY_LABEL[task.priority]}
@@ -386,16 +361,11 @@ function KanbanCard({
               <span className="flex h-4 w-4 items-center justify-center rounded-full bg-secondary text-[8px] font-semibold text-secondary-foreground">
                 {initials}
               </span>
-              <span className="max-w-[110px] truncate">
-                {task.assignee.fullName}
-              </span>
+              <span className="max-w-[110px] truncate">{task.assignee.fullName}</span>
             </span>
             {due && (
               <span
-                className={cn(
-                  'inline-flex items-center gap-1',
-                  isOverdue && 'text-destructive',
-                )}
+                className={cn('inline-flex items-center gap-1', isOverdue && 'text-destructive')}
               >
                 <Clock className="h-2.5 w-2.5" />
                 {format(due, 'd MMM', { locale: tr })}

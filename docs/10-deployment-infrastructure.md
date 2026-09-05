@@ -3,6 +3,7 @@
 ## Overview
 
 The Association Organizer system is deployed across multiple platforms:
+
 - **API + Bot**: Railway
 - **Web**: Vercel
 - **Database**: Supabase (PostgreSQL)
@@ -59,6 +60,7 @@ The Association Organizer system is deployed across multiple platforms:
 ```
 
 **Deploy Steps**:
+
 1. Connect GitHub repository to Railway
 2. Set environment variables
 3. Deploy automatically on push to main
@@ -89,10 +91,7 @@ WEB_URL=https://app.domain.com
 ```typescript
 const nextConfig = {
   output: 'standalone',
-  transpilePackages: [
-    '@ticketbot/shared-types',
-    '@ticketbot/shared-validation',
-  ],
+  transpilePackages: ['@ticketbot/shared-types', '@ticketbot/shared-validation'],
   images: {
     domains: ['avatars.githubusercontent.com', 'supabase.co'],
   },
@@ -102,6 +101,7 @@ export default nextConfig;
 ```
 
 **Deploy Steps**:
+
 1. Connect GitHub repository to Vercel
 2. Set root directory to `apps/web`
 3. Set environment variables
@@ -118,16 +118,19 @@ NEXT_PUBLIC_API_URL=https://api.domain.com
 ### Supabase (Database + Auth)
 
 **Database**:
+
 - PostgreSQL 15+
 - Managed by Supabase
 - Connection string in `DATABASE_URL`
 
 **Auth**:
+
 - Supabase Auth for web users
 - JWT secret in `SUPABASE_JWT_SECRET`
 - Service role key for admin operations
 
 **Setup**:
+
 1. Create Supabase project
 2. Get credentials from Settings → API
 3. Configure auth providers (email, OAuth)
@@ -136,11 +139,13 @@ NEXT_PUBLIC_API_URL=https://api.domain.com
 ### Redis (Railway)
 
 **Purpose**:
+
 - BullMQ job queue (future)
 - Session caching (optional)
 - Rate limiting (optional)
 
 **Setup**:
+
 1. Create Redis service in Railway
 2. Get connection URL
 3. Set `REDIS_URL` environment variable
@@ -165,7 +170,6 @@ COPY apps/bot/package.json ./apps/bot/
 COPY libs/database/package.json ./libs/database/
 COPY libs/shared-types/package.json ./libs/shared-types/
 COPY libs/shared-validation/package.json ./libs/shared-validation/
-COPY libs/core/package.json ./libs/core/
 COPY libs/ai/package.json ./libs/ai/
 
 # Install dependencies
@@ -214,7 +218,7 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/association_organizer
       - REDIS_URL=redis://redis:6379
@@ -236,7 +240,7 @@ services:
       context: .
       dockerfile: Dockerfile.web
     ports:
-      - "3001:3001"
+      - '3001:3001'
     environment:
       - NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
       - NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
@@ -285,7 +289,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    
+
     services:
       postgres:
         image: postgres:16
@@ -308,32 +312,32 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      
+
       - uses: pnpm/action-setup@v2
         with:
           version: 10.29.3
-      
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'pnpm'
-      
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      
+
       - name: Generate Prisma client
         run: pnpm db:generate
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-      
+
       - name: Run migrations
         run: pnpm db:migrate
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db
-      
+
       - name: Run linter
         run: pnpm lint
-      
+
       - name: Run tests
         run: pnpm test
         env:
@@ -366,10 +370,11 @@ Push to main
 ### Environment Files
 
 **Development**:
-- `apps/api/.env`
-- `apps/web/.env.local`
+
+- root `.env`
 
 **Production**:
+
 - Railway dashboard (API)
 - Vercel dashboard (Web)
 
@@ -404,12 +409,14 @@ Invalid environment causes process to exit.
 ### Secret Management
 
 **Never commit**:
+
 - `.env` files
 - Service role keys
 - JWT secrets
 - Bot tokens
 
 **Use**:
+
 - Railway environment variables
 - Vercel environment variables
 - Supabase dashboard for DB credentials
@@ -420,11 +427,13 @@ Invalid environment causes process to exit.
 ### Health Checks
 
 **Endpoints**:
+
 - `GET /health` - Basic health check
 - `GET /health/ready` - Readiness probe
 - `GET /health/alive` - Liveness probe
 
 **Railway Health Check**:
+
 - Configure in Railway dashboard
 - Path: `/health`
 - Interval: 30 seconds
@@ -443,17 +452,20 @@ logger.error('Error occurred', stackTrace);
 ```
 
 **Railway Logs**:
+
 - View in Railway dashboard
 - Filter by deployment
 - Download logs
 
 **Vercel Logs**:
+
 - View in Vercel dashboard
 - Real-time log streaming
 
 ### Error Tracking
 
 **Future Integration**:
+
 - Sentry for error tracking
 - LogRocket for session replay
 - Datadog for APM
@@ -470,20 +482,24 @@ logger.error('Error occurred', stackTrace);
 ### Scaling Strategies
 
 **Horizontal Scaling**:
+
 - Railway: Enable multiple instances
 - Vercel: Automatic edge network scaling
 - Database: Supabase read replicas
 
 **Vertical Scaling**:
+
 - Railway: Increase instance size
 - Database: Supabase compute add-ons
 
 **Caching**:
+
 - Redis for session caching
 - Redis for API response caching
 - CDN for static assets (Vercel)
 
 **Database Optimization**:
+
 - Add indexes for frequent queries
 - Use connection pooling (Supabase)
 - Archive old data
@@ -493,6 +509,7 @@ logger.error('Error occurred', stackTrace);
 ### Database Backups
 
 **Supabase**:
+
 - Automatic daily backups
 - Point-in-time recovery
 - Manual backups via dashboard
@@ -552,11 +569,13 @@ psql -h db.host.supabase.co -U postgres -d postgres < backup.sql
 ### Custom Domains
 
 **API (Railway)**:
+
 1. Add custom domain in Railway dashboard
 2. Configure DNS CNAME record
 3. Wait for SSL certificate
 
 **Web (Vercel)**:
+
 1. Add custom domain in Vercel dashboard
 2. Configure DNS A/CNAME records
 3. Wait for SSL certificate
@@ -577,22 +596,26 @@ domain.com.      A      76.76.21.21
 ### Common Issues
 
 **API Not Starting**:
+
 - Check environment variables
 - Check database connection
 - Check migration status
 - View Railway logs
 
 **Web Build Failing**:
+
 - Check `NEXT_PUBLIC_*` variables
 - Check transpilePackages config
 - View Vercel build logs
 
 **Database Connection Issues**:
+
 - Check `DATABASE_URL` format
 - Check Supabase project status
 - Check connection pool settings
 
 **Bot Not Responding**:
+
 - Check `BOT_TOKEN` is correct
 - Check webhook URL is set
 - Check `/telegram/webhook` endpoint
@@ -652,6 +675,7 @@ curl -X POST https://api.domain.com/telegram/webhook \
 ### Migration Path
 
 **Current** → **Future**:
+
 - Railway → Kubernetes (if needed)
 - Supabase → Self-hosted PostgreSQL (if needed)
 - Vercel → Self-hosted Next.js (if needed)

@@ -5,8 +5,7 @@ import { Suspense } from 'react';
 import { ExternalLink, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
-const BOT_USERNAME =
-  process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'yedi_hilal_organizator_bot';
+const BOT_USERNAME = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ?? 'yedi_hilal_organizator_bot';
 
 function ConnectContent() {
   const searchParams = useSearchParams();
@@ -15,7 +14,9 @@ function ConnectContent() {
   if (!token) {
     return (
       <div className="text-center">
-        <p className="text-destructive text-sm">Geçersiz bağlantı. Lütfen yöneticinizle iletişime geçin.</p>
+        <p className="text-destructive text-sm">
+          Geçersiz bağlantı. Lütfen yöneticinizle iletişime geçin.
+        </p>
       </div>
     );
   }
@@ -39,7 +40,7 @@ function ConnectContent() {
       <Button asChild className="w-full" size="lg">
         <a href={deepLink} target="_blank" rel="noopener noreferrer">
           <ExternalLink className="mr-2 h-4 w-4" />
-          Telegram'da Aç
+          Telegram&apos;da Aç
         </a>
       </Button>
 
@@ -47,9 +48,7 @@ function ConnectContent() {
         <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           Buton çalışmazsa — Telegram&apos;da şu komutu yazın
         </p>
-        <p className="break-all font-mono text-sm font-bold text-foreground">
-          /link {token}
-        </p>
+        <p className="break-all font-mono text-sm font-bold text-foreground">/link {token}</p>
       </div>
 
       <p className="text-center text-xs text-muted-foreground">
@@ -63,7 +62,9 @@ export default function ConnectTelegramPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <div className="w-full max-w-sm rounded-xl border border-border bg-card p-8 shadow-sm">
-        <Suspense fallback={<div className="text-center text-sm text-muted-foreground">Yükleniyor…</div>}>
+        <Suspense
+          fallback={<div className="text-center text-sm text-muted-foreground">Yükleniyor…</div>}
+        >
           <ConnectContent />
         </Suspense>
       </div>

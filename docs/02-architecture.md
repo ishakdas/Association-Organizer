@@ -31,8 +31,8 @@ Association Organizer follows a **monorepo architecture** with three main applic
 ┌──────────────────────────▼───────────────────────────────────┐
 │                    Data Layer                                │
 ├──────────────────────┬───────────────────────────────────────┤
-│   Prisma ORM         │   Redis (BullMQ - stubbed)           │
-│   (PostgreSQL)       │                                       │
+│   Prisma ORM         │   pg-boss jobs                       │
+│   (PostgreSQL)       │   (same PostgreSQL database)         │
 └──────────┬───────────┴──────────────┬───────────────────────┘
            │                          │
 ┌──────────▼──────────┐   ┌──────────▼───────────────────────┐
@@ -44,11 +44,36 @@ Association Organizer follows a **monorepo architecture** with three main applic
 
 ## Application Architecture
 
+### Source placement rules
+
+The workspace follows feature-first boundaries. New code should be placed by ownership, not
+only by technical type:
+
+- `apps/api/src/modules/<feature>/` owns HTTP controllers, application services, repositories,
+  feature DTO wrappers, and feature-local helpers. Code used by only one feature stays here.
+- `apps/api/src/common/` contains framework infrastructure shared by multiple API modules, such
+  as guards, decorators, filters, pipes, and request-context types. It must not contain feature
+  business rules.
+- `apps/web/src/app/<route>/_components` and `_hooks` contain route-private UI. Components shared
+  by unrelated routes belong in `apps/web/src/components`; transport code belongs in
+  `apps/web/src/lib/api`.
+- `apps/bot/src/commands`, `handlers`, `keyboards`, `utils`, and `wizards` separate Telegram entry
+  points from presentation helpers. Business mutations that are also available on the web must
+  flow through API feature services instead of being reimplemented in a wizard.
+- `libs/shared-types` contains transport-safe TypeScript types, while `libs/shared-validation`
+  owns shared Zod contracts. Neither package may import NestJS, Prisma, React, or Telegraf.
+- `libs/database` is the only shared package that exposes Prisma. `libs/ai` owns the AI provider
+  boundary and prompts.
+
+Avoid creating a shared package speculatively. Extract one only after code has at least two real
+consumers in different application or library boundaries.
+
 ### 1. API Server (apps/api)
 
 **Framework**: NestJS 11 on Fastify
 
 **Structure**:
+
 ```
 apps/api/
 ├── src/
@@ -76,7 +101,7 @@ apps/api/
 │   │   ├── islamic-calendar/   # Islamic calendar
 │   │   ├── admin/              # Admin features
 │   │   ├── email/              # Email service
-│   │   ├── jobs/               # BullMQ queues (stubbed)
+│   │   ├── jobs/               # pg-boss schedulers and processors
 │   │   ├── supabase/           # Supabase admin client
 │   │   └── health/             # Health checks
 │   └── types/                  # Type definitions
@@ -85,6 +110,7 @@ apps/api/
 ```
 
 **Key Characteristics**:
+
 - Global API prefix: `api/v1`
 - Runs on port 3000
 - Uses Fastify adapter for performance
@@ -96,6 +122,7 @@ apps/api/
 **Framework**: Next.js 15 App Router
 
 **Structure**:
+
 ```
 apps/web/
 ├── src/
@@ -121,6 +148,7 @@ apps/web/
 ```
 
 **Key Characteristics**:
+
 - Runs on port 3001
 - Server Components for data fetching
 - Supabase SSR for authentication
@@ -132,6 +160,7 @@ apps/web/
 **Framework**: Telegraf
 
 **Structure**:
+
 ```
 apps/bot/
 ├── src/
@@ -147,6 +176,7 @@ apps/bot/
 ```
 
 **Key Characteristics**:
+
 - Runs inside the API process (not a separate server)
 - Webhook endpoint: `/telegram/webhook`
 - Handles user linking via `/link` command
@@ -156,6 +186,7 @@ apps/bot/
 ## Shared Libraries
 
 ### @ticketbot/database
+
 ```
 libs/database/
 ├── prisma/
@@ -167,6 +198,7 @@ libs/database/
 ```
 
 ### @ticketbot/shared-types
+
 ```
 libs/shared-types/
 └── src/
@@ -176,6 +208,7 @@ libs/shared-types/
 ```
 
 ### @ticketbot/shared-validation
+
 ```
 libs/shared-validation/
 └── src/
@@ -183,14 +216,8 @@ libs/shared-validation/
     └── schemas/                # Zod validation schemas
 ```
 
-### @ticketbot/core
-```
-libs/core/
-└── src/
-    # Shared business logic and utilities
-```
-
 ### @ticketbot/ai
+
 ```
 libs/ai/
 └── src/
@@ -202,6 +229,7 @@ libs/ai/
 ## Data Flow
 
 ### Web User Flow
+
 ```
 User → Web App (Next.js)
   → Supabase Auth (login)
@@ -215,6 +243,7 @@ User → Web App (Next.js)
 ```
 
 ### Bot User Flow
+
 ```
 User → Telegram
   → Bot Command/Action
@@ -226,13 +255,14 @@ User → Telegram
 ```
 
 ### Task Assignment Flow
+
 ```
 Manager/Secretary (Web)
   → Create Task API
     → Validate assignee has TelegramAccount
     → Create Task (Prisma)
     → Create TaskActivity
-    → (Future) Queue notification job
+    → Schedule notification through pg-boss
   → Bot sends Telegram notification to assignee
 ```
 
@@ -262,6 +292,7 @@ The system implements **row-level multi-tenancy**:
 ```
 
 **Key Rules**:
+
 - All tenant-scoped queries filter by `associationId`
 - All tenant-scoped queries filter by `deletedAt: null`
 - `AssociationMembership` is the join table granting access
@@ -270,11 +301,13 @@ The system implements **row-level multi-tenancy**:
 ## Security Architecture
 
 ### Authentication Layers
+
 1. **Supabase JWT** - Web users (signed with `SUPABASE_JWT_SECRET`)
 2. **Bot JWT** - Telegram users (signed with `JWT_SECRET`)
 3. **Token Type Detection** - Via JWT `alg` header inspection
 
 ### Authorization Guards
+
 ```
 System-scoped endpoints:
   AuthGuard → SupabaseUserGuard → RolesGuard
@@ -284,6 +317,7 @@ Association-scoped endpoints:
 ```
 
 ### Guard Chain Details
+
 - **AuthGuard**: Validates JWT, attaches `AuthenticatedUser` to request
 - **SupabaseUserGuard**: Ensures Supabase user has DB row
 - **RolesGuard**: Checks system-level roles
@@ -316,6 +350,7 @@ Implemented via global `HttpExceptionFilter`.
 ## Module Pattern
 
 ### Association-Scoped Module Template
+
 ```
 modules/x/
 ├── x.module.ts          # Imports PrismaModule, provides controller + service
@@ -326,6 +361,7 @@ modules/x/
 ```
 
 ### System-Scoped Module Template
+
 ```
 modules/x/
 ├── x.module.ts          # Imports PrismaModule, provides controller + service
@@ -338,11 +374,13 @@ modules/x/
 ## Communication Patterns
 
 ### Internal (Process-Level)
+
 - Bot runs inside API process
 - Direct service imports
 - Shared Prisma instance
 
 ### External
+
 - Web → API via HTTP (apiClient with JWT)
 - Telegram → API via webhook
 - API → Supabase via admin client
@@ -351,12 +389,14 @@ modules/x/
 ## Scaling Considerations
 
 ### Current Architecture
+
 - Single API process (bot included)
 - Single web instance
 - Managed PostgreSQL (Supabase)
 - Redis for future job queues
 
 ### Future Scaling
+
 - Bot could be extracted to separate process
 - BullMQ for async job processing
 - Redis caching layer

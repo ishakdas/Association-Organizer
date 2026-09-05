@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/commo
 import { PrismaService, TaskStatus } from '@ticketbot/database';
 import { TaskNotificationService } from './task-notification.service';
 import { CronJob } from 'cron';
+import { ConfigService } from '@nestjs/config';
 
 const BATCH_SIZE = 50;
 
@@ -14,6 +15,7 @@ export class OverdueTaskChecker implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationService: TaskNotificationService,
+    private readonly config: ConfigService,
   ) {}
 
   onModuleInit() {
@@ -21,12 +23,14 @@ export class OverdueTaskChecker implements OnModuleInit, OnModuleDestroy {
     // ürünün temel davranışı, opsiyonel bir eklenti değil. Yalnızca API
     // birden fazla instance olarak ölçeklenirse, çift bildirim olmasın diye
     // yan kopyalarda ENABLE_OVERDUE_CHECKER='false' ile kapatılır.
-    this.enabled = process.env.ENABLE_OVERDUE_CHECKER !== 'false';
+    this.enabled = this.config.get<boolean>('jobs.overdueCheckerEnabled') ?? false;
     if (this.enabled) {
       this.logger.log('Overdue task checker enabled (hourly)');
-      this.cronJob = new CronJob('0 * * * *', () => this.checkOverdueTasks().catch((err) => {
-        this.logger.error('Overdue check failed', err as Error);
-      }));
+      this.cronJob = new CronJob('0 * * * *', () =>
+        this.checkOverdueTasks().catch((err) => {
+          this.logger.error('Overdue check failed', err as Error);
+        }),
+      );
       this.cronJob.start();
     }
   }

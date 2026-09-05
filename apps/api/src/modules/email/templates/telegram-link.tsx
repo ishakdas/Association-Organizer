@@ -5,20 +5,16 @@ export interface TelegramLinkTemplateProps {
   fullName: string;
   botUsername: string;
   deepLinkUrl: string;
-  tgDirectUrl: string;
   token: string;
   expiresAt: string;
-  connectUrl?: string;
 }
 
 export function TelegramLinkTemplate({
   fullName,
   botUsername,
   deepLinkUrl,
-  tgDirectUrl,
   token,
   expiresAt,
-  connectUrl,
 }: TelegramLinkTemplateProps) {
   const expiresLabel = new Date(expiresAt).toLocaleString('tr-TR', {
     day: '2-digit',
@@ -36,22 +32,19 @@ export function TelegramLinkTemplate({
         note="Bu bağlantıyı beklemiyorsanız lütfen bu e-postayı dikkate almayın. Herhangi bir sorun için sistem yöneticinizle iletişime geçebilirsiniz."
       >
         <Text style={{ margin: '0 0 14px' }}>
-          Defter-i Hilal bildirimlerini Telegram üzerinden alabilmek için
-          aşağıdaki butona tıklayın. Telegram açıldıktan sonra <strong>START</strong> butonuna
-          basın ve ardından telefon numaranızı paylaşın.
+          Defter-i Hilal bildirimlerini Telegram üzerinden alabilmek için aşağıdaki butona tıklayın.
+          Telegram açıldıktan sonra <strong>START</strong> butonuna basın ve ardından telefon
+          numaranızı paylaşın.
         </Text>
 
-        {/*
-          Use the https://t.me/... URL, not tgDirectUrl (tg://). Gmail and
-          most webmail clients strip <a href> when the scheme isn't
-          http/https/mailto/tel → the button renders as plain text. The
-          t.me page handles the Telegram-not-installed case itself.
-        */}
         <CtaButton href={deepLinkUrl}>Telegram'da Bağlantıyı Başlat</CtaButton>
 
         <Text style={{ fontSize: 14, color: '#555555', margin: '16px 0 8px' }}>
           <strong>Buton çalışmazsa</strong> Telegram'ı açıp{' '}
-          <Link href={`https://t.me/${botUsername}`} style={{ color: '#c59600', textDecoration: 'none' }}>
+          <Link
+            href={`https://t.me/${botUsername}`}
+            style={{ color: '#c59600', textDecoration: 'none' }}
+          >
             @{botUsername}
           </Link>{' '}
           botuna aşağıdaki komutu yazın:

@@ -17,6 +17,7 @@ out/
 .env.local
 .env.*.local
 .env.dev
+.env.test
 
 # IDE
 .idea/

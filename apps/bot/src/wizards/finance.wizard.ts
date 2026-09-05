@@ -1,10 +1,5 @@
 import { Telegraf, Markup, Context } from 'telegraf';
-import {
-  PrismaService,
-  UserRole,
-  TransactionType,
-  PermissionAction,
-} from '@ticketbot/database';
+import { PrismaService, UserRole, TransactionType, PermissionAction } from '@ticketbot/database';
 
 type FinanceStep =
   | 'pickAssoc'
@@ -81,10 +76,7 @@ function formatDate(dateStr: string | undefined): string {
   return new Date(dateStr).toLocaleDateString('tr-TR');
 }
 
-async function getCurrentBalance(
-  prisma: PrismaService,
-  associationId: string,
-): Promise<number> {
+async function getCurrentBalance(prisma: PrismaService, associationId: string): Promise<number> {
   const [incomeAgg, expenseAgg] = await prisma.$transaction([
     prisma.transaction.aggregate({
       where: { associationId, type: 'INCOME', deletedAt: null },
@@ -144,9 +136,7 @@ async function showUndoMessage(
     `✅ ${label} kaydedildi: ${kurusToTl(s.amountInKurus!)}\n` +
       (s.description ? `📝 ${s.description}\n` : '') +
       `📅 ${formatDate(s.transactionDate)}`,
-    Markup.inlineKeyboard([
-      [Markup.button.callback('↩️ Geri Al (5s)', 'fin:undo')],
-    ]),
+    Markup.inlineKeyboard([[Markup.button.callback('↩️ Geri Al (5s)', 'fin:undo')]]),
   );
 
   s.undoMessageId = msg.message_id;
@@ -174,11 +164,7 @@ async function showUndoMessage(
   undoTimers.set(ctx.from!.id, timer);
 }
 
-async function undoLastTransaction(
-  ctx: Context,
-  prisma: PrismaService,
-  s: FinanceWizardSession,
-) {
+async function undoLastTransaction(ctx: Context, prisma: PrismaService, s: FinanceWizardSession) {
   const timer = undoTimers.get(ctx.from!.id);
   if (timer) {
     clearTimeout(timer);
@@ -231,9 +217,10 @@ async function showHistory(
   ]);
 
   if (rows.length === 0) {
-    return ctx.reply('📜 İşlem geçmişi boş.', Markup.inlineKeyboard([
-      [Markup.button.callback('🔙 Ana Menü', 'fin:menu')],
-    ]));
+    return ctx.reply(
+      '📜 İşlem geçmişi boş.',
+      Markup.inlineKeyboard([[Markup.button.callback('🔙 Ana Menü', 'fin:menu')]]),
+    );
   }
 
   const totalPages = Math.max(1, Math.ceil(total / HISTORY_PAGE_SIZE));
@@ -251,18 +238,16 @@ async function showHistory(
   }
 
   const navButtons: ReturnType<typeof Markup.button.callback>[][] = [];
-  if (page > 1) navButtons.push([Markup.button.callback('⬅️ Önceki', `fin:history_page:${page - 1}`)]);
-  if (page < totalPages) navButtons.push([Markup.button.callback('➡️ Sonraki', `fin:history_page:${page + 1}`)]);
+  if (page > 1)
+    navButtons.push([Markup.button.callback('⬅️ Önceki', `fin:history_page:${page - 1}`)]);
+  if (page < totalPages)
+    navButtons.push([Markup.button.callback('➡️ Sonraki', `fin:history_page:${page + 1}`)]);
   navButtons.push([Markup.button.callback('🔙 Ana Menü', 'fin:menu')]);
 
   return ctx.reply(text, Markup.inlineKeyboard(navButtons));
 }
 
-async function showMonthlyStats(
-  ctx: Context,
-  prisma: PrismaService,
-  s: FinanceWizardSession,
-) {
+async function showMonthlyStats(ctx: Context, prisma: PrismaService, s: FinanceWizardSession) {
   if (!s.associationId) return;
 
   const now = new Date();
@@ -276,16 +261,30 @@ async function showMonthlyStats(
 
     const [incomeAgg, expenseAgg] = await prisma.$transaction([
       prisma.transaction.aggregate({
-        where: { associationId: s.associationId, type: 'INCOME', deletedAt: null, transactionDate: { gte: monthStart, lte: monthEnd } },
+        where: {
+          associationId: s.associationId,
+          type: 'INCOME',
+          deletedAt: null,
+          transactionDate: { gte: monthStart, lte: monthEnd },
+        },
         _sum: { amountInKurus: true },
       }),
       prisma.transaction.aggregate({
-        where: { associationId: s.associationId, type: 'EXPENSE', deletedAt: null, transactionDate: { gte: monthStart, lte: monthEnd } },
+        where: {
+          associationId: s.associationId,
+          type: 'EXPENSE',
+          deletedAt: null,
+          transactionDate: { gte: monthStart, lte: monthEnd },
+        },
         _sum: { amountInKurus: true },
       }),
     ]);
 
-    months.push({ label, income: incomeAgg._sum.amountInKurus ?? 0, expense: expenseAgg._sum.amountInKurus ?? 0 });
+    months.push({
+      label,
+      income: incomeAgg._sum.amountInKurus ?? 0,
+      expense: expenseAgg._sum.amountInKurus ?? 0,
+    });
   }
 
   let text = `📊 ${s.associationName} — Aylık Özet (Son 6 Ay)\n\n`;
@@ -296,9 +295,10 @@ async function showMonthlyStats(
     text += `  📈 Bakiye: ${kurusToTl(m.income - m.expense)}\n\n`;
   }
 
-  return ctx.reply(text, Markup.inlineKeyboard([
-    [Markup.button.callback('🔙 Ana Menü', 'fin:menu')],
-  ]));
+  return ctx.reply(
+    text,
+    Markup.inlineKeyboard([[Markup.button.callback('🔙 Ana Menü', 'fin:menu')]]),
+  );
 }
 
 async function assertFinanceAccess(
@@ -307,7 +307,13 @@ async function assertFinanceAccess(
   associationId: string,
 ): Promise<boolean> {
   const membership = await prisma.associationMembership.findFirst({
-    where: { userId, associationId, isActive: true, deletedAt: null, role: { in: [UserRole.ASSOCIATION_MANAGER, UserRole.ASSOCIATION_SECRETARY] } },
+    where: {
+      userId,
+      associationId,
+      isActive: true,
+      deletedAt: null,
+      role: { in: [UserRole.ASSOCIATION_MANAGER, UserRole.ASSOCIATION_SECRETARY] },
+    },
   });
   if (membership) return true;
 
@@ -565,10 +571,7 @@ async function showDonationTypePicker(
   s.donationTypeOptions = names.map((name) => ({ name }));
 
   const buttons = names.map((name, idx) => [
-    Markup.button.callback(
-      idx === 0 ? '🏷️ Genel (atla)' : name,
-      `fin:dtype:${idx}`,
-    ),
+    Markup.button.callback(idx === 0 ? '🏷️ Genel (atla)' : name, `fin:dtype:${idx}`),
   ]);
   buttons.push([Markup.button.callback('🔙 Geri', 'fin:back_menu')]);
   buttons.push([Markup.button.callback('❌ İptal', 'fin:cancel')]);
@@ -597,10 +600,12 @@ async function showCategoryPicker(ctx: Context, prisma: PrismaService, s: Financ
 
   if (categories.length === 0) {
     const defaultName = type === 'INCOME' ? 'Bağış' : 'Genel Gider';
-    categories = [await prisma.transactionCategory.create({
-      data: { associationId: s.associationId, name: defaultName, type },
-      select: { id: true, name: true },
-    })];
+    categories = [
+      await prisma.transactionCategory.create({
+        data: { associationId: s.associationId, name: defaultName, type },
+        select: { id: true, name: true },
+      }),
+    ];
   }
 
   const sorted = [...categories].sort((a, b) => {
@@ -616,10 +621,7 @@ async function showCategoryPicker(ctx: Context, prisma: PrismaService, s: Financ
   buttons.push([Markup.button.callback('🔙 Geri', 'fin:back_menu')]);
   buttons.push([Markup.button.callback('❌ İptal', 'fin:cancel')]);
 
-  return ctx.reply(
-    `💰 ${s.associationName} — Kategori seçin:`,
-    Markup.inlineKeyboard(buttons),
-  );
+  return ctx.reply(`💰 ${s.associationName} — Kategori seçin:`, Markup.inlineKeyboard(buttons));
 }
 
 async function showMemberPicker(ctx: Context, prisma: PrismaService, s: FinanceWizardSession) {
@@ -634,9 +636,10 @@ async function showMemberPicker(ctx: Context, prisma: PrismaService, s: FinanceW
 
   if (members.length === 0) {
     sessions.delete(ctx.from!.id);
-    return ctx.reply('Bu dernekte aktif üye bulunamadı.', Markup.inlineKeyboard([
-      [Markup.button.callback('🔙 Ana Menü', 'fin:menu')],
-    ]));
+    return ctx.reply(
+      'Bu dernekte aktif üye bulunamadı.',
+      Markup.inlineKeyboard([[Markup.button.callback('🔙 Ana Menü', 'fin:menu')]]),
+    );
   }
 
   const buttons = members.map((m) => [
@@ -645,29 +648,7 @@ async function showMemberPicker(ctx: Context, prisma: PrismaService, s: FinanceW
   buttons.push([Markup.button.callback('🔙 Geri', 'fin:back_menu')]);
   buttons.push([Markup.button.callback('❌ İptal', 'fin:cancel')]);
 
-  return ctx.reply(
-    `💰 ${s.associationName} — AİDAT\n\nÜye seçin:`,
-    Markup.inlineKeyboard(buttons),
-  );
-}
-
-async function showMonthPicker(ctx: Context, s: FinanceWizardSession) {
-  s.step = 'pickMonth';
-  const now = new Date();
-  const months: string[] = [];
-  for (let i = 2; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    months.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-  }
-
-  const buttons = months.map((m) => [Markup.button.callback(m, `fin:month:${m}`)]);
-  buttons.push([Markup.button.callback('🔙 Geri', 'fin:back_member')]);
-  buttons.push([Markup.button.callback('❌ İptal', 'fin:cancel')]);
-
-  return ctx.reply(
-    `💰 ${s.associationName} — AİDAT\nÜye: ${s.membershipName}\n\nAy seçin:`,
-    Markup.inlineKeyboard(buttons),
-  );
+  return ctx.reply(`💰 ${s.associationName} — AİDAT\n\nÜye seçin:`, Markup.inlineKeyboard(buttons));
 }
 
 async function startWizard(
@@ -685,7 +666,12 @@ async function startWizard(
   const assocs = await loadEligibleAssociations(prisma, account.userId);
   if (assocs.length === 0) {
     const hasAny = await prisma.associationMembership.findFirst({
-      where: { userId: account.userId, isActive: true, deletedAt: null, association: { deletedAt: null } },
+      where: {
+        userId: account.userId,
+        isActive: true,
+        deletedAt: null,
+        association: { deletedAt: null },
+      },
     });
     if (hasAny) return ctx.reply('💰 Finans yetkiniz yok.');
     return ctx.reply('Aktif bir dernek üyeliğin bulunamadı.');
@@ -698,7 +684,12 @@ async function startWizard(
 
     const session: FinanceWizardSession = {
       userId: account.userId,
-      step: action === 'fee' ? 'pickCategory' : (action && ['expense', 'donation'].includes(action) ? 'pickAmount' : 'pickType'),
+      step:
+        action === 'fee'
+          ? 'pickCategory'
+          : action && ['expense', 'donation'].includes(action)
+            ? 'pickAmount'
+            : 'pickType',
       action,
       associationId: a.id,
       associationName: a.name,
@@ -706,13 +697,25 @@ async function startWizard(
     };
     sessions.set(telegramUserId, session);
 
-    if (action === 'history') { session.step = 'idle'; return showHistory(ctx, prisma, session, 1); }
-    if (action === 'stats') { session.step = 'idle'; return showMonthlyStats(ctx, prisma, session); }
+    if (action === 'history') {
+      session.step = 'idle';
+      return showHistory(ctx, prisma, session, 1);
+    }
+    if (action === 'stats') {
+      session.step = 'idle';
+      return showMonthlyStats(ctx, prisma, session);
+    }
     if (action === 'summary') {
       session.step = 'idle';
       const [inc, exp] = await prisma.$transaction([
-        prisma.transaction.aggregate({ _sum: { amountInKurus: true }, where: { associationId: a.id, type: 'INCOME', deletedAt: null } }),
-        prisma.transaction.aggregate({ _sum: { amountInKurus: true }, where: { associationId: a.id, type: 'EXPENSE', deletedAt: null } }),
+        prisma.transaction.aggregate({
+          _sum: { amountInKurus: true },
+          where: { associationId: a.id, type: 'INCOME', deletedAt: null },
+        }),
+        prisma.transaction.aggregate({
+          _sum: { amountInKurus: true },
+          where: { associationId: a.id, type: 'EXPENSE', deletedAt: null },
+        }),
       ]);
       return ctx.reply(
         `📊 ${a.name} Kasa\n\n💵 Gelir: ${kurusToTl(inc._sum.amountInKurus ?? 0)}\n💸 Gider: ${kurusToTl(exp._sum.amountInKurus ?? 0)}\n📈 Bakiye: ${kurusToTl((inc._sum.amountInKurus ?? 0) - (exp._sum.amountInKurus ?? 0))}`,
@@ -758,8 +761,11 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     const fromId = ctx.from?.id;
     if (!fromId) return;
     evictExpired(Date.now());
-    try { return await startWizard(ctx, prisma, fromId); }
-    catch { return ctx.reply('Beklenmeyen bir hata oluştu.'); }
+    try {
+      return await startWizard(ctx, prisma, fromId);
+    } catch {
+      return ctx.reply('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   // /gider [tutar] [açıklama] → tutar varsa direkt kaydet, yoksa tutar sor
@@ -769,12 +775,24 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     evictExpired(Date.now());
     const parsed = parseQuickCommand(ctx.message.text);
     if (parsed) {
-      try { return await quickExpense(ctx, prisma, fromId, parsed.amount, parsed.description || undefined); }
-      catch (err) { return ctx.reply(`❌ ${(err as Error).message}`); }
+      try {
+        return await quickExpense(
+          ctx,
+          prisma,
+          fromId,
+          parsed.amount,
+          parsed.description || undefined,
+        );
+      } catch (err) {
+        return ctx.reply(`❌ ${(err as Error).message}`);
+      }
     }
     // Tutar yoksa wizard başlat, tutar sor
-    try { return await startWizard(ctx, prisma, fromId, 'expense'); }
-    catch { return ctx.reply('Beklenmeyen bir hata oluştu.'); }
+    try {
+      return await startWizard(ctx, prisma, fromId, 'expense');
+    } catch {
+      return ctx.reply('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   // /bagis [tutar] [açıklama] → tutar varsa direkt kaydet, yoksa tutar sor
@@ -784,11 +802,23 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     evictExpired(Date.now());
     const parsed = parseQuickCommand(ctx.message.text);
     if (parsed) {
-      try { return await quickDonation(ctx, prisma, fromId, parsed.amount, parsed.description || undefined); }
-      catch (err) { return ctx.reply(`❌ ${(err as Error).message}`); }
+      try {
+        return await quickDonation(
+          ctx,
+          prisma,
+          fromId,
+          parsed.amount,
+          parsed.description || undefined,
+        );
+      } catch (err) {
+        return ctx.reply(`❌ ${(err as Error).message}`);
+      }
     }
-    try { return await startWizard(ctx, prisma, fromId, 'donation'); }
-    catch { return ctx.reply('Beklenmeyen bir hata oluştu.'); }
+    try {
+      return await startWizard(ctx, prisma, fromId, 'donation');
+    } catch {
+      return ctx.reply('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   // /aidat → SADECE ÜYE SEÇ, AY/TUTAR OTOMATİK
@@ -796,8 +826,11 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     const fromId = ctx.from?.id;
     if (!fromId) return;
     evictExpired(Date.now());
-    try { return await startWizard(ctx, prisma, fromId, 'fee'); }
-    catch { return ctx.reply('Beklenmeyen bir hata oluştu.'); }
+    try {
+      return await startWizard(ctx, prisma, fromId, 'fee');
+    } catch {
+      return ctx.reply('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   // /kasa
@@ -805,8 +838,11 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     const fromId = ctx.from?.id;
     if (!fromId) return;
     evictExpired(Date.now());
-    try { return await startWizard(ctx, prisma, fromId, 'summary'); }
-    catch { return ctx.reply('Beklenmeyen bir hata oluştu.'); }
+    try {
+      return await startWizard(ctx, prisma, fromId, 'summary');
+    } catch {
+      return ctx.reply('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   // /gecmis
@@ -814,8 +850,11 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     const fromId = ctx.from?.id;
     if (!fromId) return;
     evictExpired(Date.now());
-    try { return await startWizard(ctx, prisma, fromId, 'history'); }
-    catch { return ctx.reply('Beklenmeyen bir hata oluştu.'); }
+    try {
+      return await startWizard(ctx, prisma, fromId, 'history');
+    } catch {
+      return ctx.reply('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   // /ozet
@@ -823,8 +862,11 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     const fromId = ctx.from?.id;
     if (!fromId) return;
     evictExpired(Date.now());
-    try { return await startWizard(ctx, prisma, fromId, 'stats'); }
-    catch { return ctx.reply('Beklenmeyen bir hata oluştu.'); }
+    try {
+      return await startWizard(ctx, prisma, fromId, 'stats');
+    } catch {
+      return ctx.reply('Beklenmeyen bir hata oluştu.');
+    }
   });
 
   // /iptal
@@ -832,7 +874,10 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     const fromId = ctx.from?.id;
     if (!fromId) return;
     const timer = undoTimers.get(fromId);
-    if (timer) { clearTimeout(timer); undoTimers.delete(fromId); }
+    if (timer) {
+      clearTimeout(timer);
+      undoTimers.delete(fromId);
+    }
     if (sessions.delete(fromId)) return ctx.reply('İptal edildi.');
     return ctx.reply('Aktif bir işlemin yok.');
   });
@@ -845,7 +890,8 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     const fromId = ctx.from?.id;
     if (!fromId) return;
     const s = sessions.get(fromId);
-    if (!s || s.step !== 'pending_undo') return ctx.answerCbQuery('Geri alınacak işlem yok', { show_alert: true });
+    if (!s || s.step !== 'pending_undo')
+      return ctx.answerCbQuery('Geri alınacak işlem yok', { show_alert: true });
     return undoLastTransaction(ctx, prisma, s);
   });
 
@@ -853,7 +899,10 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     const fromId = ctx.from?.id;
     if (fromId) {
       const timer = undoTimers.get(fromId);
-      if (timer) { clearTimeout(timer); undoTimers.delete(fromId); }
+      if (timer) {
+        clearTimeout(timer);
+        undoTimers.delete(fromId);
+      }
       sessions.delete(fromId);
     }
     await ctx.answerCbQuery('İptal edildi');
@@ -890,7 +939,10 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     const fromId = ctx.from?.id;
     if (!fromId) return ctx.answerCbQuery();
     const s = sessions.get(fromId);
-    if (!s) { await ctx.answerCbQuery(); return startWizard(ctx, prisma, fromId); }
+    if (!s) {
+      await ctx.answerCbQuery();
+      return startWizard(ctx, prisma, fromId);
+    }
     s.step = 'pickType';
     s.action = undefined;
     s.categoryId = undefined;
@@ -936,10 +988,16 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
       where: { telegramId: BigInt(fromId) },
       select: { userId: true },
     });
-    if (!account) { sessions.delete(fromId); return ctx.answerCbQuery('Hesabınız bağlı değil', { show_alert: true }); }
+    if (!account) {
+      sessions.delete(fromId);
+      return ctx.answerCbQuery('Hesabınız bağlı değil', { show_alert: true });
+    }
 
     const hasAccess = await assertFinanceAccess(prisma, account.userId, assocId);
-    if (!hasAccess) { sessions.delete(fromId); return ctx.answerCbQuery('Finans yetkiniz yok', { show_alert: true }); }
+    if (!hasAccess) {
+      sessions.delete(fromId);
+      return ctx.answerCbQuery('Finans yetkiniz yok', { show_alert: true });
+    }
 
     s.associationId = picked.id;
     s.associationName = picked.name;
@@ -959,13 +1017,25 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
       }
     }
 
-    if (s.action === 'history') { s.step = 'idle'; return showHistory(ctx, prisma, s, 1); }
-    if (s.action === 'stats') { s.step = 'idle'; return showMonthlyStats(ctx, prisma, s); }
+    if (s.action === 'history') {
+      s.step = 'idle';
+      return showHistory(ctx, prisma, s, 1);
+    }
+    if (s.action === 'stats') {
+      s.step = 'idle';
+      return showMonthlyStats(ctx, prisma, s);
+    }
     if (s.action === 'summary') {
       s.step = 'idle';
       const [inc, exp] = await prisma.$transaction([
-        prisma.transaction.aggregate({ _sum: { amountInKurus: true }, where: { associationId: s.associationId, type: 'INCOME', deletedAt: null } }),
-        prisma.transaction.aggregate({ _sum: { amountInKurus: true }, where: { associationId: s.associationId, type: 'EXPENSE', deletedAt: null } }),
+        prisma.transaction.aggregate({
+          _sum: { amountInKurus: true },
+          where: { associationId: s.associationId, type: 'INCOME', deletedAt: null },
+        }),
+        prisma.transaction.aggregate({
+          _sum: { amountInKurus: true },
+          where: { associationId: s.associationId, type: 'EXPENSE', deletedAt: null },
+        }),
       ]);
       return ctx.reply(
         `📊 ${s.associationName} Kasa\n\n💵 Gelir: ${kurusToTl(inc._sum.amountInKurus ?? 0)}\n💸 Gider: ${kurusToTl(exp._sum.amountInKurus ?? 0)}\n📈 Bakiye: ${kurusToTl((inc._sum.amountInKurus ?? 0) - (exp._sum.amountInKurus ?? 0))}`,
@@ -1016,7 +1086,12 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
 
     // Direkt kaydet + geri al
     const membership = await prisma.associationMembership.findFirst({
-      where: { id: s.membershipId, associationId: s.associationId, isActive: true, deletedAt: null },
+      where: {
+        id: s.membershipId,
+        associationId: s.associationId,
+        isActive: true,
+        deletedAt: null,
+      },
       include: { user: { select: { fullName: true, id: true } } },
     });
     if (!membership) return ctx.answerCbQuery('Üye bulunamadı', { show_alert: true });
@@ -1057,12 +1132,22 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     if (amount > 0) {
       s.amountInKurus = amount;
       const membership = await prisma.associationMembership.findFirst({
-        where: { id: s.membershipId, associationId: s.associationId, isActive: true, deletedAt: null },
+        where: {
+          id: s.membershipId,
+          associationId: s.associationId,
+          isActive: true,
+          deletedAt: null,
+        },
         include: { user: { select: { fullName: true, id: true } } },
       });
       if (!membership) return ctx.answerCbQuery('Üye bulunamadı', { show_alert: true });
 
-      const category = await getOrCreateCategory(prisma, s.associationId!, 'Aidat Geliri', 'INCOME');
+      const category = await getOrCreateCategory(
+        prisma,
+        s.associationId!,
+        'Aidat Geliri',
+        'INCOME',
+      );
       const tx = await prisma.transaction.create({
         data: {
           associationId: s.associationId!,
@@ -1103,7 +1188,10 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     const s = sessions.get(fromId);
     const action = ctx.match[1] as FinanceAction;
 
-    if (!s) { await ctx.answerCbQuery(); return startWizard(ctx, prisma, fromId, action); }
+    if (!s) {
+      await ctx.answerCbQuery();
+      return startWizard(ctx, prisma, fromId, action);
+    }
 
     s.action = action;
     touch(s);
@@ -1111,14 +1199,26 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     await ctx.answerCbQuery();
     await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
 
-    if (action === 'history') { s.step = 'idle'; return showHistory(ctx, prisma, s, 1); }
-    if (action === 'stats') { s.step = 'idle'; return showMonthlyStats(ctx, prisma, s); }
+    if (action === 'history') {
+      s.step = 'idle';
+      return showHistory(ctx, prisma, s, 1);
+    }
+    if (action === 'stats') {
+      s.step = 'idle';
+      return showMonthlyStats(ctx, prisma, s);
+    }
     if (action === 'summary') {
       s.step = 'idle';
       if (!s.associationId) return ctx.reply('Dernek bilgisi eksik');
       const [inc, exp] = await prisma.$transaction([
-        prisma.transaction.aggregate({ _sum: { amountInKurus: true }, where: { associationId: s.associationId, type: 'INCOME', deletedAt: null } }),
-        prisma.transaction.aggregate({ _sum: { amountInKurus: true }, where: { associationId: s.associationId, type: 'EXPENSE', deletedAt: null } }),
+        prisma.transaction.aggregate({
+          _sum: { amountInKurus: true },
+          where: { associationId: s.associationId, type: 'INCOME', deletedAt: null },
+        }),
+        prisma.transaction.aggregate({
+          _sum: { amountInKurus: true },
+          where: { associationId: s.associationId, type: 'EXPENSE', deletedAt: null },
+        }),
       ]);
       return ctx.reply(
         `📊 ${s.associationName} Kasa\n\n💵 Gelir: ${kurusToTl(inc._sum.amountInKurus ?? 0)}\n💸 Gider: ${kurusToTl(exp._sum.amountInKurus ?? 0)}\n📈 Bakiye: ${kurusToTl((inc._sum.amountInKurus ?? 0) - (exp._sum.amountInKurus ?? 0))}`,
@@ -1126,8 +1226,14 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
       );
     }
 
-    if (action === 'fee') { s.step = 'pickCategory'; return showCategoryPicker(ctx, prisma, s); }
-    if (['expense', 'donation'].includes(action)) { s.step = 'pickAmount'; return showAmountPicker(ctx, s); }
+    if (action === 'fee') {
+      s.step = 'pickCategory';
+      return showCategoryPicker(ctx, prisma, s);
+    }
+    if (['expense', 'donation'].includes(action)) {
+      s.step = 'pickAmount';
+      return showAmountPicker(ctx, s);
+    }
     return showMainMenu(ctx);
   });
 
@@ -1150,8 +1256,7 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
 
     s.categoryName = picked.name;
     s.categoryId = undefined;
-    s.transactionDate =
-      s.transactionDate ?? new Date().toISOString().split('T')[0];
+    s.transactionDate = s.transactionDate ?? new Date().toISOString().split('T')[0];
     touch(s);
 
     await ctx.answerCbQuery(picked.name);
@@ -1184,10 +1289,13 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     touch(s);
     await ctx.answerCbQuery(s.categoryName!);
     await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
-    return ctx.reply(`💰 ${s.categoryName}${hint}`, Markup.inlineKeyboard([
-      [Markup.button.callback('🔙 Geri', 'fin:back_menu')],
-      [Markup.button.callback('❌ İptal', 'fin:cancel')],
-    ]));
+    return ctx.reply(
+      `💰 ${s.categoryName}${hint}`,
+      Markup.inlineKeyboard([
+        [Markup.button.callback('🔙 Geri', 'fin:back_menu')],
+        [Markup.button.callback('❌ İptal', 'fin:cancel')],
+      ]),
+    );
   });
 
   bot.action(/^fin:history_page:(\d+)$/, async (ctx) => {
@@ -1197,7 +1305,10 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     const s = sessions.get(fromId);
     if (!s || !s.associationId) {
       await ctx.answerCbQuery('Oturum sona erdi');
-      return ctx.reply('Oturum sona erdi.', Markup.inlineKeyboard([[Markup.button.callback('🔙 Ana Menü', 'fin:menu')]]));
+      return ctx.reply(
+        'Oturum sona erdi.',
+        Markup.inlineKeyboard([[Markup.button.callback('🔙 Ana Menü', 'fin:menu')]]),
+      );
     }
     await ctx.answerCbQuery();
     await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
@@ -1216,7 +1327,11 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
       const category = await getOrCreateCategory(
         prisma,
         s.associationId!,
-        s.action === 'fee' ? 'Aidat Geliri' : (s.action === 'donation' ? (s.categoryName || 'Genel') : (s.categoryName || 'Genel Gider')),
+        s.action === 'fee'
+          ? 'Aidat Geliri'
+          : s.action === 'donation'
+            ? s.categoryName || 'Genel'
+            : s.categoryName || 'Genel Gider',
         s.action === 'expense' ? 'EXPENSE' : 'INCOME',
       );
 
@@ -1248,7 +1363,10 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
     } catch (err) {
       const m = err instanceof Error ? err.message : String(err);
       sessions.delete(fromId);
-      return ctx.reply(`❌ Kaydedilemedi: ${m}`, Markup.inlineKeyboard([[Markup.button.callback('🔙 Ana Menü', 'fin:menu')]]));
+      return ctx.reply(
+        `❌ Kaydedilemedi: ${m}`,
+        Markup.inlineKeyboard([[Markup.button.callback('🔙 Ana Menü', 'fin:menu')]]),
+      );
     }
   }
 
@@ -1292,10 +1410,13 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
         const amountStr = text.trim().replace(/,/g, '.');
         const amount = parseFloat(amountStr);
         if (isNaN(amount) || amount <= 0) {
-          return ctx.reply('Geçersiz tutar. Tekrar girin (örn: 500 veya 500.50):', Markup.inlineKeyboard([
-            [Markup.button.callback('🔙 Geri', 'fin:back_menu')],
-            [Markup.button.callback('❌ İptal', 'fin:cancel')],
-          ]));
+          return ctx.reply(
+            'Geçersiz tutar. Tekrar girin (örn: 500 veya 500.50):',
+            Markup.inlineKeyboard([
+              [Markup.button.callback('🔙 Geri', 'fin:back_menu')],
+              [Markup.button.callback('❌ İptal', 'fin:cancel')],
+            ]),
+          );
         }
         s.amountInKurus = Math.round(amount * 100);
         s.transactionDate = new Date().toISOString().split('T')[0];
@@ -1307,7 +1428,10 @@ export function registerFinanceWizard(bot: Telegraf, prisma: PrismaService) {
         return executeConfirm(ctx, s, fromId);
       }
     } catch (err) {
-      return ctx.reply(`❌ ${(err as Error).message}`, Markup.inlineKeyboard([[Markup.button.callback('🔙 Ana Menü', 'fin:menu')]]));
+      return ctx.reply(
+        `❌ ${(err as Error).message}`,
+        Markup.inlineKeyboard([[Markup.button.callback('🔙 Ana Menü', 'fin:menu')]]),
+      );
     }
 
     return next();
