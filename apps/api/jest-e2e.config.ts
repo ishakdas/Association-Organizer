@@ -14,7 +14,6 @@ const config: Config = {
     '^@ticketbot/database$': '<rootDir>/../../libs/database/src/index.ts',
     '^@ticketbot/shared-types$': '<rootDir>/../../libs/shared-types/src/index.ts',
     '^@ticketbot/shared-validation$': '<rootDir>/../../libs/shared-validation/src/index.ts',
-    '^@ticketbot/core$': '<rootDir>/../../libs/core/src/index.ts',
     '^@ticketbot/ai$': '<rootDir>/../../libs/ai/src/index.ts',
     '^jose$': '<rootDir>/test/utils/jose-stub.ts',
   },

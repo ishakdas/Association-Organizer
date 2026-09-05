@@ -28,6 +28,7 @@ Association-Organizer/
 ## Tech Stack
 
 ### Backend (apps/api)
+
 - **Framework**: NestJS 11
 - **HTTP Server**: Fastify
 - **Database**: PostgreSQL (via Supabase)
@@ -39,17 +40,20 @@ Association-Organizer/
 - **Port**: 3000
 
 ### Frontend (apps/web)
+
 - **Framework**: Next.js 15 (App Router)
 - **Styling**: Tailwind CSS
 - **Authentication**: Supabase SSR (`@supabase/ssr`)
 - **Port**: 3001
 
 ### Database
+
 - **Provider**: PostgreSQL (Supabase)
 - **ORM**: Prisma
 - **Migrations**: Prisma Migrate
 
 ### Infrastructure
+
 - **API Deployment**: Railway
 - **Web Deployment**: Vercel
 - **Database**: Supabase (PostgreSQL)
@@ -58,12 +62,14 @@ Association-Organizer/
 ## Key Features
 
 ### 1. Association Management
+
 - Association registration and profile management
 - Member management with role-based access control
 - Custom title assignments (Başkan, Sekreter, etc.)
 - Multi-tenancy with row-level isolation
 
 ### 2. Task Management
+
 - Per-association task boards
 - Task assignment with Telegram notifications
 - Task status tracking (PENDING, IN_PROGRESS, COMPLETED, CANCELLED)
@@ -73,11 +79,13 @@ Association-Organizer/
 - Reminder system (stubbed)
 
 ### 3. Meeting Notes
+
 - Meeting note creation and management
 - Attendee tracking
 - Meeting-to-task extraction (planned)
 
 ### 4. Event Management
+
 - Event creation with types (Conference, Talk, Seminar, Iftar, Kandil, Meeting, Custom)
 - Recurring event support (Daily, Weekly, Monthly)
 - Event role definitions per association
@@ -87,6 +95,7 @@ Association-Organizer/
 - Telegram notifications for assignees
 
 ### 5. Financial Tracking
+
 - Income and expense tracking
 - Transaction categories
 - Event-linked transactions
@@ -94,6 +103,7 @@ Association-Organizer/
 - Finance permissions system
 
 ### 6. AI-Powered Suggestions
+
 - Islamic event suggestions (sohbet, education, culture, youth, family, etc.)
 - Target audience filtering (all, middle school, high school)
 - Feedback system for learning
@@ -101,6 +111,7 @@ Association-Organizer/
 - Saved suggestions for later use
 
 ### 7. Telegram Bot Integration
+
 - User account linking via `/link` command
 - Task notifications and updates
 - Event reminders
@@ -108,10 +119,12 @@ Association-Organizer/
 - Inline keyboards for interactions
 
 ### 8. Islamic Calendar Integration
+
 - Islamic date calculations
 - Religious event tracking (Kandil, etc.)
 
 ### 9. Admin Features
+
 - System admin user management
 - Member title definition catalog
 - Pending branch registration review
@@ -119,13 +132,12 @@ Association-Organizer/
 
 ## Workspace Libraries
 
-| Library | Purpose |
-|---------|---------|
-| `@ticketbot/database` | PrismaService, PrismaModule, Prisma enums re-export |
-| `@ticketbot/shared-types` | TypeScript interfaces, DTOs, domain enums |
-| `@ticketbot/shared-validation` | Zod schemas for API validation and frontend forms |
-| `@ticketbot/core` | Shared business logic and utilities |
-| `@ticketbot/ai` | AiProvider interface, OpenAI and Fake implementations |
+| Library                        | Purpose                                               |
+| ------------------------------ | ----------------------------------------------------- |
+| `@ticketbot/database`          | PrismaService, PrismaModule, Prisma enums re-export   |
+| `@ticketbot/shared-types`      | TypeScript interfaces, DTOs, domain enums             |
+| `@ticketbot/shared-validation` | Zod schemas for API validation and frontend forms     |
+| `@ticketbot/ai`                | AiProvider interface, OpenAI and Fake implementations |
 
 ## Package Manager Configuration
 
@@ -157,7 +169,8 @@ pnpm db:studio        # Prisma Studio UI
 
 ## Environment Requirements
 
-### API (apps/api/.env)
+### Root `.env` (API and Web)
+
 - `DATABASE_URL` - PostgreSQL connection string
 - `REDIS_URL` - Redis connection string
 - `SUPABASE_URL` - Supabase project URL
@@ -169,23 +182,27 @@ pnpm db:studio        # Prisma Studio UI
 - `API_URL` - API base URL
 - `WEB_URL` - Web app base URL
 
-### Web (apps/web/.env.local)
+Browser-safe web variables use the `NEXT_PUBLIC_*` prefix in the same root `.env` file:
+
 - `NEXT_PUBLIC_SUPABASE_URL` - Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Supabase anonymous key
 - `NEXT_PUBLIC_API_URL` - API base URL
 
-**Important**: `SUPABASE_SERVICE_ROLE_KEY` must never appear in `apps/web/` or any `NEXT_PUBLIC_*` variable.
+**Important**: `SUPABASE_SERVICE_ROLE_KEY` must never use a `NEXT_PUBLIC_*` name.
 
 ## Project Conventions
 
 ### Code Style
+
 - **Prettier**: `{ semi: true, singleQuote: true, trailingComma: "all", printWidth: 100 }`
 - **TypeScript**: Strict mode enabled
 - **Validation**: Zod via `ZodValidationPipe` (no `class-validator`)
 - **Error Format**: RFC 7807 Problem Details
 
 ### Module Pattern
+
 New association-scoped modules should follow the pattern in `apps/api/src/modules/tasks/`:
+
 1. Module with `PrismaModule` import
 2. Controller with guard chain: `AuthGuard → SupabaseUserGuard → AssociationRolesGuard`
 3. Service with `associationId` AND `deletedAt: null` filtering
@@ -195,25 +212,27 @@ New association-scoped modules should follow the pattern in `apps/api/src/module
 ## Domain Model Overview
 
 ### Core Entities
-| Model | Purpose |
-|-------|---------|
-| `User` | Global identity with Supabase linkage |
-| `Association` | Association (dernek) - tenant root |
-| `AssociationMembership` | Role assignment within an association |
-| `MemberTitleDefinition` | System-admin-managed title catalog |
-| `Task` | Per-association tasks with assignment |
-| `TaskActivity` | Audit trail for task changes |
-| `MeetingNote` | Meeting records with attendees |
-| `Event` | Events with recurrence and notifications |
-| `EventRoleDefinition` | Per-association event role catalog |
-| `EventAssignment` | Member-to-event-role assignments |
-| `Transaction` | Financial transactions (income/expense) |
-| `TransactionCategory` | Transaction categorization |
-| `AiSuggestion` | AI-generated event suggestions |
-| `TelegramAccount` | Telegram user linkage |
-| `TelegramLinkToken` | Short-lived tokens for bot linking |
+
+| Model                   | Purpose                                  |
+| ----------------------- | ---------------------------------------- |
+| `User`                  | Global identity with Supabase linkage    |
+| `Association`           | Association (dernek) - tenant root       |
+| `AssociationMembership` | Role assignment within an association    |
+| `MemberTitleDefinition` | System-admin-managed title catalog       |
+| `Task`                  | Per-association tasks with assignment    |
+| `TaskActivity`          | Audit trail for task changes             |
+| `MeetingNote`           | Meeting records with attendees           |
+| `Event`                 | Events with recurrence and notifications |
+| `EventRoleDefinition`   | Per-association event role catalog       |
+| `EventAssignment`       | Member-to-event-role assignments         |
+| `Transaction`           | Financial transactions (income/expense)  |
+| `TransactionCategory`   | Transaction categorization               |
+| `AiSuggestion`          | AI-generated event suggestions           |
+| `TelegramAccount`       | Telegram user linkage                    |
+| `TelegramLinkToken`     | Short-lived tokens for bot linking       |
 
 ### Key Invariants
+
 - Multi-tenancy via `associationId` on all tenant-scoped models
 - Soft-delete mandatory: all queries must filter `deletedAt: null`
 - One active başkan (manager) per association enforced by partial unique index
@@ -222,6 +241,7 @@ New association-scoped modules should follow the pattern in `apps/api/src/module
 ## Known Limitations & Planned Features
 
 ### Stubbed/Not Yet Implemented
+
 - **Task notification scheduler** - BullMQ jobs for reminders
 - **Meeting-to-task extraction** - Converting meeting notes to tasks
 - **Web test harness** - No Jest/Vitest config for Next.js app
@@ -230,6 +250,7 @@ New association-scoped modules should follow the pattern in `apps/api/src/module
 - **Meeting permissions** - Schema exists, implementation partial
 
 ### Architecture Notes
+
 - Bot runs inside API process, not as a separate server
 - Two role guards (`RolesGuard`, `AssociationRolesGuard`) both return `true` by default - always decorate handlers
 - Auth dual-mode: distinguishes Supabase JWT from bot token via `alg` header

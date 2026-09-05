@@ -1,11 +1,7 @@
-import {
-  Injectable,
-  OnModuleInit,
-  OnModuleDestroy,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Telegraf, Context } from 'telegraf';
+import type { InlineKeyboardMarkup, Update } from 'telegraf/types';
 import { PrismaService } from '@ticketbot/database';
 import { AiService } from '@ticketbot/ai';
 import { registerStartCommand } from './commands/start.command';
@@ -18,7 +14,7 @@ import { registerFinanceWizard } from './wizards/finance.wizard';
 import { registerTaskCreateWizard } from './wizards/task-create.wizard';
 
 export interface SendToUserOptions {
-  replyMarkup?: unknown;
+  replyMarkup?: InlineKeyboardMarkup;
   parseMode?: 'MarkdownV2' | 'Markdown' | 'HTML';
 }
 
@@ -50,7 +46,7 @@ export type BotTaskCreatePort = (
 
 @Injectable()
 export class BotService implements OnModuleInit, OnModuleDestroy {
-  private bot: Telegraf;
+  private bot: Telegraf | null = null;
   private readonly logger = new Logger(BotService.name);
   private polling = false;
   private taskCreatePort: BotTaskCreatePort | null = null;
@@ -60,23 +56,30 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly aiService: AiService,
   ) {
-    const token = this.config.get<string>('bot.token')!;
+    if (!this.config.get<boolean>('bot.enabled')) return;
+    const token = this.config.get<string>('bot.token');
+    if (!token) throw new Error('Telegram bot token is missing');
     this.bot = new Telegraf(token);
   }
 
   async onModuleInit() {
-    registerStartCommand(this.bot, this.config, this.prisma);
-    registerLinkCommand(this.bot, this.prisma, this.config);
-    registerHelpCommand(this.bot);
-    registerMeetingWizard(this.bot, this.prisma, this.aiService);
-    registerMeetingListCommand(this.bot, this.prisma, this.aiService);
-    registerTaskListCommand(this.bot, this.prisma);
-    registerFinanceWizard(this.bot, this.prisma);
-    registerTaskCreateWizard(this.bot, this.prisma, this);
+    const bot = this.bot;
+    if (!bot) {
+      this.logger.log('Telegram bot disabled');
+      return;
+    }
+    registerStartCommand(bot, this.config, this.prisma);
+    registerLinkCommand(bot, this.prisma);
+    registerHelpCommand(bot);
+    registerMeetingWizard(bot, this.prisma, this.aiService);
+    registerMeetingListCommand(bot, this.prisma, this.aiService);
+    registerTaskListCommand(bot, this.prisma);
+    registerFinanceWizard(bot, this.prisma);
+    registerTaskCreateWizard(bot, this.prisma, this);
 
     // iPhone/Android'da bot menüsünün görünmesi için komut listesini ayarla
     try {
-      await this.bot.telegram.setMyCommands([
+      await bot.telegram.setMyCommands([
         { command: 'start', description: 'Botu başlat' },
         { command: 'help', description: 'Yardım ve komutlar' },
         { command: 'link', description: 'Hesap bağlama' },
@@ -95,12 +98,10 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       ]);
       this.logger.log('Bot command menu set');
     } catch (err) {
-      this.logger.warn(
-        `Failed to set bot command menu: ${(err as Error).message}`,
-      );
+      this.logger.warn(`Failed to set bot command menu: ${(err as Error).message}`);
     }
 
-    this.bot.on('text', async (ctx, next) => {
+    bot.on('text', async (ctx, next) => {
       const text = ctx.message?.text;
       if (text?.startsWith('/')) {
         return ctx.reply(
@@ -111,7 +112,7 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       return next();
     });
 
-    this.bot.catch((err: unknown, ctx: Context) => {
+    bot.catch((err: unknown, ctx: Context) => {
       console.error('=== [BOT] GLOBAL CATCH HANDLER ===');
       console.error('[BOT] Error:', err);
       console.error('[BOT] Update type:', ctx.updateType);
@@ -135,62 +136,36 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     if (nodeEnv !== 'test' && isLocal) {
       // Drop any leftover webhook before polling — Telegram refuses both
       // at once and silently returns 409 conflicts otherwise.
-      this.bot.telegram
+      bot.telegram
         .deleteWebhook({ drop_pending_updates: false })
         .catch((err) =>
-          this.logger.warn(
-            `deleteWebhook before polling failed: ${(err as Error).message}`,
-          ),
+          this.logger.warn(`deleteWebhook before polling failed: ${(err as Error).message}`),
         )
         .then(() => {
           this.polling = true;
           // Telegraf's launch() resolves only when the bot stops, so we
           // intentionally do not await it here.
-          this.bot
+          bot
             .launch()
-            .catch((err) =>
-              this.logger.error(
-                `Long polling failed: ${(err as Error).message}`,
-              ),
-            );
+            .catch((err) => this.logger.error(`Long polling failed: ${(err as Error).message}`));
           this.logger.log('Bot started in long-polling mode (local dev)');
         });
     }
   }
 
   async onModuleDestroy() {
-    if (this.polling) {
+    if (this.polling && this.bot) {
       this.bot.stop('SIGTERM');
     }
   }
 
-  async handleUpdate(update: unknown) {
-    process.stdout.write('\n### [BOT] handleUpdate ENTRY ###\n');
-    process.stdout.write('[BOT] Has bot instance: ' + !!this.bot + '\n');
-    process.stdout.write('[BOT] Update type: ' + typeof update + '\n');
-    
-    const updateStr = JSON.stringify(update);
-    process.stdout.write('[BOT] Update preview: ' + updateStr.slice(0, 200) + '\n');
-    
-    const updateObj = update as any;
-    if (updateObj?.callback_query) {
-      process.stdout.write('[BOT] Callback data: ' + updateObj.callback_query.data + '\n');
-    } else if (updateObj?.message) {
-      process.stdout.write('[BOT] Message text: ' + (updateObj.message.text?.slice(0, 100) || 'none') + '\n');
-    }
-    
-    try {
-      process.stdout.write('### [BOT] Calling this.bot.handleUpdate() ###\n');
-      await this.bot.handleUpdate(update as any);
-      process.stdout.write('### [BOT] this.bot.handleUpdate() completed ###\n');
-    } catch (err) {
-      process.stdout.write('### [BOT] ERROR in this.bot.handleUpdate() ###\n');
-      process.stdout.write('[BOT] Error: ' + (err instanceof Error ? err.message : String(err)) + '\n');
-      process.stdout.write('[BOT] Stack: ' + (err instanceof Error ? err.stack : 'N/A') + '\n');
-    }
+  async handleUpdate(update: Update): Promise<void> {
+    if (!this.bot) throw new Error('Telegram bot is disabled');
+    await this.bot.handleUpdate(update);
   }
 
   async setWebhook(url: string, secretToken?: string) {
+    if (!this.bot) throw new Error('Telegram bot is disabled');
     await this.bot.telegram.setWebhook(url, {
       secret_token: secretToken,
     });
@@ -198,11 +173,17 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
   }
 
   getTelegram() {
+    if (!this.bot) throw new Error('Telegram bot is disabled');
     return this.bot.telegram;
   }
 
   getBot(): Telegraf {
+    if (!this.bot) throw new Error('Telegram bot is disabled');
     return this.bot;
+  }
+
+  isEnabled(): boolean {
+    return this.bot !== null;
   }
 
   // Registered by the API (TasksBotIntegration) at startup.
@@ -224,11 +205,8 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     return this.taskCreatePort(associationId, input, actingUserId);
   }
 
-  async sendToUser(
-    userId: string,
-    text: string,
-    opts?: SendToUserOptions,
-  ): Promise<boolean> {
+  async sendToUser(userId: string, text: string, opts?: SendToUserOptions): Promise<boolean> {
+    if (!this.bot) return false;
     const account = await this.prisma.telegramAccount.findUnique({
       where: { userId },
       select: { telegramId: true },
@@ -238,13 +216,11 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.bot.telegram.sendMessage(Number(account.telegramId), text, {
         parse_mode: opts?.parseMode ?? 'MarkdownV2',
-        reply_markup: opts?.replyMarkup as any,
+        reply_markup: opts?.replyMarkup,
       });
       return true;
     } catch (err) {
-      this.logger.warn(
-        `Telegram send failed for user ${userId}: ${(err as Error).message}`,
-      );
+      this.logger.warn(`Telegram send failed for user ${userId}: ${(err as Error).message}`);
       return false;
     }
   }

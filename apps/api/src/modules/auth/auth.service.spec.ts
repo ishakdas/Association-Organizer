@@ -5,18 +5,9 @@ jest.mock('jose', () => ({}));
 
 import { Test } from '@nestjs/testing';
 import { mockDeep, DeepMockProxy } from 'jest-mock-extended';
-import {
-  BadRequestException,
-  ConflictException,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  PrismaClient,
-  PrismaService,
-  PendingBranchStatus,
-  Prisma,
-} from '@ticketbot/database';
+import { PrismaClient, PrismaService, PendingBranchStatus, Prisma } from '@ticketbot/database';
 import { AuthService } from './auth.service';
 import { SupabaseAdminService } from '../supabase/supabase-admin.service';
 import { EmailService } from '../email/email.service';
@@ -52,14 +43,12 @@ describe('AuthService.approveBranchRegistration — saga rollback discipline', (
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
-    (prisma.$transaction as unknown as jest.Mock).mockImplementation(
-      async (arg: unknown) => {
-        if (typeof arg === 'function') {
-          return (arg as (tx: PrismaMock) => unknown)(prisma);
-        }
-        return Promise.all(arg as unknown[]);
-      },
-    );
+    (prisma.$transaction as unknown as jest.Mock).mockImplementation(async (arg: unknown) => {
+      if (typeof arg === 'function') {
+        return (arg as (tx: PrismaMock) => unknown)(prisma);
+      }
+      return Promise.all(arg as unknown[]);
+    });
 
     supabaseAuth = {
       createUser: jest.fn().mockResolvedValue({
@@ -77,7 +66,9 @@ describe('AuthService.approveBranchRegistration — saga rollback discipline', (
 
     emailService = {
       sendMagicLink: jest.fn().mockResolvedValue({ messageId: 'msg-123', previewUrl: null }),
-      sendTelegramLinkEmail: jest.fn().mockResolvedValue({ messageId: 'msg-telegram-123', previewUrl: null }),
+      sendTelegramLinkEmail: jest
+        .fn()
+        .mockResolvedValue({ messageId: 'msg-telegram-123', previewUrl: null }),
     };
 
     const config = {
@@ -112,9 +103,9 @@ describe('AuthService.approveBranchRegistration — saga rollback discipline', (
   it('throws NotFoundException when registration does not exist (no Supabase work)', async () => {
     prisma.pendingBranchRegistration.findUnique.mockResolvedValue(null);
 
-    await expect(
-      service.approveBranchRegistration('missing', ADMIN_ID),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.approveBranchRegistration('missing', ADMIN_ID)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
 
     expect(supabaseAuth.createUser).not.toHaveBeenCalled();
     expect(supabaseAuth.deleteUser).not.toHaveBeenCalled();
@@ -126,34 +117,30 @@ describe('AuthService.approveBranchRegistration — saga rollback discipline', (
       status: PendingBranchStatus.APPROVED,
     } as never);
 
-    await expect(
-      service.approveBranchRegistration(REG_ID, ADMIN_ID),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.approveBranchRegistration(REG_ID, ADMIN_ID)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
 
     expect(supabaseAuth.createUser).not.toHaveBeenCalled();
   });
 
   it('throws ConflictException when an active branch already exists for the same city + district', async () => {
-    prisma.pendingBranchRegistration.findUnique.mockResolvedValue(
-      pendingRegistration as never,
-    );
+    prisma.pendingBranchRegistration.findUnique.mockResolvedValue(pendingRegistration as never);
     prisma.association.findFirst.mockResolvedValue({
       id: 'assoc-existing',
       name: 'Mevcut Şube',
       createdBy: { id: 'user-active', supabaseUserId: 'sup-active', activatedAt: new Date() },
     } as never);
 
-    await expect(
-      service.approveBranchRegistration(REG_ID, ADMIN_ID),
-    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.approveBranchRegistration(REG_ID, ADMIN_ID)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
 
     expect(supabaseAuth.createUser).not.toHaveBeenCalled();
   });
 
   it('auto-cleans an orphaned branch (creator never activated) and proceeds with approval', async () => {
-    prisma.pendingBranchRegistration.findUnique.mockResolvedValue(
-      pendingRegistration as never,
-    );
+    prisma.pendingBranchRegistration.findUnique.mockResolvedValue(pendingRegistration as never);
     prisma.association.findFirst.mockResolvedValue({
       id: 'assoc-orphaned',
       name: 'Orphaned Şube',
@@ -170,9 +157,7 @@ describe('AuthService.approveBranchRegistration — saga rollback discipline', (
       id: 'mem-new',
     } as never);
 
-    await expect(
-      service.approveBranchRegistration(REG_ID, ADMIN_ID),
-    ).resolves.toEqual({
+    await expect(service.approveBranchRegistration(REG_ID, ADMIN_ID)).resolves.toEqual({
       emailSent: true,
       magicLink: expect.any(String),
       messageId: expect.any(String),
@@ -184,9 +169,7 @@ describe('AuthService.approveBranchRegistration — saga rollback discipline', (
   });
 
   it('happy path: creates user via Supabase, sends email via Brevo, creates association + membership, does NOT roll back', async () => {
-    prisma.pendingBranchRegistration.findUnique.mockResolvedValue(
-      pendingRegistration as never,
-    );
+    prisma.pendingBranchRegistration.findUnique.mockResolvedValue(pendingRegistration as never);
     prisma.association.findFirst.mockResolvedValue(null);
     prisma.user.upsert.mockResolvedValue({
       id: 'user-new',
@@ -199,9 +182,7 @@ describe('AuthService.approveBranchRegistration — saga rollback discipline', (
       id: 'mem-new',
     } as never);
 
-    await expect(
-      service.approveBranchRegistration(REG_ID, ADMIN_ID),
-    ).resolves.toEqual({
+    await expect(service.approveBranchRegistration(REG_ID, ADMIN_ID)).resolves.toEqual({
       emailSent: true,
       magicLink: expect.any(String),
       messageId: expect.any(String),
@@ -222,9 +203,7 @@ describe('AuthService.approveBranchRegistration — saga rollback discipline', (
   });
 
   it('rolls back the Supabase user when the local transaction fails (CLAUDE.md provisioning saga)', async () => {
-    prisma.pendingBranchRegistration.findUnique.mockResolvedValue(
-      pendingRegistration as never,
-    );
+    prisma.pendingBranchRegistration.findUnique.mockResolvedValue(pendingRegistration as never);
     prisma.association.findFirst.mockResolvedValue(null);
     prisma.user.upsert.mockResolvedValue({ id: 'user-new' } as never);
     prisma.association.create.mockResolvedValue({ id: 'assoc-new' } as never);
@@ -234,41 +213,37 @@ describe('AuthService.approveBranchRegistration — saga rollback discipline', (
     );
     prisma.associationMembership.create.mockRejectedValue(violation);
 
-    await expect(
-      service.approveBranchRegistration(REG_ID, ADMIN_ID),
-    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.approveBranchRegistration(REG_ID, ADMIN_ID)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
 
     expect(supabaseAuth.deleteUser).toHaveBeenCalledWith(SUPABASE_USER_ID);
   });
 
   it('logs and continues when the Supabase rollback itself fails (does not mask the original error)', async () => {
-    prisma.pendingBranchRegistration.findUnique.mockResolvedValue(
-      pendingRegistration as never,
-    );
+    prisma.pendingBranchRegistration.findUnique.mockResolvedValue(pendingRegistration as never);
     prisma.association.findFirst.mockResolvedValue(null);
     prisma.user.upsert.mockRejectedValue(new Error('database unavailable'));
     supabaseAuth.deleteUser.mockRejectedValue(new Error('supabase down'));
 
-    await expect(
-      service.approveBranchRegistration(REG_ID, ADMIN_ID),
-    ).rejects.toThrow('database unavailable');
+    await expect(service.approveBranchRegistration(REG_ID, ADMIN_ID)).rejects.toThrow(
+      'database unavailable',
+    );
 
     expect(supabaseAuth.deleteUser).toHaveBeenCalledWith(SUPABASE_USER_ID);
   });
 
   it('translates Supabase create error into BadRequestException (no rollback needed)', async () => {
-    prisma.pendingBranchRegistration.findUnique.mockResolvedValue(
-      pendingRegistration as never,
-    );
+    prisma.pendingBranchRegistration.findUnique.mockResolvedValue(pendingRegistration as never);
     prisma.association.findFirst.mockResolvedValue(null);
     supabaseAuth.createUser.mockResolvedValue({
       data: { user: null },
       error: { message: 'rate limited' },
     });
 
-    await expect(
-      service.approveBranchRegistration(REG_ID, ADMIN_ID),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.approveBranchRegistration(REG_ID, ADMIN_ID)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
 
     expect(supabaseAdmin.generateMagicLink).not.toHaveBeenCalled();
     expect(supabaseAuth.deleteUser).not.toHaveBeenCalled();
@@ -282,17 +257,17 @@ describe('AuthService.generateLinkTokenWithEmail — Telegram deep link email de
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
-    (prisma.$transaction as unknown as jest.Mock).mockImplementation(
-      async (arg: unknown) => {
-        if (typeof arg === 'function') {
-          return (arg as (tx: PrismaMock) => unknown)(prisma);
-        }
-        return Promise.all(arg as unknown[]);
-      },
-    );
+    (prisma.$transaction as unknown as jest.Mock).mockImplementation(async (arg: unknown) => {
+      if (typeof arg === 'function') {
+        return (arg as (tx: PrismaMock) => unknown)(prisma);
+      }
+      return Promise.all(arg as unknown[]);
+    });
 
     emailService = {
-      sendTelegramLinkEmail: jest.fn().mockResolvedValue({ messageId: 'msg-telegram-456', previewUrl: null }),
+      sendTelegramLinkEmail: jest
+        .fn()
+        .mockResolvedValue({ messageId: 'msg-telegram-456', previewUrl: null }),
     };
 
     const config = {
@@ -362,10 +337,8 @@ describe('AuthService.generateLinkTokenWithEmail — Telegram deep link email de
       'Test User',
       'dernek_organizer_bot',
       expect.stringMatching(/^https:\/\/t\.me\/dernek_organizer_bot\?start=link_/),
-      expect.stringMatching(/^tg:\/\/resolve\?domain=dernek_organizer_bot&start=link_/),
       expect.any(String),
       expect.any(String),
-      expect.stringMatching(/\/connect-telegram\?t=/),
     );
 
     // Verify response shape
@@ -373,18 +346,18 @@ describe('AuthService.generateLinkTokenWithEmail — Telegram deep link email de
       token: expect.any(String),
       expiresAt: expect.any(String),
       deepLinkUrl: expect.stringMatching(/^https:\/\/t\.me\/dernek_organizer_bot\?start=link_/),
-      tgDirectUrl: expect.stringMatching(/^tg:\/\/resolve\?domain=dernek_organizer_bot&start=link_/),
+      tgDirectUrl: expect.stringMatching(
+        /^tg:\/\/resolve\?domain=dernek_organizer_bot&start=link_/,
+      ),
       connectUrl: expect.stringMatching(/\/connect-telegram\?t=/),
       emailSent: true,
       messageId: 'msg-telegram-456',
     });
 
-    // Verify deep link contains the same token
     const callArgs = emailService.sendTelegramLinkEmail.mock.calls[0];
     const deepLinkUrl = callArgs[3] as string;
-    const tgDirectUrl = callArgs[4] as string;
-    const token = callArgs[5] as string;
+    const token = callArgs[4] as string;
     expect(deepLinkUrl).toBe(`https://t.me/dernek_organizer_bot?start=link_${token}`);
-    expect(tgDirectUrl).toBe(`tg://resolve?domain=dernek_organizer_bot&start=link_${token}`);
+    expect(result.tgDirectUrl).toBe(`tg://resolve?domain=dernek_organizer_bot&start=link_${token}`);
   });
 });

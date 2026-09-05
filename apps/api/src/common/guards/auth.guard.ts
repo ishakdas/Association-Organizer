@@ -1,9 +1,4 @@
-import {
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { FastifyRequest } from 'fastify';
 import * as jose from 'jose';
@@ -14,8 +9,7 @@ import type {
   AuthenticatedUser,
 } from '@ticketbot/shared-types';
 import { BOT_JWT_ISSUER } from '../../modules/auth/auth.constants';
-
-type TokenKind = 'bot' | 'supabase';
+import type { AuthenticatedRequest, TokenKind } from '../types/authenticated-request';
 
 interface VerifiedToken {
   kind: TokenKind;
@@ -74,8 +68,9 @@ export class AuthGuard implements CanActivate {
       mustChangePassword: user.mustChangePassword,
     };
 
-    (request as any).user = authUser;
-    (request as any).tokenKind = verified.kind;
+    const authenticatedRequest = request as AuthenticatedRequest;
+    authenticatedRequest.user = authUser;
+    authenticatedRequest.tokenKind = verified.kind;
 
     return true;
   }
@@ -93,9 +88,7 @@ export class AuthGuard implements CanActivate {
     return rows;
   }
 
-  private async loadTelegramAccount(
-    userId: string,
-  ): Promise<AuthTelegramAccount | null> {
+  private async loadTelegramAccount(userId: string): Promise<AuthTelegramAccount | null> {
     const row = await this.prisma.telegramAccount.findUnique({
       where: { userId },
       select: {
@@ -192,11 +185,12 @@ export class AuthGuard implements CanActivate {
     }
 
     // fullName is required by schema; derive from JWT claims or email local-part
-    const meta = (payload as any).user_metadata as
-      | { full_name?: string; name?: string }
-      | undefined;
-    const fullName =
-      meta?.full_name?.trim() || meta?.name?.trim() || email.split('@')[0];
+    const meta = (
+      payload as jose.JWTPayload & {
+        user_metadata?: { full_name?: string; name?: string };
+      }
+    ).user_metadata as { full_name?: string; name?: string } | undefined;
+    const fullName = meta?.full_name?.trim() || meta?.name?.trim() || email.split('@')[0];
 
     return this.prisma.user.upsert({
       where: { email },

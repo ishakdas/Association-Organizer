@@ -2,12 +2,12 @@
 
 ## Prerequisites
 
-| Tool | Version | Purpose |
-|------|---------|---------|
-| Node.js | 20+ | Runtime |
-| pnpm | 10+ | Package manager |
-| Docker & Docker Compose | Latest | PostgreSQL + Redis |
-| Git | Latest | Version control |
+| Tool                    | Version | Purpose            |
+| ----------------------- | ------- | ------------------ |
+| Node.js                 | 20+     | Runtime            |
+| pnpm                    | 10+     | Package manager    |
+| Docker & Docker Compose | Latest  | PostgreSQL + Redis |
+| Git                     | Latest  | Version control    |
 
 ## First-Time Setup
 
@@ -26,10 +26,12 @@ docker compose up -d
 ```
 
 This starts:
+
 - **PostgreSQL 16** on `localhost:5432` (user: `ticketbot`, password: `ticketbot`, db: `ticketbot`)
 - **Redis 7** on `localhost:6379`
 
 Verify they're running:
+
 ```bash
 docker compose ps
 ```
@@ -37,17 +39,11 @@ docker compose ps
 ### 3. Configure Environment
 
 ```bash
-# Database
-cp libs/database/.env.example libs/database/.env
-
-# API
-cp apps/api/.env.example apps/api/.env
-
-# Web
-cp apps/web/.env.example apps/web/.env
+touch .env
 ```
 
-**For local development**, the default values in `.env.example` files work with the Docker containers. You only need to configure:
+All applications and database commands read this one root `.env` file. For local development, configure:
+
 - `SUPABASE_URL` / `SUPABASE_ANON_KEY` / `SUPABASE_JWT_SECRET` — from your Supabase project dashboard
 - `BOT_TOKEN` — from [@BotFather](https://t.me/BotFather) on Telegram
 - `JWT_SECRET` — any random 32+ character string (e.g., `openssl rand -base64 32`)
@@ -115,6 +111,7 @@ pnpm --filter web build
 5. Import the schema in your controller and use `ZodValidationPipe`
 
 Example:
+
 ```typescript
 @Post()
 create(
@@ -142,6 +139,7 @@ create(
 ### Nx Caching
 
 Nx caches build outputs locally. To clear the cache:
+
 ```bash
 npx nx reset
 ```
@@ -173,7 +171,6 @@ Build targets that should NOT be cached (like `prisma generate`) have `"cache": 
 │   │   │       ├── extensions/   # Stubbed
 │   │   │       ├── notifications/# Stubbed
 │   │   │       └── jobs/         # Stubbed (BullMQ)
-│   │   ├── .env.example
 │   │   └── jest.config.ts
 │   │
 │   ├── bot/                      # Telegraf bot (runs inside API)
@@ -185,7 +182,6 @@ Build targets that should NOT be cached (like `prisma generate`) have `"cache": 
 │   │   │   ├── handlers/         # Inline keyboard callback handlers
 │   │   │   ├── keyboards/        # Inline keyboard builders
 │   │   │   └── utils/            # MarkdownV2 formatter
-│   │   └── .env.example
 │   │
 │   └── web/                      # Next.js 15 App Router
 │       ├── src/
@@ -199,8 +195,7 @@ Build targets that should NOT be cached (like `prisma generate`) have `"cache": 
 │       │   │   └── api/          # API client + ticket fetchers
 │       │   ├── components/       # React components
 │       │   └── middleware.ts     # Auth redirect middleware
-│       ├── next.config.ts
-│       └── .env.example
+│       └── next.config.ts
 │
 ├── libs/
 │   ├── database/                 # Prisma ORM layer
@@ -241,26 +236,31 @@ Build targets that should NOT be cached (like `prisma generate`) have `"cache": 
 ## Debugging
 
 ### API not starting?
+
 - Check `DATABASE_URL` is correct and PostgreSQL is running: `docker compose ps`
 - Check all required env vars are set: the API validates on startup and prints missing vars
 - Check port 3000 isn't in use: `lsof -i :3000`
 
 ### Prisma errors?
+
 - Run `pnpm db:generate` after any schema change
 - Run `pnpm db:migrate` to apply pending migrations
 - If migrations are out of sync: `pnpm --filter @ticketbot/database prisma migrate reset` (destroys data)
 
 ### Bot not receiving messages?
+
 - In local dev, the webhook can't be set (no public URL). Use [ngrok](https://ngrok.com/) to expose port 3000
 - Or override to polling mode for local testing (not implemented in v1)
 - Check `BOT_TOKEN` is correct
 
 ### TypeScript path aliases not resolving?
+
 - Ensure you're importing from `@ticketbot/<package>` not relative paths
 - The `tsconfig.base.json` paths map to source files (not compiled output)
 - For apps, `tsconfig.json` uses `noEmit: true` (type-check only); `tsconfig.build.json` compiles
 
 ### Next.js build fails on workspace imports?
+
 - Check `transpilePackages` in `apps/web/next.config.ts` includes the workspace package
 - Ensure the lib's `tsconfig.json` doesn't set `rootDir` (it conflicts with path aliases)
 
@@ -269,6 +269,7 @@ Build targets that should NOT be cached (like `prisma generate`) have `"cache": 
 This is a v1 foundation. There are **62 tracked GitHub issues** covering everything from stubbed modules to production hardening, security, GDPR, and operational readiness.
 
 See [docs/ROADMAP.md](ROADMAP.md) for the full phased implementation plan:
+
 - **Phase 1** (17 issues): Core features — system is non-functional without these
 - **Phase 2** (10 issues): Security & infrastructure — required before production
 - **Phase 3** (7 issues): UX & operations — usable and maintainable

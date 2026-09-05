@@ -4,11 +4,10 @@ import { config as loadEnv } from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import PgBoss from 'pg-boss';
 
-loadEnv({ path: path.resolve(__dirname, '..', '.env') });
+loadEnv({ path: path.resolve(__dirname, '../../..', '.env.local'), quiet: true });
 
 const TARGET_USER_ID = process.env.SMOKE_USER_ID ?? 'cmoeyrn7a000co6hq83mcmh0w';
-const TARGET_ASSOCIATION_ID =
-  process.env.SMOKE_ASSOCIATION_ID ?? 'cmoeyqd820006o6hq9jbvvphd';
+const TARGET_ASSOCIATION_ID = process.env.SMOKE_ASSOCIATION_ID ?? 'cmoeyqd820006o6hq9jbvvphd';
 const QUEUE_NAME = 'task-reminders';
 const REMINDER_DELAY_SEC = 90;
 const DUE_DELAY_MIN = 10;
@@ -61,9 +60,7 @@ async function main() {
     select: { id: true, role: true },
   });
   if (!membership) {
-    console.error(
-      `User ${TARGET_USER_ID} is not active member of ${TARGET_ASSOCIATION_ID}`,
-    );
+    console.error(`User ${TARGET_USER_ID} is not active member of ${TARGET_ASSOCIATION_ID}`);
     await prisma.$disconnect();
     process.exit(1);
   }
@@ -126,9 +123,7 @@ async function main() {
   await boss.stop({ graceful: true, wait: true });
   await prisma.$disconnect();
 
-  console.log(
-    `\nExpect a Telegram message in ~${REMINDER_DELAY_SEC}s. Task id: ${task.id}`,
-  );
+  console.log(`\nExpect a Telegram message in ~${REMINDER_DELAY_SEC}s. Task id: ${task.id}`);
 }
 
 main().catch(async (err) => {

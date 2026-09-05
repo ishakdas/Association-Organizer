@@ -9,20 +9,23 @@ import { meetingSessionActivity } from './meeting.wizard';
 const MEMBERS_PER_PAGE = 5;
 const TASKS_PER_PAGE = 5;
 
-const taskSessions = new Map<number, {
-  userId: string;
-  step: 'member' | 'tasks' | 'my-tasks';
-  associationId: string;
-  memberPage?: number;
-  tasksPage?: number;
-  // Görüntülenen numara → görev id eşlemesi (liste sırasıyla birebir; numara
-  // N -> taskIds[N-1]). Kullanıcı numarayı yazınca aksiyon menüsü açmak için.
-  taskIds?: string[];
-  // Numaralı listenin en son gösterildiği an (epoch ms). Numara girişinde
-  // "liste mi yoksa yarım kalan bir sihirbaz mı daha yeni" kararı için.
-  listShownAt?: number;
-  expiresAt: number;
-}>();
+const taskSessions = new Map<
+  number,
+  {
+    userId: string;
+    step: 'member' | 'tasks' | 'my-tasks';
+    associationId: string;
+    memberPage?: number;
+    tasksPage?: number;
+    // Görüntülenen numara → görev id eşlemesi (liste sırasıyla birebir; numara
+    // N -> taskIds[N-1]). Kullanıcı numarayı yazınca aksiyon menüsü açmak için.
+    taskIds?: string[];
+    // Numaralı listenin en son gösterildiği an (epoch ms). Numara girişinde
+    // "liste mi yoksa yarım kalan bir sihirbaz mı daha yeni" kararı için.
+    listShownAt?: number;
+    expiresAt: number;
+  }
+>();
 
 const PRIORITY_LABEL: Record<string, string> = {
   HIGH: '🔴 Yüksek',
@@ -56,7 +59,9 @@ function fmtDate(iso: string | null): string {
 }
 
 function isManagerOrSecretary(role: string): boolean {
-  return role === 'SYSTEM_ADMIN' || role === 'ASSOCIATION_MANAGER' || role === 'ASSOCIATION_SECRETARY';
+  return (
+    role === 'SYSTEM_ADMIN' || role === 'ASSOCIATION_MANAGER' || role === 'ASSOCIATION_SECRETARY'
+  );
 }
 
 export function registerTaskListCommand(bot: Telegraf, prisma: PrismaService) {
@@ -97,10 +102,7 @@ export function registerTaskListCommand(bot: Telegraf, prisma: PrismaService) {
           associationId: m.associationId,
           userId: account.userId,
           action: {
-            in: [
-              PermissionAction.USE_TASK_COMMANDS,
-              PermissionAction.VIEW_ALL_MEMBER_TASKS,
-            ],
+            in: [PermissionAction.USE_TASK_COMMANDS, PermissionAction.VIEW_ALL_MEMBER_TASKS],
           },
         },
         select: { action: true },
@@ -109,11 +111,7 @@ export function registerTaskListCommand(bot: Telegraf, prisma: PrismaService) {
       if (grants.length > 0) {
         eligible.push(m);
       }
-      if (
-        grants.some(
-          (g) => g.action === PermissionAction.VIEW_ALL_MEMBER_TASKS,
-        )
-      ) {
+      if (grants.some((g) => g.action === PermissionAction.VIEW_ALL_MEMBER_TASKS)) {
         canViewAllByAssoc.set(m.associationId, true);
       }
     }
@@ -125,8 +123,7 @@ export function registerTaskListCommand(bot: Telegraf, prisma: PrismaService) {
     const assoc = eligible[0].association;
     const membership = eligible[0];
     const canViewAll =
-      isManagerOrSecretary(membership.role) ||
-      canViewAllByAssoc.get(assoc.id) === true;
+      isManagerOrSecretary(membership.role) || canViewAllByAssoc.get(assoc.id) === true;
 
     if (canViewAll) {
       taskSessions.set(fromId, {
@@ -274,25 +271,14 @@ export function registerTaskListCommand(bot: Telegraf, prisma: PrismaService) {
     const num = parseInt(text, 10);
     const taskId = s.taskIds[num];
     if (!taskId) {
-      return ctx.reply(
-        `⚠️ ${num} numaralı görev bu listede yok. Listedeki bir numara yaz.`,
-      );
+      return ctx.reply(`⚠️ ${num} numaralı görev bu listede yok. Listedeki bir numara yaz.`);
     }
 
-    return showTaskActions(ctx, prisma, taskId, s.userId);
+    return showTaskActions(ctx, prisma, taskId);
   });
 }
 
-// Tek bir görevin özetini + aksiyon klavyesini gösterir. Yetki: işlemi yapan
-// ya görevin sahibi (assignee) ya da derneğde yönetici/sekreter olmalı —
-// servis katmanı (markCompletedViaBot vb.) zaten doğruluyor; burada sadece
-// görünürlük için derneğe ait olup olmadığına bakıyoruz.
-async function showTaskActions(
-  ctx: any,
-  prisma: PrismaService,
-  taskId: string,
-  viewerUserId: string,
-) {
+async function showTaskActions(ctx: any, prisma: PrismaService, taskId: string) {
   const task = await prisma.task.findFirst({
     where: { id: taskId, deletedAt: null },
     include: { assignedTo: { select: { fullName: true } } },
@@ -308,9 +294,7 @@ async function showTaskActions(
   let message = `${icon} *${escapeMarkdown(task.title)}*\n\n`;
   if (task.description) {
     const desc =
-      task.description.length > 300
-        ? task.description.slice(0, 300) + '…'
-        : task.description;
+      task.description.length > 300 ? task.description.slice(0, 300) + '…' : task.description;
     message += `${escapeMarkdown(desc)}\n\n`;
   }
   message += `Durum: *${statusLabel}*\n`;
@@ -320,7 +304,6 @@ async function showTaskActions(
     message += `Bitiş: 📅 ${fmtDate(task.dueDate.toISOString())}\n`;
   }
 
-  // Kapalı görevlerde aksiyon klavyesi gösterme.
   if (task.status === 'COMPLETED' || task.status === 'CANCELLED') {
     return ctx.reply(message + `\n_Bu görev kapalı; işlem yapılamaz._`, {
       parse_mode: 'Markdown',
@@ -353,21 +336,19 @@ async function showMyTasks(
   });
 
   if (tasks.length === 0) {
-    const keyboard = Markup.inlineKeyboard([
-      [Markup.button.callback('❌ Kapat', 'gtl:close')],
-    ]);
+    const keyboard = Markup.inlineKeyboard([[Markup.button.callback('❌ Kapat', 'gtl:close')]]);
 
     if (editMode) {
       await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
-      return ctx.reply(
-        `📋 *${assoc.name}* - Görevlerim\n\nHenüz atanmış görev yok.`,
-        { parse_mode: 'Markdown', ...keyboard },
-      );
+      return ctx.reply(`📋 *${assoc.name}* - Görevlerim\n\nHenüz atanmış görev yok.`, {
+        parse_mode: 'Markdown',
+        ...keyboard,
+      });
     }
-    return ctx.reply(
-      `📋 *${assoc.name}* - Görevlerim\n\nHenüz atanmış görev yok.`,
-      { parse_mode: 'Markdown', ...keyboard },
-    );
+    return ctx.reply(`📋 *${assoc.name}* - Görevlerim\n\nHenüz atanmış görev yok.`, {
+      parse_mode: 'Markdown',
+      ...keyboard,
+    });
   }
 
   const totalPages = Math.ceil(tasks.length / TASKS_PER_PAGE);
@@ -508,7 +489,11 @@ async function showMemberSelection(
 
   navButtons.push([Markup.button.callback('❌ Kapat', 'gtl:close')]);
 
-  const keyboard = Markup.inlineKeyboard(navButtons.length > 0 ? [...buttons.map((b) => [b]), ...navButtons] : [...buttons.map((b) => [b]), ...navButtons]);
+  const keyboard = Markup.inlineKeyboard(
+    navButtons.length > 0
+      ? [...buttons.map((b) => [b]), ...navButtons]
+      : [...buttons.map((b) => [b]), ...navButtons],
+  );
 
   if (editMode) {
     return ctx.editMessageText(message, { parse_mode: 'Markdown', ...keyboard });
@@ -545,15 +530,15 @@ async function showMemberTasks(
 
     if (editMode) {
       await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
-      return ctx.reply(
-        `📋 *${member.user.fullName}* - Görevleri\n\nHenüz atanmış görev yok.`,
-        { parse_mode: 'Markdown', ...keyboard },
-      );
+      return ctx.reply(`📋 *${member.user.fullName}* - Görevleri\n\nHenüz atanmış görev yok.`, {
+        parse_mode: 'Markdown',
+        ...keyboard,
+      });
     }
-    return ctx.reply(
-      `📋 *${member.user.fullName}* - Görevleri\n\nHenüz atanmış görev yok.`,
-      { parse_mode: 'Markdown', ...keyboard },
-    );
+    return ctx.reply(`📋 *${member.user.fullName}* - Görevleri\n\nHenüz atanmış görev yok.`, {
+      parse_mode: 'Markdown',
+      ...keyboard,
+    });
   }
 
   const totalPages = Math.ceil(tasks.length / TASKS_PER_PAGE);

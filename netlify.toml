@@ -24,6 +24,12 @@
   # NEXT_PUBLIC_* values (API URL, Supabase URL/anon key) are set in the
   # Netlify dashboard UI per environment so they never get committed.
 
+[context.production.environment]
+  APP_ENV = "production"
+
+[context.deploy-preview.environment]
+  APP_ENV = "preview"
+
 # Netlify's Next.js runtime: enables SSR, ISR, image optimization, and
 # serverless function emission from the .next build. Required for App
 # Router projects.

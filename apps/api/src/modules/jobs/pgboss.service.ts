@@ -1,21 +1,14 @@
-import {
-  Injectable,
-  Logger,
-  OnApplicationShutdown,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, Logger, OnApplicationShutdown, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import PgBoss from 'pg-boss';
-import {
-  EVENT_REMINDERS_QUEUE,
-  TASK_REMINDERS_QUEUE,
-} from './jobs.constants';
+import { EVENT_REMINDERS_QUEUE, TASK_REMINDERS_QUEUE } from './jobs.constants';
 
 export type WorkHandler<T> = (job: PgBoss.Job<T>) => Promise<void>;
 
 @Injectable()
 export class PgBossService implements OnModuleInit, OnApplicationShutdown {
   private readonly logger = new Logger(PgBossService.name);
+  private readonly enabled: boolean;
   private boss: PgBoss | null = null;
   private startupPromise: Promise<void> | null = null;
   // Serialise `boss.work()` registrations to dodge the same metadata
@@ -23,7 +16,9 @@ export class PgBossService implements OnModuleInit, OnApplicationShutdown {
   // Boot is one-time so this costs ~milliseconds total.
   private workChain: Promise<void> = Promise.resolve();
 
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService) {
+    this.enabled = this.config.get<boolean>('jobs.enabled') ?? false;
+  }
 
   async onModuleInit(): Promise<void> {
     await this.ensureStarted();
@@ -42,6 +37,7 @@ export class PgBossService implements OnModuleInit, OnApplicationShutdown {
   }
 
   async ensureStarted(): Promise<void> {
+    if (!this.enabled) return;
     if (this.boss) return;
     if (this.startupPromise) {
       await this.startupPromise;
@@ -62,27 +58,25 @@ export class PgBossService implements OnModuleInit, OnApplicationShutdown {
     data: T,
     options: PgBoss.SendOptions,
   ): Promise<string | null> {
+    if (!this.enabled) return null;
     const boss = await this.getBoss();
     return boss.send(queue, data, options);
   }
 
   async cancel(queue: string, id: string): Promise<void> {
+    if (!this.enabled) return;
     const boss = await this.getBoss();
     try {
       await boss.cancel(queue, id);
     } catch (err) {
       // pg-boss throws if the job is already completed or cancelled.
       // Callers don't need to special-case that.
-      this.logger.debug(
-        `cancel(${queue}, ${id}) ignored: ${(err as Error).message}`,
-      );
+      this.logger.debug(`cancel(${queue}, ${id}) ignored: ${(err as Error).message}`);
     }
   }
 
-  async work<T extends object>(
-    queue: string,
-    handler: WorkHandler<T>,
-  ): Promise<void> {
+  async work<T extends object>(queue: string, handler: WorkHandler<T>): Promise<void> {
+    if (!this.enabled) return;
     const boss = await this.getBoss();
     const next = this.workChain.then(() =>
       boss.work<T>(queue, async (jobs) => {
@@ -114,8 +108,7 @@ export class PgBossService implements OnModuleInit, OnApplicationShutdown {
     // set (Supabase direct connection on :5432); fall back to DATABASE_URL
     // for local dev where there's only one URL.
     const connectionString =
-      this.config.get<string>('database.directUrl') ??
-      this.config.get<string>('database.url');
+      this.config.get<string>('database.directUrl') ?? this.config.get<string>('database.url');
 
     if (!connectionString) {
       throw new Error('pg-boss: neither DIRECT_URL nor DATABASE_URL is set');
@@ -129,9 +122,7 @@ export class PgBossService implements OnModuleInit, OnApplicationShutdown {
       pollingIntervalSeconds: 5,
     });
 
-    boss.on('error', (err) =>
-      this.logger.error(`pg-boss error: ${err.message}`, err.stack),
-    );
+    boss.on('error', (err) => this.logger.error(`pg-boss error: ${err.message}`, err.stack));
 
     await boss.start();
 

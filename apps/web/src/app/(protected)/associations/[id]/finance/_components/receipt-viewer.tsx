@@ -44,9 +44,7 @@ export function ReceiptViewer({ receiptUrl, description }: Props) {
               Fiş / Fatura
             </DialogTitle>
             {description && (
-              <DialogDescription className="text-xs">
-                {description}
-              </DialogDescription>
+              <DialogDescription className="text-xs">{description}</DialogDescription>
             )}
           </DialogHeader>
 
@@ -67,9 +65,7 @@ export function ReceiptViewer({ receiptUrl, description }: Props) {
             {isPdf && (
               <div className="rounded-lg border p-4 text-center">
                 <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
-                <p className="text-sm text-muted-foreground mb-3">
-                  Bu dosya PDF formatındadır.
-                </p>
+                <p className="text-sm text-muted-foreground mb-3">Bu dosya PDF formatındadır.</p>
                 <a
                   href={receiptUrl}
                   target="_blank"
@@ -77,7 +73,7 @@ export function ReceiptViewer({ receiptUrl, description }: Props) {
                   className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
                 >
                   <ExternalLink className="h-3.5 w-3.5" />
-                  PDF'i Yeni Sekmede Aç
+                  PDF&apos;i Yeni Sekmede Aç
                 </a>
               </div>
             )}

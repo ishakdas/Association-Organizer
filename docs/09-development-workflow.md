@@ -84,8 +84,7 @@ pnpm --filter web add <package>
 pnpm install
 
 # 2. Set up environment files
-cp apps/api/.env.example apps/api/.env
-cp apps/web/.env.example apps/web/.env.local
+touch .env
 
 # 3. Start database (if using Docker)
 docker-compose up -d
@@ -105,7 +104,7 @@ pnpm dev
 
 ### Environment Variables
 
-**API** (`apps/api/.env`):
+**API and Web** (root `.env`):
 
 ```env
 DATABASE_URL=postgresql://user:password@localhost:5432/db
@@ -123,8 +122,6 @@ API_URL=http://localhost:3000
 WEB_URL=http://localhost:3001
 ```
 
-**Web** (`apps/web/.env.local`):
-
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
@@ -132,6 +129,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3000
 ```
 
 **Important**:
+
 - `SUPABASE_SERVICE_ROLE_KEY` is backend-only
 - Never use service role key in web or `NEXT_PUBLIC_*` vars
 - Environment is validated on API boot via Zod
@@ -151,14 +149,14 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: association_organizer
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - '6379:6379'
 
 volumes:
   postgres_data:
@@ -219,12 +217,14 @@ pnpm lint
 ### Naming Conventions
 
 **Files**:
+
 - Components: `PascalCase.tsx` (e.g., `TaskCard.tsx`)
 - Utilities: `camelCase.ts` (e.g., `dateUtils.ts`)
 - Tests: `*.spec.ts` or `*.test.ts`
 - DTOs: `*.dto.ts` (e.g., `create-task.dto.ts`)
 
 **Variables/Functions**:
+
 - Variables: `camelCase`
 - Constants: `UPPER_SNAKE_CASE`
 - Functions: `camelCase`
@@ -232,6 +232,7 @@ pnpm lint
 - Interfaces: `PascalCase` (no `I` prefix)
 
 **Database**:
+
 - Tables: `snake_case` (e.g., `association_memberships`)
 - Columns: `snake_case` (e.g., `created_at`)
 - Models: `PascalCase` (e.g., `AssociationMembership`)
@@ -298,7 +299,11 @@ export class XController {
   constructor(private readonly xService: XService) {}
 
   @Get()
-  @AssociationRoles(UserRole.ASSOCIATION_MANAGER, UserRole.ASSOCIATION_SECRETARY, UserRole.ASSOCIATION_MEMBER)
+  @AssociationRoles(
+    UserRole.ASSOCIATION_MANAGER,
+    UserRole.ASSOCIATION_SECRETARY,
+    UserRole.ASSOCIATION_MEMBER,
+  )
   findAll(@Param('associationId') associationId: string) {
     return this.xService.findAll(associationId);
   }
@@ -325,7 +330,7 @@ export class XService {
   async findAll(associationId: string) {
     return this.prisma.x.findMany({
       where: { associationId, deletedAt: null },
-      orderBy: { createdAt: 'desc' }
+      orderBy: { createdAt: 'desc' },
     });
   }
 
@@ -333,8 +338,8 @@ export class XService {
     return this.prisma.x.create({
       data: {
         associationId,
-        ...dto
-      }
+        ...dto,
+      },
     });
   }
 }
@@ -374,7 +379,7 @@ import { createXSchema } from '@ticketbot/shared-validation';
 
 export class CreateXDto {
   static schema = createXSchema;
-  
+
   name: string;
   description?: string;
 }
@@ -401,7 +406,7 @@ throw new BadRequestException({
   title: 'Invalid Input',
   status: 400,
   detail: 'The provided data is invalid',
-  errors: { name: ['Name is required'] }
+  errors: { name: ['Name is required'] },
 });
 ```
 
@@ -451,7 +456,7 @@ async function main() {
       email: 'admin@example.com',
       fullName: 'System Admin',
       // ...
-    }
+    },
   });
 
   // Create sample association
@@ -460,7 +465,7 @@ async function main() {
       name: 'Sample Association',
       createdById: admin.id,
       // ...
-    }
+    },
   });
 
   console.log('Seed completed');
@@ -514,10 +519,10 @@ describe('XService', () => {
             x: {
               findMany: jest.fn(),
               create: jest.fn(),
-            }
-          }
-        }
-      ]
+            },
+          },
+        },
+      ],
     }).compile();
 
     service = module.get<XService>(XService);
@@ -555,7 +560,7 @@ describe('XController (e2e)', () => {
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
-      imports: [AppModule]
+      imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
@@ -563,9 +568,7 @@ describe('XController (e2e)', () => {
   });
 
   it('/associations/:id/x (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/associations/1/x')
-      .expect(200);
+    return request(app.getHttpServer()).get('/associations/1/x').expect(200);
   });
 });
 ```
@@ -600,9 +603,9 @@ Coverage output in `coverage/` directory.
 
 - **main**: Production-ready code
 - **develop**: Integration branch
-- **feature/***: Feature branches
-- **bugfix/***: Bug fix branches
-- **hotfix/***: Production hotfixes
+- **feature/\***: Feature branches
+- **bugfix/\***: Bug fix branches
+- **hotfix/\***: Production hotfixes
 
 ### Commit Messages
 
@@ -617,6 +620,7 @@ Follow Conventional Commits:
 ```
 
 **Types**:
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation
@@ -711,7 +715,7 @@ Or in code:
 
 ```typescript
 const prisma = new PrismaClient({
-  log: ['query', 'info', 'warn', 'error']
+  log: ['query', 'info', 'warn', 'error'],
 });
 ```
 

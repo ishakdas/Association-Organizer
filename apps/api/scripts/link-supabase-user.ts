@@ -7,10 +7,10 @@
  *     web app, so AuthGuard's auto-link upsert never fired.
  *
  * Usage:
- *   pnpm dotenv -e apps/api/.env -- pnpm tsx apps/api/scripts/link-supabase-user.ts <email>
+ *   pnpm dotenv -e .env -- pnpm tsx apps/api/scripts/link-supabase-user.ts <email>
  *
  * Example:
- *   pnpm dotenv -e apps/api/.env -- pnpm tsx apps/api/scripts/link-supabase-user.ts admin@dev.local
+ *   pnpm dotenv -e .env -- pnpm tsx apps/api/scripts/link-supabase-user.ts admin@dev.local
  */
 
 import { PrismaClient } from '@prisma/client';
@@ -43,9 +43,7 @@ async function main() {
       perPage: 200,
     });
     if (error) throw error;
-    authUser =
-      data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase()) ??
-      null;
+    authUser = data.users.find((u) => u.email?.toLowerCase() === email.toLowerCase()) ?? null;
     if (authUser) break;
     if (data.users.length < 200) break;
     page += 1;
@@ -53,9 +51,7 @@ async function main() {
 
   if (!authUser) {
     console.error(`No Supabase auth user found with email ${email}`);
-    console.error(
-      'Create one in Supabase Studio → Authentication → Users first.',
-    );
+    console.error('Create one in Supabase Studio → Authentication → Users first.');
     process.exit(1);
   }
 
@@ -63,9 +59,7 @@ async function main() {
   try {
     const dbUser = await prisma.user.findUnique({ where: { email } });
     if (!dbUser) {
-      console.error(
-        `No DB user found with email ${email}. Run seed or insert the row first.`,
-      );
+      console.error(`No DB user found with email ${email}. Run seed or insert the row first.`);
       process.exit(1);
     }
 

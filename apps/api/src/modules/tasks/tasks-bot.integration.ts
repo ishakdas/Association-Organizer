@@ -27,6 +27,11 @@ const TR_FORMATTER = new Intl.DateTimeFormat('tr-TR', {
   timeZone: 'Europe/Istanbul',
 });
 
+interface CallbackContext {
+  from?: { id: number };
+  answerCbQuery(message: string, options?: { show_alert?: boolean }): Promise<unknown>;
+}
+
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
 const ISTANBUL_OFFSET_MS = 3 * HOUR_MS; // Türkiye does not observe DST.
@@ -50,33 +55,32 @@ export class TasksBotIntegration implements OnModuleInit {
   ) {}
 
   onModuleInit() {
+    if (!this.botService.isEnabled()) return;
     const bot = this.botService.getBot();
 
     // Wire the dependency-inversion port so wizard-created (/gorev) tasks
     // go through TasksService.create — same reminder scheduling, atama
     // klavyesi and üyelik doğrulaması as web-created tasks.
-    this.botService.setTaskCreatePort(
-      async (associationId, input, actingUserId) => {
-        const created = await this.tasks.create(
-          associationId,
-          {
-            title: input.title,
-            description: input.description ?? undefined,
-            assignedToUserId: input.assignedToUserId,
-            priority: input.priority,
-            reminderFrequency: 'NONE',
-            dueDate: input.dueDate ?? undefined,
-          } as unknown as CreateTaskInput,
-          { id: actingUserId } as unknown as AuthenticatedUser,
-        );
-        return {
-          id: created.id,
-          title: created.title,
-          dueDate: created.dueDate ?? null,
-          assignedTo: created.assignedTo ?? null,
-        };
-      },
-    );
+    this.botService.setTaskCreatePort(async (associationId, input, actingUserId) => {
+      const created = await this.tasks.create(
+        associationId,
+        {
+          title: input.title,
+          description: input.description ?? undefined,
+          assignedToUserId: input.assignedToUserId,
+          priority: input.priority,
+          reminderFrequency: 'NONE',
+          dueDate: input.dueDate ?? undefined,
+        } as unknown as CreateTaskInput,
+        { id: actingUserId } as unknown as AuthenticatedUser,
+      );
+      return {
+        id: created.id,
+        title: created.title,
+        dueDate: created.dueDate ?? null,
+        assignedTo: created.assignedTo ?? null,
+      };
+    });
 
     bot.action(/^task_done:(.+)$/, async (ctx) => {
       const taskId = ctx.match[1];
@@ -137,9 +141,7 @@ export class TasksBotIntegration implements OnModuleInit {
       await this.handleWithUser(ctx, async (userId) => {
         const task = await this.tasks.extendDueDate(taskId, userId, 1);
         const due = task.dueDate ? TR_FORMATTER.format(task.dueDate) : '—';
-        await ctx
-          .editMessageText(`⏭ 1 gün ertelendi\nYeni bitiş: ${due}`)
-          .catch(() => undefined);
+        await ctx.editMessageText(`⏭ 1 gün ertelendi\nYeni bitiş: ${due}`).catch(() => undefined);
         await ctx.answerCbQuery('Ertelendi');
       });
     });
@@ -174,20 +176,11 @@ export class TasksBotIntegration implements OnModuleInit {
         return;
       }
       await this.handleWithUser(ctx, async (userId) => {
-        const ctxTask = await this.tasks.getAssignmentBotContext(
-          taskId,
-          userId,
-        );
+        const ctxTask = await this.tasks.getAssignmentBotContext(taskId, userId);
         const base = ctxTask.dueDate ?? new Date();
         const newDue = new Date(base.getTime() + preset.ms);
-        const updated = await this.tasks.snoozeDueDateViaBot(
-          taskId,
-          userId,
-          newDue,
-        );
-        const due = updated.dueDate
-          ? TR_FORMATTER.format(updated.dueDate)
-          : '—';
+        const updated = await this.tasks.snoozeDueDateViaBot(taskId, userId, newDue);
+        const due = updated.dueDate ? TR_FORMATTER.format(updated.dueDate) : '—';
         await ctx
           .editMessageText(`⏰ Ertelendi (${preset.label})\nYeni bitiş: ${due}`)
           .catch(() => undefined);
@@ -212,9 +205,7 @@ export class TasksBotIntegration implements OnModuleInit {
           return;
         }
         await ctx
-          .editMessageReplyMarkup(
-            snoozeCalendarKeyboard(taskId, ym.year, ym.month).reply_markup,
-          )
+          .editMessageReplyMarkup(snoozeCalendarKeyboard(taskId, ym.year, ym.month).reply_markup)
           .catch(() => undefined);
         await ctx.answerCbQuery();
       });
@@ -227,26 +218,15 @@ export class TasksBotIntegration implements OnModuleInit {
       const taskId = ctx.match[1];
       const ymd = ctx.match[2];
       await this.handleWithUser(ctx, async (userId) => {
-        const ctxTask = await this.tasks.getAssignmentBotContext(
-          taskId,
-          userId,
-        );
+        const ctxTask = await this.tasks.getAssignmentBotContext(taskId, userId);
         const newDue = istanbulDateAtTimeOf(ymd, ctxTask.dueDate);
         if (!newDue) {
           await ctx.answerCbQuery('Geçersiz tarih');
           return;
         }
-        const updated = await this.tasks.snoozeDueDateViaBot(
-          taskId,
-          userId,
-          newDue,
-        );
-        const due = updated.dueDate
-          ? TR_FORMATTER.format(updated.dueDate)
-          : '—';
-        await ctx
-          .editMessageText(`⏰ Ertelendi\nYeni bitiş: ${due}`)
-          .catch(() => undefined);
+        const updated = await this.tasks.snoozeDueDateViaBot(taskId, userId, newDue);
+        const due = updated.dueDate ? TR_FORMATTER.format(updated.dueDate) : '—';
+        await ctx.editMessageText(`⏰ Ertelendi\nYeni bitiş: ${due}`).catch(() => undefined);
         await ctx.answerCbQuery('Ertelendi');
       });
     });
@@ -260,9 +240,7 @@ export class TasksBotIntegration implements OnModuleInit {
       await this.handleWithUser(ctx, async (userId) => {
         await this.tasks.getAssignmentBotContext(taskId, userId);
         await ctx
-          .editMessageReplyMarkup(
-            reminderActionsKeyboard(taskId).reply_markup,
-          )
+          .editMessageReplyMarkup(reminderActionsKeyboard(taskId).reply_markup)
           .catch(() => undefined);
         await ctx.answerCbQuery();
       });
@@ -276,15 +254,11 @@ export class TasksBotIntegration implements OnModuleInit {
       const taskId = ctx.match[1];
       await this.handleWithUser(ctx, async (userId) => {
         const updated = await this.tasks.acceptViaBot(taskId, userId);
-        const icsUrl = updated.dueDate
-          ? this.icsTokens.signTaskIcsUrl(taskId)
-          : undefined;
+        const icsUrl = updated.dueDate ? this.icsTokens.signTaskIcsUrl(taskId) : undefined;
         const extra = icsUrl
           ? {
               reply_markup: {
-                inline_keyboard: [
-                  [{ text: '📅 Takvime ekle', url: icsUrl }],
-                ],
+                inline_keyboard: [[{ text: '📅 Takvime ekle', url: icsUrl }]],
               },
             }
           : undefined;
@@ -305,9 +279,7 @@ export class TasksBotIntegration implements OnModuleInit {
       await this.handleWithUser(ctx, async (userId) => {
         await this.tasks.disputeViaBot(taskId, userId);
         await ctx
-          .editMessageText(
-            '❌ İtiraz iletildi.\nYöneticinin görevi yeniden atamasını bekliyoruz.',
-          )
+          .editMessageText('❌ İtiraz iletildi.\nYöneticinin görevi yeniden atamasını bekliyoruz.')
           .catch(() => undefined);
         await ctx.answerCbQuery('İtiraz iletildi');
       });
@@ -317,7 +289,7 @@ export class TasksBotIntegration implements OnModuleInit {
   }
 
   private async handleWithUser(
-    ctx: any,
+    ctx: CallbackContext,
     fn: (userId: string) => Promise<void>,
   ): Promise<void> {
     const telegramId = ctx.from?.id;
@@ -340,10 +312,7 @@ export class TasksBotIntegration implements OnModuleInit {
     } catch (err) {
       if (err instanceof ForbiddenException) {
         await ctx.answerCbQuery('Bu göreve yetkiniz yok', { show_alert: true });
-      } else if (
-        err instanceof NotFoundException ||
-        err instanceof BadRequestException
-      ) {
+      } else if (err instanceof NotFoundException || err instanceof BadRequestException) {
         await ctx.answerCbQuery((err as Error).message);
       } else {
         this.logger.error('Task callback failed', err as Error);
@@ -360,9 +329,7 @@ function istanbulYearMonth(now = new Date()): { year: number; month: number } {
   return { year: tz.getUTCFullYear(), month: tz.getUTCMonth() + 1 };
 }
 
-function parseYearMonth(
-  s: string,
-): { year: number; month: number } | null {
+function parseYearMonth(s: string): { year: number; month: number } | null {
   const m = /^(\d{4})-(\d{2})$/.exec(s);
   if (!m) return null;
   const year = Number(m[1]);

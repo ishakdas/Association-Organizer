@@ -29,7 +29,7 @@ pnpm db:studio            # Prisma Studio UI
 pnpm db:dev-reset         # drop + recreate dev DB
 ```
 
-**Prerequisites**: Node 20 (`.nvmrc`), pnpm 10+, Docker (Postgres :5433, Redis :6380 via `docker compose up -d`).
+**Prerequisites**: Node 20 (`.nvmrc`), pnpm 10+, Docker (local Postgres on :5433 via `docker compose up -d`).
 
 **Lint → typecheck → test is not enforced as a pipeline.** Run all three before marking done.
 
@@ -50,7 +50,7 @@ pnpm db:dev-reset         # drop + recreate dev DB
 - **Error format**: RFC 7807 Problem Details via `HttpExceptionFilter`. Shape: `{ type, title, status, detail, instance, errors? }`.
 - **Prettier**: `{ semi: true, singleQuote: true, trailingComma: "all", printWidth: 100 }` — enforced manually, no pre-commit hook.
 - **New association-scoped module pattern**: use `apps/api/src/modules/tasks/` as reference. Guard chain: `AuthGuard → SupabaseUserGuard → AssociationRolesGuard`, every handler decorated with `@AssociationRoles(...)`.
-- **Decorators**: `@CurrentUser()` → `RequestUser`, `@CurrentOrg()` → `string` (associationId).
+- **Decorators**: `@CurrentUser()` returns `RequestUser`; association IDs come from validated route params.
 - **Path aliases**: `@ticketbot/*` mapped in `tsconfig.base.json` — never use relative `../../..` imports across workspace boundaries.
 
 ## Stubbed fields (do not wire or test)

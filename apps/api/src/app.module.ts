@@ -28,15 +28,14 @@ import { BotModule } from 'bot';
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
-      envFilePath: ['.env.local', '.env'],
+      // main.ts and the e2e setup load the sole workspace .env before Nest starts.
+      ignoreEnvFile: true,
     }),
     // Rate limiting is NOT global (no APP_GUARD) — it only applies where
     // ThrottlerGuard is explicitly attached, namely the unauthenticated auth
     // endpoints (enumeration / email-spam / token brute-force). The `strict`
     // named limiter below is referenced via @Throttle on those handlers.
-    ThrottlerModule.forRoot([
-      { name: 'strict', ttl: 60_000, limit: 8 },
-    ]),
+    ThrottlerModule.forRoot([{ name: 'strict', ttl: 60_000, limit: 8 }]),
     PrismaModule,
     SupabaseModule,
     AuthModule,

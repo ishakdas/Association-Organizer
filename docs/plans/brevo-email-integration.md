@@ -95,7 +95,7 @@ Tahmini proje ihtiyacı: ~200 email/ay (Telegram link + davet emailleri) → **F
 | Dosya | Değişiklik |
 |-------|------------|
 | `apps/api/package.json` | Brevo eklendi, Resend/nodemailer kaldırıldı |
-| `apps/api/.env.example` | Brevo env vars eklendi, SMTP/Resend kaldırıldı |
+| root `.env` | Brevo env vars eklendi, SMTP/Resend kaldırıldı |
 | `apps/api/src/config/env.validation.ts` | Brevo schema eklendi, SMTP/Resend kaldırıldı |
 | `apps/api/src/config/configuration.ts` | Brevo config eklendi, smtp/resend kaldırıldı |
 | `apps/api/src/modules/email/email.service.ts` | Tamamen Brevo'ya geçiş |

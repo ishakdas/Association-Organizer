@@ -48,7 +48,12 @@ RUN for pkg in database ai shared-types shared-validation; do \
       fi; \
     done
 
-ENV NODE_ENV=production
+ENV APP_ENV=production \
+    NODE_ENV=production \
+    ENABLE_TELEGRAM_BOT=true \
+    ENABLE_JOBS=true \
+    ENABLE_OVERDUE_CHECKER=true \
+    EMAIL_DELIVERY_MODE=resend
 EXPOSE 3000
 
 # Install entrypoint that runs `prisma migrate deploy` + `prisma db seed`

@@ -14,13 +14,11 @@ node_modules
 .gitattributes
 
 # Local env files — secrets must NEVER bake into the image.
-# Examples are kept so the image carries the shape for reference.
 **/.env
 **/.env.local
 **/.env.*.local
 **/.env.dev
 **/.env.test
-!**/.env.example
 
 # Editor / OS noise
 .vscode

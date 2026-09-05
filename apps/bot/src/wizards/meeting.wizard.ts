@@ -3,8 +3,18 @@ import { PrismaService, UserRole, PermissionAction } from '@ticketbot/database';
 import { AiService } from '@ticketbot/ai';
 
 const AI_DATE_MONTHS: Record<string, number> = {
-  ocak: 0, şubat: 1, mart: 2, nisan: 3, mayıs: 4, haziran: 5,
-  temmuz: 6, ağustos: 7, eylül: 8, ekim: 9, kasım: 10, aralık: 11,
+  ocak: 0,
+  şubat: 1,
+  mart: 2,
+  nisan: 3,
+  mayıs: 4,
+  haziran: 5,
+  temmuz: 6,
+  ağustos: 7,
+  eylül: 8,
+  ekim: 9,
+  kasım: 10,
+  aralık: 11,
 };
 
 function aiAddDays(base: Date, days: number): Date {
@@ -30,7 +40,9 @@ function parseTurkishDateText(text: string | null | undefined, ref: Date): Date 
   const refYear = ref.getUTCFullYear();
   const refMonth = ref.getUTCMonth();
 
-  const dayMonthYear = s.match(/(\d{1,2})\s+(ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)(?:\s+(\d{4}))?/);
+  const dayMonthYear = s.match(
+    /(\d{1,2})\s+(ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)(?:\s+(\d{4}))?/,
+  );
   if (dayMonthYear) {
     const day = parseInt(dayMonthYear[1], 10);
     const month = AI_DATE_MONTHS[dayMonthYear[2]];
@@ -38,7 +50,9 @@ function parseTurkishDateText(text: string | null | undefined, ref: Date): Date 
     return aiUtcDate(year, month, day);
   }
 
-  const monthStart = s.match(/(ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)\s+başı?n?d?a?/);
+  const monthStart = s.match(
+    /(ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)\s+başı?n?d?a?/,
+  );
   if (monthStart) {
     const month = AI_DATE_MONTHS[monthStart[1]];
     const year = month < refMonth ? refYear + 1 : refYear;
@@ -150,10 +164,24 @@ function utcDate(year: number, month0: number, day: number): Date {
 }
 
 const TR_MONTHS: Record<string, number> = {
-  ocak: 0, şubat: 1, subat: 1, mart: 2, nisan: 3,
-  mayıs: 4, mayis: 4, haziran: 5, temmuz: 6,
-  ağustos: 7, agustos: 7, eylül: 8, eylul: 8,
-  ekim: 9, kasım: 10, kasim: 10, aralık: 11, aralik: 11,
+  ocak: 0,
+  şubat: 1,
+  subat: 1,
+  mart: 2,
+  nisan: 3,
+  mayıs: 4,
+  mayis: 4,
+  haziran: 5,
+  temmuz: 6,
+  ağustos: 7,
+  agustos: 7,
+  eylül: 8,
+  eylul: 8,
+  ekim: 9,
+  kasım: 10,
+  kasim: 10,
+  aralık: 11,
+  aralik: 11,
 };
 
 function parseDateInput(raw: string): Date | null {
@@ -186,9 +214,7 @@ function parseDateInput(raw: string): Date | null {
     return utcDate(y, mm - 1, dd);
   }
 
-  const trDate = s.match(
-    /^(\d{1,2})\s+([a-zçğıöşü]+)(?:\s+(\d{4}))?$/,
-  );
+  const trDate = s.match(/^(\d{1,2})\s+([a-zçğıöşü]+)(?:\s+(\d{4}))?$/);
   if (trDate) {
     const dd = parseInt(trDate[1], 10);
     const mm = TR_MONTHS[trDate[2]];
@@ -214,11 +240,7 @@ async function assertMeetingAccess(
       isActive: true,
       deletedAt: null,
       role: {
-        in: [
-          UserRole.SYSTEM_ADMIN,
-          UserRole.ASSOCIATION_MANAGER,
-          UserRole.ASSOCIATION_SECRETARY,
-        ],
+        in: [UserRole.SYSTEM_ADMIN, UserRole.ASSOCIATION_MANAGER, UserRole.ASSOCIATION_SECRETARY],
       },
     },
   });
@@ -301,12 +323,7 @@ async function loadActiveMembers(
 function attendeesKeyboard(s: MeetingWizardSession) {
   const rows = (s.members ?? []).map((m) => {
     const checked = s.selectedAttendees.has(m.userId);
-    return [
-      Markup.button.callback(
-        `${checked ? '☑' : '☐'} ${m.fullName}`,
-        `mtg:att:${m.userId}`,
-      ),
-    ];
+    return [Markup.button.callback(`${checked ? '☑' : '☐'} ${m.fullName}`, `mtg:att:${m.userId}`)];
   });
   rows.push([
     Markup.button.callback('🔁 Tümünü seç', 'mtg:att-all'),
@@ -328,14 +345,8 @@ function buildAIReviewKeyboard(s: MeetingWizardSession) {
     const member = (s.members ?? []).find((m) => m.userId === item.assignedToUserId);
     const assigneeLabel = member ? member.fullName : 'Atanmamış';
     rows.push([
-      Markup.button.callback(
-        `👤 ${assigneeLabel}`,
-        `mtg:ai-assign:${item.index}`,
-      ),
-      Markup.button.callback(
-        '🗑',
-        `mtg:ai-remove:${item.index}`,
-      ),
+      Markup.button.callback(`👤 ${assigneeLabel}`, `mtg:ai-assign:${item.index}`),
+      Markup.button.callback('🗑', `mtg:ai-remove:${item.index}`),
     ]);
   }
 
@@ -373,21 +384,13 @@ function buildAIAssignKeyboard(s: MeetingWizardSession) {
     ]);
   }
 
-  rows.push([
-    Markup.button.callback('🔘 Atamasız bırak', `mtg:ai-assign-set:${targetIndex}:null`),
-  ]);
-  rows.push([
-    Markup.button.callback('↩️ Geri dön', 'mtg:ai-assign-back'),
-  ]);
+  rows.push([Markup.button.callback('🔘 Atamasız bırak', `mtg:ai-assign-set:${targetIndex}:null`)]);
+  rows.push([Markup.button.callback('↩️ Geri dön', 'mtg:ai-assign-back')]);
 
   return Markup.inlineKeyboard(rows);
 }
 
-async function startWizard(
-  ctx: Context,
-  prisma: PrismaService,
-  telegramUserId: number,
-) {
+async function startWizard(ctx: Context, prisma: PrismaService, telegramUserId: number) {
   const account = await prisma.telegramAccount.findUnique({
     where: { telegramId: BigInt(telegramUserId) },
     select: { userId: true },
@@ -447,9 +450,7 @@ async function startWizard(
   };
   sessions.set(telegramUserId, session);
 
-  const buttons = assocs.map((a) => [
-    Markup.button.callback(a.name, `mtg:assoc:${a.id}`),
-  ]);
+  const buttons = assocs.map((a) => [Markup.button.callback(a.name, `mtg:assoc:${a.id}`)]);
   buttons.push([Markup.button.callback('❌ Vazgeç', 'mtg:cancel')]);
   return ctx.reply(
     '📝 Yeni toplantı notu\n\nHangi dernek için ekleyeceksin?',
@@ -457,10 +458,7 @@ async function startWizard(
   );
 }
 
-async function persistMeeting(
-  prisma: PrismaService,
-  s: MeetingWizardSession,
-) {
+async function persistMeeting(prisma: PrismaService, s: MeetingWizardSession) {
   const attendeeIds = Array.from(s.selectedAttendees);
   return prisma.meetingNote.create({
     data: {
@@ -475,10 +473,7 @@ async function persistMeeting(
   });
 }
 
-async function persistAITasks(
-  prisma: PrismaService,
-  s: MeetingWizardSession,
-) {
+async function persistAITasks(prisma: PrismaService, s: MeetingWizardSession) {
   const items = (s.aiActionItems ?? []).filter((i) => !i.removed);
   const tasksToCreate = items
     .filter((i) => i.assignedToUserId !== null)
@@ -500,11 +495,7 @@ async function persistAITasks(
   return tasksToCreate.length;
 }
 
-export function registerMeetingWizard(
-  bot: Telegraf,
-  prisma: PrismaService,
-  aiService: AiService,
-) {
+export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService, aiService: AiService) {
   console.log('[WIZARD] registerMeetingWizard called - AI flow enabled');
   bot.hears(/^\/toplant[ıi](?:@\w+)?(?:\s|$)/i, async (ctx) => {
     const fromId = ctx.from?.id;
@@ -512,7 +503,7 @@ export function registerMeetingWizard(
     evictExpired(Date.now());
     try {
       return await startWizard(ctx, prisma, fromId);
-    } catch (err) {
+    } catch {
       return ctx.reply('Beklenmeyen bir hata oluştu. Lütfen tekrar deneyin.');
     }
   });
@@ -536,9 +527,7 @@ export function registerMeetingWizard(
 
     if (s.expiresAt <= Date.now()) {
       sessions.delete(fromId);
-      return ctx.reply(
-        'Toplantı ekleme oturumun zaman aşımına uğradı. Tekrar /toplanti yaz.',
-      );
+      return ctx.reply('Toplantı ekleme oturumun zaman aşımına uğradı. Tekrar /toplanti yaz.');
     }
 
     if (s.userId) {
@@ -546,8 +535,7 @@ export function registerMeetingWizard(
       if (!stillLinked) {
         sessions.delete(fromId);
         return ctx.reply(
-          'Telegram hesabın artık sistemde bağlı değil. ' +
-            'Web panelinden yeniden bağlamalısın.',
+          'Telegram hesabın artık sistemde bağlı değil. ' + 'Web panelinden yeniden bağlamalısın.',
         );
       }
     }
@@ -574,9 +562,7 @@ export function registerMeetingWizard(
     if (s.step === 'date') {
       const parsed = parseDateInput(text);
       if (!parsed) {
-        return ctx.reply(
-          'Tarihi anlayamadım. Örnek: 15.05.2026, bugün, 15 mayıs.',
-        );
+        return ctx.reply('Tarihi anlayamadım. Örnek: 15.05.2026, bugün, 15 mayıs.');
       }
       s.meetingDate = parsed;
 
@@ -584,8 +570,7 @@ export function registerMeetingWizard(
       if (members.length === 0) {
         sessions.delete(fromId);
         return ctx.reply(
-          'Bu derneğin aktif üyesi yok, toplantıya katılımcı eklenemez. ' +
-            'Akış iptal edildi.',
+          'Bu derneğin aktif üyesi yok, toplantıya katılımcı eklenemez. ' + 'Akış iptal edildi.',
         );
       }
       s.members = members;
@@ -641,9 +626,7 @@ export function registerMeetingWizard(
     }
 
     if (s.step === 'aiPrompt' || s.step === 'aiReview' || s.step === 'aiAssign') {
-      return ctx.reply(
-        'Lütfen aşağıdaki butonları kullan. Metin girişi bu adımda kullanılmaz.',
-      );
+      return ctx.reply('Lütfen aşağıdaki butonları kullan. Metin girişi bu adımda kullanılmaz.');
     }
   });
 
@@ -673,11 +656,9 @@ export function registerMeetingWizard(
 
     await ctx.answerCbQuery(picked.name);
     await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
-    return ctx.reply(
-      `📝 ${picked.name}\n\n1/4 · Toplantının *başlığını* gönder.` +
-        CANCEL_HINT,
-      { parse_mode: 'Markdown' },
-    );
+    return ctx.reply(`📝 ${picked.name}\n\n1/4 · Toplantının *başlığını* gönder.` + CANCEL_HINT, {
+      parse_mode: 'Markdown',
+    });
   });
 
   bot.action(/^mtg:att:(.+)$/, async (ctx) => {
@@ -695,9 +676,7 @@ export function registerMeetingWizard(
     else s.selectedAttendees.add(userId);
     touch(s);
     await ctx.answerCbQuery();
-    return ctx
-      .editMessageReplyMarkup(attendeesKeyboard(s).reply_markup)
-      .catch(() => undefined);
+    return ctx.editMessageReplyMarkup(attendeesKeyboard(s).reply_markup).catch(() => undefined);
   });
 
   bot.action('mtg:att-all', async (ctx) => {
@@ -710,9 +689,7 @@ export function registerMeetingWizard(
     for (const m of s.members ?? []) s.selectedAttendees.add(m.userId);
     touch(s);
     await ctx.answerCbQuery('Hepsi seçildi');
-    return ctx
-      .editMessageReplyMarkup(attendeesKeyboard(s).reply_markup)
-      .catch(() => undefined);
+    return ctx.editMessageReplyMarkup(attendeesKeyboard(s).reply_markup).catch(() => undefined);
   });
 
   bot.action('mtg:att-clear', async (ctx) => {
@@ -725,9 +702,7 @@ export function registerMeetingWizard(
     s.selectedAttendees.clear();
     touch(s);
     await ctx.answerCbQuery('Temizlendi');
-    return ctx
-      .editMessageReplyMarkup(attendeesKeyboard(s).reply_markup)
-      .catch(() => undefined);
+    return ctx.editMessageReplyMarkup(attendeesKeyboard(s).reply_markup).catch(() => undefined);
   });
 
   bot.action('mtg:att-done', async (ctx) => {
@@ -744,10 +719,9 @@ export function registerMeetingWizard(
     touch(s);
     await ctx.answerCbQuery();
     await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
-    return ctx.reply(
-      '4/4 · Toplantının *içeriğini / notlarını* gönder.' + CANCEL_HINT,
-      { parse_mode: 'Markdown' },
-    );
+    return ctx.reply('4/4 · Toplantının *içeriğini / notlarını* gönder.' + CANCEL_HINT, {
+      parse_mode: 'Markdown',
+    });
   });
 
   bot.action('mtg:confirm', async (ctx) => {
@@ -801,9 +775,7 @@ export function registerMeetingWizard(
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[WIZARD] mtg:confirm - error:', msg);
       sessions.delete(fromId);
-      return ctx.reply(
-        `❌ Kaydedilemedi: ${msg}\n\nTekrar denemek için /toplanti yaz.`,
-      );
+      return ctx.reply(`❌ Kaydedilemedi: ${msg}\n\nTekrar denemek için /toplanti yaz.`);
     }
   });
 
@@ -837,26 +809,19 @@ export function registerMeetingWizard(
 
     try {
       const members = s.members ?? [];
-      const membersContext = members
-        .map((m) => `- ${m.fullName} (userId: ${m.userId})`)
-        .join('\n');
+      const membersContext = members.map((m) => `- ${m.fullName} (userId: ${m.userId})`).join('\n');
 
       console.log('[WIZARD] mtg:ai-analyze - calling aiService.extractActionItems');
       console.log('[WIZARD] mtg:ai-analyze - content length:', s.content!.length);
       console.log('[WIZARD] mtg:ai-analyze - members count:', members.length);
 
-      const result = await aiService.extractActionItems(
-        s.content!,
-        membersContext,
-      );
+      const result = await aiService.extractActionItems(s.content!, membersContext);
 
       console.log('[WIZARD] mtg:ai-analyze - AI result:', JSON.stringify(result).slice(0, 500));
 
       const now = new Date();
       const aiItems: AIActionItem[] = result.actionItems.map((item, index) => {
-        const dueDate = item.dueDateText
-          ? parseTurkishDateText(item.dueDateText, now)
-          : null;
+        const dueDate = item.dueDateText ? parseTurkishDateText(item.dueDateText, now) : null;
         return {
           index,
           title: item.title,
@@ -911,7 +876,10 @@ export function registerMeetingWizard(
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error('[WIZARD] mtg:ai-analyze - error:', msg);
-      console.error('[WIZARD] mtg:ai-analyze - error stack:', err instanceof Error ? err.stack : 'N/A');
+      console.error(
+        '[WIZARD] mtg:ai-analyze - error stack:',
+        err instanceof Error ? err.stack : 'N/A',
+      );
       console.error('[WIZARD] mtg:ai-analyze - error type:', err?.constructor?.name ?? 'unknown');
       sessions.delete(fromId);
       await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
@@ -945,13 +913,10 @@ export function registerMeetingWizard(
     const currentName = member ? member.fullName : 'Atanmamış';
 
     await ctx.answerCbQuery(`${item.title} — Atama: ${currentName}`);
-    return ctx.reply(
-      `📋 Görev: *${item.title}*\n\nAtamayı değiştirmek için bir kullanıcı seç:`,
-      {
-        parse_mode: 'Markdown',
-        ...buildAIAssignKeyboard(s),
-      },
-    );
+    return ctx.reply(`📋 Görev: *${item.title}*\n\nAtamayı değiştirmek için bir kullanıcı seç:`, {
+      parse_mode: 'Markdown',
+      ...buildAIAssignKeyboard(s),
+    });
   });
 
   bot.action(/^mtg:ai-assign-set:(\d+):(.+)$/, async (ctx) => {
@@ -1091,9 +1056,7 @@ export function registerMeetingWizard(
     if (activeItems.length === 0) {
       sessions.delete(fromId);
       await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
-      return ctx.reply(
-        'Tüm görevler kaldırıldı. Toplantı notu kaydedildi, görev oluşturulmadı.',
-      );
+      return ctx.reply('Tüm görevler kaldırıldı. Toplantı notu kaydedildi, görev oluşturulmadı.');
     }
 
     const assignedCount = activeItems.filter((i) => i.assignedToUserId).length;
@@ -1231,8 +1194,6 @@ export function registerMeetingWizard(
     sessions.delete(fromId);
     await ctx.answerCbQuery('İptal edildi');
     await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
-    return ctx.reply(
-      'Yapay zeka analizi iptal edildi. Toplantı notun kaydedildi.',
-    );
+    return ctx.reply('Yapay zeka analizi iptal edildi. Toplantı notun kaydedildi.');
   });
 }

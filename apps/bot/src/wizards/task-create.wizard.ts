@@ -32,13 +32,11 @@ export function taskCreateSessionActivity(telegramId: number): number | null {
   return s.expiresAt - SESSION_TTL_MS;
 }
 
-const PRIORITY_MAP: Record<string, TaskPriority> = {
-  'Düşük': TaskPriority.LOW,
-  'Orta': TaskPriority.MEDIUM,
-  'Yüksek': TaskPriority.HIGH,
-};
-
-export function registerTaskCreateWizard(bot: Telegraf, prisma: PrismaService, botService: BotService) {
+export function registerTaskCreateWizard(
+  bot: Telegraf,
+  prisma: PrismaService,
+  botService: BotService,
+) {
   bot.command('gorev', async (ctx) => {
     const fromId = ctx.from?.id;
     if (!fromId) return;
@@ -76,10 +74,7 @@ export function registerTaskCreateWizard(bot: Telegraf, prisma: PrismaService, b
         expiresAt: Date.now() + SESSION_TTL_MS,
       });
       const buttons = memberships.map((m) => [
-        Markup.button.callback(
-          m.association.name,
-          `tcreate:assoc:${m.association.id}`,
-        ),
+        Markup.button.callback(m.association.name, `tcreate:assoc:${m.association.id}`),
       ]);
       buttons.push([Markup.button.callback('❌ İptal', 'tcreate:cancel')]);
       return ctx.reply('🏢 Hangi dernek için görev oluşturacaksın?', {
@@ -186,9 +181,9 @@ export function registerTaskCreateWizard(bot: Telegraf, prisma: PrismaService, b
         if (!parsed) {
           return ctx.reply(
             '⚠️ Geçersiz tarih formatı. Örnekler:\n' +
-            '• `25.05.2025` (gün.ay.yıl)\n' +
-            '• `2025-05-25` (yıl-ay-gün)\n' +
-            '• `boş` (tarih belirtme)',
+              '• `25.05.2025` (gün.ay.yıl)\n' +
+              '• `2025-05-25` (yıl-ay-gün)\n' +
+              '• `boş` (tarih belirtme)',
           );
         }
         if (parsed <= new Date()) {
@@ -214,7 +209,7 @@ export function registerTaskCreateWizard(bot: Telegraf, prisma: PrismaService, b
     session.assignedToUserId = ctx.match[1];
     session.step = 'priority';
     await ctx.answerCbQuery();
-    return showPrioritySelection(ctx, fromId);
+    return showPrioritySelection(ctx);
   });
 
   bot.action(/^tcreate:assignpage:(\d+)$/, async (ctx) => {
@@ -240,9 +235,9 @@ export function registerTaskCreateWizard(bot: Telegraf, prisma: PrismaService, b
     await ctx.answerCbQuery();
     return ctx.editMessageText(
       `📝 Öncelik: *Düşük*\n\nBitiş tarihi yaz (boş geçmek için "boş" yaz):\n` +
-      '• `25.05.2025` (gün.ay.yıl)\n' +
-      '• `2025-05-25` (yıl-ay-gün)\n' +
-      '• `boş` (tarih belirtme)',
+        '• `25.05.2025` (gün.ay.yıl)\n' +
+        '• `2025-05-25` (yıl-ay-gün)\n' +
+        '• `boş` (tarih belirtme)',
       { parse_mode: 'Markdown' },
     );
   });
@@ -258,9 +253,9 @@ export function registerTaskCreateWizard(bot: Telegraf, prisma: PrismaService, b
     await ctx.answerCbQuery();
     return ctx.editMessageText(
       `📝 Öncelik: *Orta*\n\nBitiş tarihi yaz (boş geçmek için "boş" yaz):\n` +
-      '• `25.05.2025` (gün.ay.yıl)\n' +
-      '• `2025-05-25` (yıl-ay-gün)\n' +
-      '• `boş` (tarih belirtme)',
+        '• `25.05.2025` (gün.ay.yıl)\n' +
+        '• `2025-05-25` (yıl-ay-gün)\n' +
+        '• `boş` (tarih belirtme)',
       { parse_mode: 'Markdown' },
     );
   });
@@ -276,9 +271,9 @@ export function registerTaskCreateWizard(bot: Telegraf, prisma: PrismaService, b
     await ctx.answerCbQuery();
     return ctx.editMessageText(
       `📝 Öncelik: *Yüksek*\n\nBitiş tarihi yaz (boş geçmek için "boş" yaz):\n` +
-      '• `25.05.2025` (gün.ay.yıl)\n' +
-      '• `2025-05-25` (yıl-ay-gün)\n' +
-      '• `boş` (tarih belirtme)',
+        '• `25.05.2025` (gün.ay.yıl)\n' +
+        '• `2025-05-25` (yıl-ay-gün)\n' +
+        '• `boş` (tarih belirtme)',
       { parse_mode: 'Markdown' },
     );
   });
@@ -313,18 +308,16 @@ export function registerTaskCreateWizard(bot: Telegraf, prisma: PrismaService, b
       // hatırlatma işlerini kendisi kurar; burada yalnızca özet gösteriyoruz.
       return ctx.editMessageText(
         `✅ *Görev Oluşturuldu!*\n\n` +
-        `📝 Başlık: *${escapeMarkdown(created.title)}*\n` +
-        `👤 Atanan: *${escapeMarkdown(created.assignedTo?.fullName ?? '—')}*\n` +
-        `📌 Öncelik: ${priorityLabel(session.priority ?? TaskPriority.MEDIUM)}\n` +
-        (created.dueDate ? `📅 Bitiş: ${fmtDate(created.dueDate.toISOString())}\n` : '') +
-        `\nℹ️ Atanan kişiye (Telegram bağlıysa) bildirim ve hatırlatma ayarlandı.`,
+          `📝 Başlık: *${escapeMarkdown(created.title)}*\n` +
+          `👤 Atanan: *${escapeMarkdown(created.assignedTo?.fullName ?? '—')}*\n` +
+          `📌 Öncelik: ${priorityLabel(session.priority ?? TaskPriority.MEDIUM)}\n` +
+          (created.dueDate ? `📅 Bitiş: ${fmtDate(created.dueDate.toISOString())}\n` : '') +
+          `\nℹ️ Atanan kişiye (Telegram bağlıysa) bildirim ve hatırlatma ayarlandı.`,
         { parse_mode: 'Markdown' },
       );
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Bilinmeyen hata';
-      return ctx.editMessageText(
-        `❌ Görev oluşturulamadı: ${escapeMarkdown(msg)}`,
-      );
+      return ctx.editMessageText(`❌ Görev oluşturulamadı: ${escapeMarkdown(msg)}`);
     }
   });
 
@@ -362,9 +355,12 @@ function fmtDate(iso: string): string {
 
 function priorityLabel(p: TaskPriority): string {
   switch (p) {
-    case TaskPriority.HIGH: return '🔴 Yüksek';
-    case TaskPriority.LOW: return '🟢 Düşük';
-    default: return '🟡 Orta';
+    case TaskPriority.HIGH:
+      return '🔴 Yüksek';
+    case TaskPriority.LOW:
+      return '🟢 Düşük';
+    default:
+      return '🟡 Orta';
   }
 }
 
@@ -413,7 +409,8 @@ async function showAssigneeSelection(
   const navButtons: any[] = [];
   const row: any[] = [];
   if (page > 0) row.push(Markup.button.callback('⬅️', `tcreate:assignpage:${page - 1}`));
-  if (page < totalPages - 1) row.push(Markup.button.callback('➡️', `tcreate:assignpage:${page + 1}`));
+  if (page < totalPages - 1)
+    row.push(Markup.button.callback('➡️', `tcreate:assignpage:${page + 1}`));
   if (row.length > 0) navButtons.push(row);
   navButtons.push([Markup.button.callback('❌ İptal', 'tcreate:cancel')]);
 
@@ -425,7 +422,7 @@ async function showAssigneeSelection(
   return ctx.reply(message, { parse_mode: 'Markdown', ...keyboard });
 }
 
-async function showPrioritySelection(ctx: any, fromId: number) {
+async function showPrioritySelection(ctx: any) {
   const keyboard = Markup.inlineKeyboard([
     [Markup.button.callback('🔴 Yüksek', 'tcreate:priority:HIGH')],
     [Markup.button.callback('🟡 Orta', 'tcreate:priority:MEDIUM')],

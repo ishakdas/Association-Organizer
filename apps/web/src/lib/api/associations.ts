@@ -6,6 +6,7 @@ import type {
   GlobalBranchStatsDto,
 } from '@ticketbot/shared-types';
 import type { CreateAssociationInput } from '@ticketbot/shared-validation';
+import { buildQuery } from './query';
 
 export interface ListParams {
   search?: string;
@@ -15,19 +16,8 @@ export interface ListParams {
   pageSize?: number;
 }
 
-function buildQuery(params: ListParams): string {
-  const sp = new URLSearchParams();
-  if (params.search) sp.set('search', params.search);
-  if (params.city) sp.set('city', params.city);
-  if (params.isActive !== undefined) sp.set('isActive', String(params.isActive));
-  if (params.page) sp.set('page', String(params.page));
-  if (params.pageSize) sp.set('pageSize', String(params.pageSize));
-  const query = sp.toString();
-  return query ? `?${query}` : '';
-}
-
 export function listAssociations(token: string, params: ListParams = {}) {
-  return apiClient<AssociationListResponse>(`/associations${buildQuery(params)}`, {
+  return apiClient<AssociationListResponse>(`/associations${buildQuery({ ...params })}`, {
     token,
   });
 }

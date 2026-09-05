@@ -1,15 +1,6 @@
 'use client';
 
-
-import {
-  Briefcase,
-  Crown,
-  Loader2,
-  Mail,
-  MessageSquare,
-  Unlink,
-  Users,
-} from 'lucide-react';
+import { Briefcase, Crown, Loader2, Mail, MessageSquare, Unlink, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   Table,
@@ -52,9 +43,7 @@ export function TelegramSection({
   const unlinked = data?.filter((m) => !m.user.telegramAccount) ?? [];
 
   function handleUnlink(m: MemberResponse) {
-    const ok = window.confirm(
-      `${m.user.fullName} adlı üyenin Telegram bağlantısı kaldırılsın mı?`,
-    );
+    const ok = window.confirm(`${m.user.fullName} adlı üyenin Telegram bağlantısı kaldırılsın mı?`);
     if (!ok) return;
     unlinkMutation.mutate(m.id);
   }
@@ -78,29 +67,12 @@ export function TelegramSection({
     <section className="space-y-6">
       {/* Summary cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-        <SummaryCard
-          label="Toplam üye"
-          value={data?.length ?? '—'}
-          loading={isLoading}
-        />
-        <SummaryCard
-          label="Telegram bağlı"
-          value={linked.length}
-          loading={isLoading}
-          highlight
-        />
-        <SummaryCard
-          label="Bağlantı yok"
-          value={unlinked.length}
-          loading={isLoading}
-        />
+        <SummaryCard label="Toplam üye" value={data?.length ?? '—'} loading={isLoading} />
+        <SummaryCard label="Telegram bağlı" value={linked.length} loading={isLoading} highlight />
+        <SummaryCard label="Bağlantı yok" value={unlinked.length} loading={isLoading} />
       </div>
 
-      {isError && (
-        <p className="text-sm text-destructive">
-          Liste yüklenemedi: {error.message}
-        </p>
-      )}
+      {isError && <p className="text-sm text-destructive">Liste yüklenemedi: {error.message}</p>}
 
       {/* Connected members */}
       <div className="overflow-hidden rounded-lg border border-border bg-card">
@@ -110,9 +82,7 @@ export function TelegramSection({
               01
             </span>
             <Separator orientation="vertical" className="h-3" />
-            <h2 className="text-[13.5px] font-semibold tracking-tight">
-              Bağlı Hesaplar
-            </h2>
+            <h2 className="text-[13.5px] font-semibold tracking-tight">Bağlı Hesaplar</h2>
           </div>
           <Badge variant="success">{isLoading ? '…' : linked.length} bağlı</Badge>
         </header>
@@ -133,24 +103,19 @@ export function TelegramSection({
                 <TableHead>Rol</TableHead>
                 <TableHead>Telegram</TableHead>
                 <TableHead>Bağlandı</TableHead>
-                {canManage && (
-                  <TableHead className="w-[1%]" aria-label="İşlemler" />
-                )}
+                {canManage && <TableHead className="w-[1%]" aria-label="İşlemler" />}
               </TableRow>
             </TableHeader>
             <TableBody>
               {linked.map((m) => {
                 const tg = m.user.telegramAccount!;
                 const handle = tg.username ?? tg.firstName ?? 'telegram';
-                const isUnlinking =
-                  unlinkMutation.isPending && unlinkMutation.variables === m.id;
+                const isUnlinking = unlinkMutation.isPending && unlinkMutation.variables === m.id;
                 const { label: roleLabel, icon: RoleIcon } = ROLE_LABEL[m.role];
 
                 return (
                   <TableRow key={m.id}>
-                    <TableCell className="font-medium">
-                      {m.user.fullName}
-                    </TableCell>
+                    <TableCell className="font-medium">{m.user.fullName}</TableCell>
                     <TableCell>
                       <span className="inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
                         <RoleIcon className="h-3 w-3" />
@@ -160,9 +125,7 @@ export function TelegramSection({
                     <TableCell>
                       <span className="inline-flex items-center gap-1.5 text-[13px]">
                         <MessageSquare className="h-3.5 w-3.5 text-primary" />
-                        <span className="font-medium text-foreground">
-                          @{handle}
-                        </span>
+                        <span className="font-medium text-foreground">@{handle}</span>
                       </span>
                     </TableCell>
                     <TableCell className="text-[12.5px] text-muted-foreground">
@@ -207,9 +170,7 @@ export function TelegramSection({
               02
             </span>
             <Separator orientation="vertical" className="h-3" />
-            <h2 className="text-[13.5px] font-semibold tracking-tight">
-              Bağlantısız Üyeler
-            </h2>
+            <h2 className="text-[13.5px] font-semibold tracking-tight">Bağlantısız Üyeler</h2>
           </div>
           <Badge variant="outline">{isLoading ? '…' : unlinked.length} bağlantısız</Badge>
         </header>
@@ -218,7 +179,7 @@ export function TelegramSection({
 
         {!isLoading && unlinked.length === 0 && (
           <p className="px-5 py-10 text-center text-[13px] text-muted-foreground">
-            Tüm üyeler Telegram'a bağlı.
+            Tüm üyeler Telegram&apos;a bağlı.
           </p>
         )}
 
@@ -229,9 +190,7 @@ export function TelegramSection({
                 <TableHead>Üye</TableHead>
                 <TableHead>Rol</TableHead>
                 <TableHead>İletişim</TableHead>
-                {canManage && (
-                  <TableHead className="w-[1%]" aria-label="İşlemler" />
-                )}
+                {canManage && <TableHead className="w-[1%]" aria-label="İşlemler" />}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -239,9 +198,7 @@ export function TelegramSection({
                 const { label: roleLabel, icon: RoleIcon } = ROLE_LABEL[m.role];
                 return (
                   <TableRow key={m.id}>
-                    <TableCell className="font-medium">
-                      {m.user.fullName}
-                    </TableCell>
+                    <TableCell className="font-medium">{m.user.fullName}</TableCell>
                     <TableCell>
                       <span className="inline-flex items-center gap-1.5 text-[12.5px] text-muted-foreground">
                         <RoleIcon className="h-3 w-3" />
@@ -281,7 +238,6 @@ export function TelegramSection({
           </Table>
         )}
       </div>
-
     </section>
   );
 }
