@@ -100,23 +100,6 @@ export function listTaskActivities(token: string, associationId: string, taskId:
   });
 }
 
-export interface PrioritizedTask {
-  taskId: string;
-  priority: 'YUKSEK' | 'ORTA' | 'DUSUK';
-  reason: string;
-}
-
-export interface PrioritizeTasksResponse {
-  prioritizedTasks: PrioritizedTask[];
-}
-
-export function prioritizeTasks(token: string, associationId: string) {
-  return apiClient<PrioritizeTasksResponse>(`/associations/${associationId}/tasks/prioritize`, {
-    token,
-    method: 'POST',
-  });
-}
-
 export interface ExtractTasksFromMeetingInput {
   meetingNoteId: string;
 }

@@ -15,6 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { completeOnboarding, getMe } from '@/lib/api/me';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
@@ -44,8 +45,7 @@ const ADMIN_SLIDES: Slide[] = [
     icon: <Building2 className="h-10 w-10" />,
     eyebrow: 'Şube Ağı',
     title: 'Tüm Şubeleri\nTek Ekrandan Görün',
-    subtitle:
-      'Sisteme kayıtlı tüm dernekleri ve şubeleri yönetin, onaylayın ve takip edin.',
+    subtitle: 'Sisteme kayıtlı tüm dernekleri ve şubeleri yönetin, onaylayın ve takip edin.',
     highlights: [
       'Şube başvurularını onaylayın veya reddedin',
       'Her şubenin profiline ve üyelerine erişin',
@@ -56,8 +56,7 @@ const ADMIN_SLIDES: Slide[] = [
     icon: <Users className="h-10 w-10" />,
     eyebrow: 'Üye Yönetimi',
     title: 'Kadro ve Üyeleri\nMerkezi Takip Edin',
-    subtitle:
-      'Tüm şubelerdeki üye bilgilerine, unvanlara ve iletişim detaylarına kolayca erişin.',
+    subtitle: 'Tüm şubelerdeki üye bilgilerine, unvanlara ve iletişim detaylarına kolayca erişin.',
     highlights: [
       'Sistem genelinde unvan kataloğunu yönetin',
       'Üye iletişim bilgilerine anında erişin',
@@ -68,8 +67,7 @@ const ADMIN_SLIDES: Slide[] = [
     icon: <BarChart3 className="h-10 w-10" />,
     eyebrow: 'Analitik',
     title: 'İstatistik ve\nPerformans Analizi',
-    subtitle:
-      'Görev tamamlama oranları, toplantı katılımları ve üye dağılımlarını anlık izleyin.',
+    subtitle: 'Görev tamamlama oranları, toplantı katılımları ve üye dağılımlarını anlık izleyin.',
     highlights: [
       'Görev tamamlama ve gecikme oranları',
       'Toplantı katılım istatistikleri',
@@ -83,8 +81,7 @@ const BRANCH_SLIDES: Slide[] = [
     icon: <Sparkles className="h-10 w-10" />,
     eyebrow: 'Şube Yönetim Platformu',
     title: 'Şubenize\nHoş Geldiniz',
-    subtitle:
-      'Üyelerinizi, görevlerinizi ve toplantılarınızı tek platformdan kolayca yönetin.',
+    subtitle: 'Üyelerinizi, görevlerinizi ve toplantılarınızı tek platformdan kolayca yönetin.',
     highlights: [
       'Kolay ve hızlı üye yönetimi',
       'Akıllı görev atama ve takip sistemi',
@@ -95,8 +92,7 @@ const BRANCH_SLIDES: Slide[] = [
     icon: <Users className="h-10 w-10" />,
     eyebrow: 'Üye Yönetimi',
     title: 'Üyelerinizi\nKolayca Yönetin',
-    subtitle:
-      'Şubenizdeki üyeleri ekleyin, unvan atayın ve iletişim bilgilerini güvenle saklayın.',
+    subtitle: 'Şubenizdeki üyeleri ekleyin, unvan atayın ve iletişim bilgilerini güvenle saklayın.',
     highlights: [
       'Hızlı üye ekleme ve profil düzenleme',
       'Unvan ve rol ataması sistemi',
@@ -119,8 +115,7 @@ const BRANCH_SLIDES: Slide[] = [
     icon: <BookOpen className="h-10 w-10" />,
     eyebrow: 'Toplantı Yönetimi',
     title: 'Toplantıları\nDijitale Taşıyın',
-    subtitle:
-      'Toplantıları kaydedin, katılımcıları işaretleyin ve yapay zeka ile görev çıkarın.',
+    subtitle: 'Toplantıları kaydedin, katılımcıları işaretleyin ve yapay zeka ile görev çıkarın.',
     highlights: [
       'Katılımcı listesi ve yoklama takibi',
       'Toplantı notları ve kararlar',
@@ -130,7 +125,7 @@ const BRANCH_SLIDES: Slide[] = [
   {
     icon: <MessageSquare className="h-10 w-10" />,
     eyebrow: 'Telegram Entegrasyonu',
-    title: 'Üyenizi Telegram\'a\nBağlayın',
+    title: "Üyenizi Telegram'a\nBağlayın",
     subtitle:
       'Üyeleriniz Telegram hesaplarını sisteme bağlayarak bildirim alabilir ve bot üzerinden işlem yapabilir.',
     highlights: [
@@ -166,11 +161,6 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
   }
 
   async function handleComplete() {
-    // Set the gating cookie FIRST, synchronously. Middleware reads this
-    // on every request — once it's there, /onboarding redirects stop
-    // firing and any subsequent navigation succeeds even if the API
-    // calls below hang or throw.
-    document.cookie = 'onboarding_done=1; path=/; max-age=31536000; SameSite=Lax';
     setLoading(true);
 
     let redirectTo = isSystemAdmin ? '/dashboard' : '/associations';
@@ -179,32 +169,35 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
       const {
         data: { session },
       } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        await completeOnboarding(session.access_token);
-        const me = await getMe(session.access_token);
-        if (!isSystemAdmin) {
-          const activeMemberships = me.memberships.filter((m) => m.isActive);
-          if (activeMemberships.length === 1) {
-            redirectTo = `/associations/${activeMemberships[0].associationId}`;
-          }
+      if (!session?.access_token) {
+        throw new Error('Oturum bulunamadı. Lütfen yeniden giriş yapın.');
+      }
+
+      await completeOnboarding(session.access_token);
+      const me = await getMe(session.access_token);
+      if (!isSystemAdmin) {
+        const activeMemberships = me.memberships.filter((m) => m.isActive);
+        if (activeMemberships.length === 1) {
+          redirectTo = `/associations/${activeMemberships[0].associationId}`;
         }
       }
-    } catch {
-      // Non-blocking — the cookie + hard nav below still take the user
-      // out of /onboarding even if these best-effort calls fail.
+    } catch (error) {
+      setLoading(false);
+      toast.error(
+        error instanceof Error ? error.message : 'Onboarding tamamlanamadı. Lütfen tekrar deneyin.',
+      );
+      return;
     }
 
-    // Hard navigation (vs router.replace): guarantees the new request
-    // hits middleware with the freshly-set cookie and rules out any
-    // App Router caching that could keep the user on /onboarding.
+    // A hard navigation makes the protected layout re-read the now-completed
+    // onboarding state from the API.
     window.location.assign(redirectTo);
   }
 
   const slide = slides[current];
   const progress = ((current + 1) / slides.length) * 100;
 
-  const accentClass =
-    'bg-primary/15 text-primary ring-1 ring-primary/30';
+  const accentClass = 'bg-primary/15 text-primary ring-1 ring-primary/30';
   const checkClass = 'text-primary';
 
   const brandPanelStyle = {
@@ -216,8 +209,7 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
     ].join(', '),
   };
   const radialGlowStyle = {
-    background:
-      'radial-gradient(circle at 30% 30%, rgba(252,194,0,0.18), rgba(252,194,0,0) 60%)',
+    background: 'radial-gradient(circle at 30% 30%, rgba(252,194,0,0.18), rgba(252,194,0,0) 60%)',
   };
 
   return (
@@ -377,9 +369,7 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
             <ul className="space-y-3">
               {slide.highlights.map((h, i) => (
                 <li key={i} className="flex items-start gap-3">
-                  <CheckCircle2
-                    className={cn('mt-0.5 h-5 w-5 shrink-0', checkClass)}
-                  />
+                  <CheckCircle2 className={cn('mt-0.5 h-5 w-5 shrink-0', checkClass)} />
                   <span className="text-sm text-muted-foreground">{h}</span>
                 </li>
               ))}
@@ -390,23 +380,13 @@ export function OnboardingSlideshow({ isSystemAdmin }: { isSystemAdmin: boolean 
           <div className="mt-12 max-w-lg space-y-3">
             <div className="flex gap-3">
               {current > 0 && (
-                <Button
-                  variant="outline"
-                  onClick={goPrev}
-                  className="w-28 shrink-0"
-                  size="lg"
-                >
+                <Button variant="outline" onClick={goPrev} className="w-28 shrink-0" size="lg">
                   Geri
                 </Button>
               )}
 
               {isLast ? (
-                <Button
-                  onClick={handleComplete}
-                  disabled={loading}
-                  className="flex-1"
-                  size="lg"
-                >
+                <Button onClick={handleComplete} disabled={loading} className="flex-1" size="lg">
                   {loading ? 'Yükleniyor...' : 'Hadi Başlayalım'}
                   {!loading && <ChevronRight className="ml-1 h-4 w-4" />}
                 </Button>

@@ -16,10 +16,7 @@ import { AuthGuard } from '../../common/guards/auth.guard';
 import { SupabaseUserGuard } from '../../common/guards/supabase-user.guard';
 import { AssociationRolesGuard } from '../../common/guards/association-roles.guard';
 import { AssociationRoles } from '../../common/decorators/association-roles.decorator';
-import {
-  CurrentUser,
-  RequestUser,
-} from '../../common/decorators/current-user.decorator';
+import { CurrentUser, RequestUser } from '../../common/decorators/current-user.decorator';
 import { TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { ListTasksQueryDto } from './dto/list-tasks-query.dto';
@@ -41,10 +38,7 @@ export class TasksController {
   constructor(private readonly service: TasksService) {}
 
   @Post()
-  @AssociationRoles(
-    UserRole.ASSOCIATION_MANAGER,
-    UserRole.ASSOCIATION_SECRETARY,
-  )
+  @AssociationRoles(UserRole.ASSOCIATION_MANAGER, UserRole.ASSOCIATION_SECRETARY)
   create(
     @Param('associationId') associationId: string,
     @Body() body: CreateTaskDto,
@@ -81,22 +75,8 @@ export class TasksController {
     return this.service.getOne(associationId, taskId, user);
   }
 
-  @Post('prioritize')
-  @AssociationRoles(
-    UserRole.ASSOCIATION_MANAGER,
-    UserRole.ASSOCIATION_SECRETARY,
-  )
-  prioritize(
-    @Param('associationId') associationId: string,
-  ) {
-    return this.service.prioritizeTasks(associationId);
-  }
-
   @Post('extract-from-meeting')
-  @AssociationRoles(
-    UserRole.ASSOCIATION_MANAGER,
-    UserRole.ASSOCIATION_SECRETARY,
-  )
+  @AssociationRoles(UserRole.ASSOCIATION_MANAGER, UserRole.ASSOCIATION_SECRETARY)
   extractFromMeeting(
     @Param('associationId') associationId: string,
     @Body() body: ExtractTasksFromMeetingDto,
@@ -106,10 +86,7 @@ export class TasksController {
   }
 
   @Delete(':taskId')
-  @AssociationRoles(
-    UserRole.ASSOCIATION_MANAGER,
-    UserRole.ASSOCIATION_SECRETARY,
-  )
+  @AssociationRoles(UserRole.ASSOCIATION_MANAGER, UserRole.ASSOCIATION_SECRETARY)
   softDelete(
     @Param('associationId') associationId: string,
     @Param('taskId') taskId: string,
@@ -184,10 +161,7 @@ export class MyTasksController {
   constructor(private readonly service: TasksService) {}
 
   @Get()
-  list(
-    @Query() query: ListMyTasksQueryDto,
-    @CurrentUser() user: RequestUser,
-  ) {
+  list(@Query() query: ListMyTasksQueryDto, @CurrentUser() user: RequestUser) {
     return this.service.listForUser(query, user);
   }
 }

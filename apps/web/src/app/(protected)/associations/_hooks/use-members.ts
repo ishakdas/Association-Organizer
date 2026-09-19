@@ -60,11 +60,21 @@ export function useUpdateMember(associationId: string) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ membershipId, input }: { membershipId: string; input: UpdateMemberInput }) =>
-      updateMember(await getAccessToken(), associationId, membershipId, input),
-    onSuccess: (member) => {
-      toast.success(`${member.user.fullName} güncellendi`);
+    mutationFn: async ({
+      membershipId,
+      input,
+    }: {
+      membershipId: string;
+      input: UpdateMemberInput;
+    }) => updateMember(await getAccessToken(), associationId, membershipId, input),
+    onSuccess: (member, variables) => {
+      toast.success(
+        variables.input.titleAssignments
+          ? `${member.user.fullName} ünvanı ve yetkileri güncellendi`
+          : `${member.user.fullName} güncellendi`,
+      );
       queryClient.invalidateQueries({ queryKey: ['members', associationId] });
+      queryClient.invalidateQueries({ queryKey: ['permissions', associationId] });
     },
     onError: (err: Error) => {
       toast.error(err.message);
@@ -107,11 +117,7 @@ export function useTransferManager(associationId: string) {
 export function useGenerateMemberTelegramLink(associationId: string) {
   return useMutation({
     mutationFn: async (membershipId: string) =>
-      generateMemberTelegramLink(
-        await getAccessToken(),
-        associationId,
-        membershipId,
-      ),
+      generateMemberTelegramLink(await getAccessToken(), associationId, membershipId),
     onError: (err: Error) => {
       toast.error(err.message);
     },
@@ -138,11 +144,7 @@ export function useUnlinkMemberTelegram(associationId: string) {
 
   return useMutation({
     mutationFn: async (membershipId: string) =>
-      unlinkMemberTelegramAccount(
-        await getAccessToken(),
-        associationId,
-        membershipId,
-      ),
+      unlinkMemberTelegramAccount(await getAccessToken(), associationId, membershipId),
     onSuccess: () => {
       toast.success('Telegram bağlantısı kaldırıldı');
       queryClient.invalidateQueries({ queryKey: ['members', associationId] });

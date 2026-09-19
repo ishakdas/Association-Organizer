@@ -1,15 +1,26 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Building2, CheckCircle2, Clock, Users, XCircle, ArrowRight } from 'lucide-react';
+import { ArrowRight, Building2, CheckCircle2, Clock, MapPin, Users, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import type { GlobalBranchStatsDto } from '@ticketbot/shared-types';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 
 function useAnimatedNumber(target: number, delay = 0) {
   const [value, setValue] = useState(0);
   useEffect(() => {
-    if (!target) { setValue(0); return; }
+    if (!target) {
+      setValue(0);
+      return;
+    }
     const t = setTimeout(() => {
       const duration = 1000;
       const start = performance.now();
@@ -63,7 +74,11 @@ function RingChart({ active, total }: { active: number; total: number }) {
       <svg viewBox="0 0 100 100" className="h-32 w-32 -rotate-90">
         <circle cx="50" cy="50" r={r} fill="none" strokeWidth="10" stroke="hsl(var(--muted))" />
         <circle
-          cx="50" cy="50" r={r} fill="none" strokeWidth="10"
+          cx="50"
+          cy="50"
+          r={r}
+          fill="none"
+          strokeWidth="10"
           stroke="#34d399"
           strokeLinecap="round"
           strokeDasharray={`${arc} ${circumference}`}
@@ -71,8 +86,12 @@ function RingChart({ active, total }: { active: number; total: number }) {
         />
       </svg>
       <div className="absolute text-center">
-        <div className="text-2xl font-bold tabular-nums leading-none text-foreground">{displayPct}%</div>
-        <div className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">Aktif</div>
+        <div className="text-2xl font-bold tabular-nums leading-none text-foreground">
+          {displayPct}%
+        </div>
+        <div className="mt-0.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+          Aktif
+        </div>
       </div>
     </div>
   );
@@ -124,7 +143,17 @@ function StatCard({ icon, label, value, delay = 0, iconClass, highlight, action 
   );
 }
 
-function CityBar({ city, count, max, delay }: { city: string; count: number; max: number; delay: number }) {
+function CityBar({
+  city,
+  count,
+  max,
+  delay,
+}: {
+  city: string;
+  count: number;
+  max: number;
+  delay: number;
+}) {
   const pct = Math.round((count / max) * 100);
   const width = useBarWidth(pct, 300 + delay);
 
@@ -138,23 +167,58 @@ function CityBar({ city, count, max, delay }: { city: string; count: number; max
             style={{ width: `${width}%`, transition: 'width 1s cubic-bezier(0.34, 1.56, 0.64, 1)' }}
           />
         </div>
-        <span className="w-8 text-right text-[12px] tabular-nums text-muted-foreground">{count}</span>
+        <span className="w-8 text-right text-[12px] tabular-nums text-muted-foreground">
+          {count}
+        </span>
       </div>
     </div>
   );
 }
 
-export function DashboardView({ stats }: { stats: GlobalBranchStatsDto }) {
-  const maxCityCount = stats.cityDistribution[0]?.count ?? 1;
+function CityDistributionDialog({
+  distribution,
+}: {
+  distribution: GlobalBranchStatsDto['cityDistribution'];
+}) {
+  const maxCityCount = distribution[0]?.count ?? 1;
 
   return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" disabled={distribution.length === 0}>
+          <MapPin className="h-4 w-4" />
+          Şehir Dağılımı
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Şehir Dağılımı</DialogTitle>
+          <DialogDescription>
+            Şubelerin şehirlere göre dağılımı ({distribution.length} şehir)
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3 py-2">
+          {distribution.map(({ city, count }, index) => (
+            <CityBar key={city} city={city} count={count} max={maxCityCount} delay={index * 50} />
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export function DashboardView({ stats }: { stats: GlobalBranchStatsDto }) {
+  return (
     <div className="space-y-8">
-      <header className="border-b border-border pb-6">
-        <span className="eyebrow">Yönetim Paneli</span>
-        <h1 className="mt-1.5 text-2xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl">
-          Genel Bakış
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">Tüm şubelerin güncel istatistikleri</p>
+      <header className="flex flex-col gap-4 border-b border-border pb-6 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <span className="eyebrow">Yönetim Paneli</span>
+          <h1 className="mt-1.5 text-2xl font-bold leading-tight tracking-tight text-foreground sm:text-3xl">
+            Genel Bakış
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">Tüm şubelerin güncel istatistikleri</p>
+        </div>
+        <CityDistributionDialog distribution={stats.cityDistribution} />
       </header>
 
       {/* Stat Cards */}
@@ -213,11 +277,15 @@ export function DashboardView({ stats }: { stats: GlobalBranchStatsDto }) {
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full bg-emerald-400" />
-                <span className="text-sm text-foreground font-medium">{stats.activeBranches} Aktif</span>
+                <span className="text-sm text-foreground font-medium">
+                  {stats.activeBranches} Aktif
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="h-3 w-3 rounded-full bg-muted-foreground/30" />
-                <span className="text-sm text-foreground font-medium">{stats.inactiveBranches} Pasif</span>
+                <span className="text-sm text-foreground font-medium">
+                  {stats.inactiveBranches} Pasif
+                </span>
               </div>
               <div className="pt-2">
                 <Button variant="outline" size="sm" asChild>
@@ -243,8 +311,12 @@ export function DashboardView({ stats }: { stats: GlobalBranchStatsDto }) {
             />
             <ActiveRatioBar
               label="Üye / Şube Ortalaması"
-              value={stats.totalBranches > 0 ? Math.round(stats.totalMembers / stats.totalBranches) : 0}
-              total={stats.totalBranches > 0 ? Math.round(stats.totalMembers / stats.totalBranches) : 1}
+              value={
+                stats.totalBranches > 0 ? Math.round(stats.totalMembers / stats.totalBranches) : 0
+              }
+              total={
+                stats.totalBranches > 0 ? Math.round(stats.totalMembers / stats.totalBranches) : 1
+              }
               color="bg-sky-400"
               delay={700}
               showRaw
@@ -270,20 +342,6 @@ export function DashboardView({ stats }: { stats: GlobalBranchStatsDto }) {
           </div>
         </div>
       </div>
-
-      {/* City Distribution */}
-      {stats.cityDistribution.length > 0 && (
-        <section className="rounded-xl border border-border bg-card p-6">
-          <h2 className="mb-5 text-[13px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Şehir Dağılımı
-          </h2>
-          <div className="space-y-3">
-            {stats.cityDistribution.map(({ city, count }, i) => (
-              <CityBar key={city} city={city} count={count} max={maxCityCount} delay={i * 50} />
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }

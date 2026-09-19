@@ -1,4 +1,3 @@
-import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase/server';
 import { getMe } from '@/lib/api/me';
@@ -13,21 +12,22 @@ export default async function OnboardingPage() {
 
   if (!session) redirect('/login');
 
+  const me = await safeGetMe(session.access_token);
+
+  if (!me) redirect('/associations');
+
+  const admin = isSystemAdmin(me);
+  if (me.onboardingCompletedAt != null) {
+    redirect(admin ? '/dashboard' : '/associations');
+  }
+
+  return <OnboardingSlideshow isSystemAdmin={admin} />;
+}
+
+async function safeGetMe(token: string) {
   try {
-    const me = await getMe(session.access_token);
-
-    if (me.onboardingCompletedAt != null) {
-      const cookieStore = await cookies();
-      cookieStore.set('onboarding_done', '1', {
-        maxAge: 60 * 60 * 24 * 365,
-        path: '/',
-        sameSite: 'lax',
-      });
-      redirect(isSystemAdmin(me) ? '/dashboard' : '/associations');
-    }
-
-    return <OnboardingSlideshow isSystemAdmin={isSystemAdmin(me)} />;
+    return await getMe(token);
   } catch {
-    return <OnboardingSlideshow isSystemAdmin={false} />;
+    return null;
   }
 }

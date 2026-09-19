@@ -1,10 +1,6 @@
 'use client';
 
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   createTask,
@@ -14,7 +10,6 @@ import {
   resolveTaskDispute,
   updateTask,
   updateTaskStatus,
-  prioritizeTasks,
   extractTasksFromMeeting,
   type TasksListParams,
   type ExtractTasksFromMeetingInput,
@@ -26,22 +21,15 @@ import type {
   TaskStatusValue,
   UpdateTaskInput,
 } from '@ticketbot/shared-validation';
-import type { PrioritizeTasksResponse } from '@/lib/api/tasks';
 import { getAccessToken } from './use-associations';
 
-export const tasksQueryKey = (
-  associationId: string,
-  params: TasksListParams,
-) => ['tasks', associationId, params] as const;
+export const tasksQueryKey = (associationId: string, params: TasksListParams) =>
+  ['tasks', associationId, params] as const;
 
-export function useTasks(
-  associationId: string,
-  params: TasksListParams = {},
-) {
+export function useTasks(associationId: string, params: TasksListParams = {}) {
   return useQuery({
     queryKey: tasksQueryKey(associationId, params),
-    queryFn: async () =>
-      listTasks(await getAccessToken(), associationId, params),
+    queryFn: async () => listTasks(await getAccessToken(), associationId, params),
   });
 }
 
@@ -102,8 +90,7 @@ export function useUpdateTask(
 export function useDeleteTask(associationId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (taskId: string) =>
-      deleteTask(await getAccessToken(), associationId, taskId),
+    mutationFn: async (taskId: string) => deleteTask(await getAccessToken(), associationId, taskId),
     onSuccess: (task) => {
       toast.success(`"${task.title}" görevi silindi`);
       queryClient.invalidateQueries({ queryKey: ['tasks', associationId] });
@@ -150,30 +137,10 @@ export function useResolveTaskDispute(
 export const taskActivitiesQueryKey = (associationId: string, taskId: string) =>
   ['task-activities', associationId, taskId] as const;
 
-export function useTaskActivities(
-  associationId: string,
-  taskId: string,
-  enabled = true,
-) {
+export function useTaskActivities(associationId: string, taskId: string, enabled = true) {
   return useQuery({
     queryKey: taskActivitiesQueryKey(associationId, taskId),
-    queryFn: async () =>
-      listTaskActivities(await getAccessToken(), associationId, taskId),
+    queryFn: async () => listTaskActivities(await getAccessToken(), associationId, taskId),
     enabled,
-  });
-}
-
-export function usePrioritizeTasks(
-  associationId: string,
-  options?: { onSuccess?: (r: PrioritizeTasksResponse) => void; onError?: (err: Error) => void },
-) {
-  return useMutation({
-    mutationFn: async () =>
-      prioritizeTasks(await getAccessToken(), associationId),
-    onSuccess: (r) => options?.onSuccess?.(r),
-    onError: (err: Error) => {
-      toast.error(`Önceliklendirme başarısız: ${err.message}`);
-      options?.onError?.(err);
-    },
   });
 }

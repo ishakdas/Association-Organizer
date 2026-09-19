@@ -138,12 +138,11 @@ export {
   type EnrichedActionItem,
 } from './schemas/extracted-action-item.schema';
 
-// AI features (Toplantı özeti, gündem önerisi, görev önceliklendirme, İslami etkinlik önerisi, program akışı, sosyal medya)
+// AI features (Toplantı özeti, gündem önerisi, İslami etkinlik önerisi, program akışı, sosyal medya)
 export {
   meetingSummarySchema,
   agendaItemSchema,
   agendaSuggestionSchema,
-  prioritizeTasksResultSchema,
   islamicEventSuggestionItemSchema,
   islamicEventSuggestionSchema,
   eventScheduleSchema,
@@ -153,7 +152,6 @@ export {
   weeklySessionSchema,
   type MeetingSummaryOutput,
   type AgendaSuggestionOutput,
-  type PrioritizeTasksResultOutput,
   type IslamicEventSuggestionOutput,
   type EventScheduleOutput,
   type SocialContentOutput,
@@ -256,10 +254,6 @@ export {
 } from './schemas/finance.schema';
 
 // Helpers (pure utilities — usable from apps/api and apps/web)
-export {
-  parsePhoneE164,
-  normalizeTrPhoneInput,
-  formatTrPhoneDisplay,
-} from './helpers/phone';
+export { parsePhoneE164, normalizeTrPhoneInput, formatTrPhoneDisplay } from './helpers/phone';
 export { isValidTaxNumber, TAX_NUMBER_PATTERN } from './helpers/tax-number';
 export { slugifyTr } from './helpers/slugify';

@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { MembershipRole } from '@ticketbot/shared-validation';
-import { Briefcase, Loader2, UserPlus, Users } from 'lucide-react';
+import { Loader2, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -34,7 +34,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
 import { useAddMember } from '../_hooks/use-members';
 import { useTitles } from '../_hooks/use-titles';
 import { PasswordField } from './password-field';
@@ -84,10 +83,7 @@ function buildTitleAssignments(values: FormValues) {
   if (isSecretary) return [{ isPrimary: true, sortOrder: 0 }];
 
   const useCustom = values.titleId === CUSTOM_TITLE;
-  const hasTitle =
-    values.titleId &&
-    values.titleId !== NO_TITLE &&
-    values.titleId !== CUSTOM_TITLE;
+  const hasTitle = values.titleId && values.titleId !== NO_TITLE && values.titleId !== CUSTOM_TITLE;
 
   if (useCustom) {
     return [{ customTitle: values.customTitle?.trim(), isPrimary: true, sortOrder: 0 }];
@@ -115,12 +111,9 @@ export function AddMemberDialog({
   } | null>(null);
   const { data: titles } = useTitles();
 
-  // Manager mode locks to 'member' (manager has its own dedicated flow without
-  // Supabase provisioning here). Secretary trigger starts in secretary mode.
-  // Member trigger starts in member mode but lets the operator switch.
-  const initialMode: Mode =
-    defaultRole === 'ASSOCIATION_SECRETARY' ? 'secretary' : 'member';
-  const allowModeToggle = defaultRole !== 'ASSOCIATION_MANAGER';
+  // The role is fixed by the trigger that opened the dialog. This prevents the
+  // dedicated "Sekreter ekle" and "Üye ekle" flows from changing each other.
+  const initialMode: Mode = defaultRole === 'ASSOCIATION_SECRETARY' ? 'secretary' : 'member';
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -138,16 +131,6 @@ export function AddMemberDialog({
 
   const mode = form.watch('mode');
   const titleId = form.watch('titleId');
-
-  // Wipe role-specific fields when toggling so a stale secretary password
-  // never leaks into a member POST and vice versa.
-  useEffect(() => {
-    if (mode === 'member') form.setValue('password', '');
-    if (mode === 'secretary') {
-      form.setValue('titleId', NO_TITLE);
-      form.setValue('customTitle', '');
-    }
-  }, [mode, form]);
 
   function resetForm() {
     form.reset({
@@ -181,13 +164,9 @@ export function AddMemberDialog({
   });
 
   function onSubmit(values: FormValues) {
-    const isSecretary = values.mode === 'secretary';
+    const isSecretary = defaultRole === 'ASSOCIATION_SECRETARY';
 
-    const role: MembershipRole = isSecretary
-      ? 'ASSOCIATION_SECRETARY'
-      : defaultRole === 'ASSOCIATION_MANAGER'
-        ? 'ASSOCIATION_MANAGER'
-        : 'ASSOCIATION_MEMBER';
+    const role: MembershipRole = defaultRole;
 
     mutation.mutate({
       fullName: values.fullName,
@@ -206,8 +185,7 @@ export function AddMemberDialog({
     setOpen(false);
   }
 
-  const showTitleFields =
-    defaultRole !== 'ASSOCIATION_MANAGER' && mode === 'member';
+  const showTitleFields = defaultRole !== 'ASSOCIATION_MANAGER' && mode === 'member';
 
   const dialogTitle =
     defaultRole === 'ASSOCIATION_MANAGER'
@@ -246,15 +224,44 @@ export function AddMemberDialog({
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              {allowModeToggle && (
+              <FormField
+                control={form.control}
+                name="fullName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Ad Soyad *</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Ali Veli" autoFocus {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <div className="grid gap-4 sm:grid-cols-2">
                 <FormField
                   control={form.control}
-                  name="mode"
+                  name="email"
                   render={({ field }) => (
-                    <FormItem className="space-y-2">
-                      <FormLabel>Tür</FormLabel>
+                    <FormItem>
+                      <FormLabel>E-posta *</FormLabel>
                       <FormControl>
-                        <ModeToggle
+                        <Input type="email" placeholder="ali@..." autoComplete="off" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Telefon *</FormLabel>
+                      <FormControl>
+                        <PhoneInput
+                          name={field.name}
+                          onBlur={field.onBlur}
                           value={field.value}
                           onChange={field.onChange}
                         />
@@ -263,141 +270,94 @@ export function AddMemberDialog({
                     </FormItem>
                   )}
                 />
-              )}
+              </div>
 
-            <FormField
-              control={form.control}
-              name="fullName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Ad Soyad *</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Ali Veli" autoFocus {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
-                name="email"
+                name="address"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      E-posta *
+                      Adres <span className="text-muted-foreground font-normal">(opsiyonel)</span>
                     </FormLabel>
                     <FormControl>
-                      <Input type="email" placeholder="ali@..." autoComplete="off" {...field} />
+                      <Input placeholder="İl, ilçe, mahalle…" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="phone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Telefon *</FormLabel>
-                    <FormControl>
-                      <PhoneInput
-                        name={field.name}
-                        onBlur={field.onBlur}
-                        value={field.value}
-                        onChange={field.onChange}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
 
-            <FormField
-              control={form.control}
-              name="address"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Adres <span className="text-muted-foreground font-normal">(opsiyonel)</span></FormLabel>
-                  <FormControl>
-                    <Input placeholder="İl, ilçe, mahalle…" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {mode === 'secretary' && (
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Geçici Şifre *</FormLabel>
-                    <FormControl>
-                      <PasswordField
-                        value={field.value ?? ''}
-                        onChange={field.onChange}
-                        onBlur={field.onBlur}
-                        name={field.name}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-
-            {showTitleFields && (
-              <>
+              {mode === 'secretary' && (
                 <FormField
                   control={form.control}
-                  name="titleId"
+                  name="password"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Unvan</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value ?? NO_TITLE}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Unvan seç (opsiyonel)" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value={NO_TITLE}>— Yok —</SelectItem>
-                          {titles?.map((t) => (
-                            <SelectItem key={t.id} value={t.id}>
-                              {t.name}
-                            </SelectItem>
-                          ))}
-                          <SelectItem value={CUSTOM_TITLE}>Diğer (yaz)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        Önce kayıtlı unvanlardan seçin; yoksa &ldquo;Diğer&rdquo; ile özel unvan yazın.
-                      </FormDescription>
+                      <FormLabel>Geçici Şifre *</FormLabel>
+                      <FormControl>
+                        <PasswordField
+                          value={field.value ?? ''}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          name={field.name}
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
-                {titleId === CUSTOM_TITLE && (
+              )}
+
+              {showTitleFields && (
+                <>
                   <FormField
                     control={form.control}
-                    name="customTitle"
+                    name="titleId"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Özel Unvan *</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Örn. Onur Üyesi" {...field} />
-                        </FormControl>
+                        <FormLabel>Unvan</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value ?? NO_TITLE}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Unvan seç (opsiyonel)" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value={NO_TITLE}>— Yok —</SelectItem>
+                            {titles?.map((t) => (
+                              <SelectItem key={t.id} value={t.id}>
+                                {t.name}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value={CUSTOM_TITLE}>Diğer (yaz)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          Önce kayıtlı unvanlardan seçin; yoksa &ldquo;Diğer&rdquo; ile özel unvan
+                          yazın.
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
-                )}
-              </>
-            )}
+                  {titleId === CUSTOM_TITLE && (
+                    <FormField
+                      control={form.control}
+                      name="customTitle"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Özel Unvan *</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Örn. Onur Üyesi" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </>
+              )}
 
               <DialogFooter>
                 <Button
@@ -439,70 +399,5 @@ export function AddMemberDialog({
         />
       )}
     </>
-  );
-}
-
-function ModeToggle({
-  value,
-  onChange,
-}: {
-  value: Mode;
-  onChange: (next: Mode) => void;
-}) {
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      <ModeCard
-        active={value === 'secretary'}
-        onClick={() => onChange('secretary')}
-        icon={<Briefcase className="h-4 w-4" />}
-        title="Sekreter"
-        subtitle="Web hesabı açılır, geçici şifre üretilir."
-      />
-      <ModeCard
-        active={value === 'member'}
-        onClick={() => onChange('member')}
-        icon={<Users className="h-4 w-4" />}
-        title="Üye"
-        subtitle="Yalnızca dernek kayıtlarına işlenir."
-      />
-    </div>
-  );
-}
-
-function ModeCard({
-  active,
-  onClick,
-  icon,
-  title,
-  subtitle,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex h-full flex-col gap-1.5 rounded-md border p-3 text-left transition-colors',
-        active
-          ? 'border-primary bg-primary/5 ring-1 ring-primary/40'
-          : 'border-border bg-background hover:border-foreground/30',
-      )}
-      aria-pressed={active}
-    >
-      <div className="flex items-center gap-2 text-[13px] font-semibold">
-        <span className={active ? 'text-primary' : 'text-muted-foreground'}>
-          {icon}
-        </span>
-        {title}
-      </div>
-      <p className="text-[11.5px] leading-snug text-muted-foreground">
-        {subtitle}
-      </p>
-    </button>
   );
 }

@@ -63,7 +63,6 @@ import { AddTaskDialog } from './add-task-dialog';
 import { EditTaskDialog } from './edit-task-dialog';
 import { ResolveDisputeDialog } from './resolve-dispute-dialog';
 import { TaskActivityDialog } from './task-activity-dialog';
-import { PrioritizeTasksDialog } from './prioritize-tasks-dialog';
 
 type StatusTab = 'ALL' | TaskStatusValue;
 type ViewMode = 'list' | 'kanban';
@@ -169,7 +168,6 @@ export function TasksSection({
         </div>
         <div className="flex items-center gap-2">
           <ViewToggle value={view} onChange={setView} />
-          {canManage && <PrioritizeTasksDialog associationId={associationId} />}
           {canManage && <AddTaskDialog associationId={associationId} />}
         </div>
       </header>

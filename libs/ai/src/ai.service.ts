@@ -8,8 +8,6 @@ import {
   MeetingSummaryOutput,
   agendaSuggestionSchema,
   AgendaSuggestionOutput,
-  prioritizeTasksResultSchema,
-  PrioritizeTasksResultOutput,
   islamicEventSuggestionSchema,
   IslamicEventSuggestionOutput,
   eventScheduleSchema,
@@ -31,10 +29,6 @@ import {
   SUGGEST_AGENDA_SYSTEM_PROMPT,
   buildAgendaUserPrompt,
 } from './prompts/suggest-agenda.prompt';
-import {
-  PRIORITIZE_TASKS_SYSTEM_PROMPT,
-  buildPrioritizeUserPrompt,
-} from './prompts/prioritize-tasks.prompt';
 import {
   SUGGEST_ISLAMIC_EVENTS_SYSTEM_PROMPT,
   buildIslamicEventsUserPrompt,
@@ -72,9 +66,15 @@ export class AiService {
     }
   }
 
-  async extractActionItems(meetingNotes: string, membersContext: string): Promise<ExtractionResultOutput> {
+  async extractActionItems(
+    meetingNotes: string,
+    membersContext: string,
+  ): Promise<ExtractionResultOutput> {
     return this.provider.generateStructured({
-      systemPrompt: await this.getSystemPrompt('extract-action-items', EXTRACT_ACTION_ITEMS_SYSTEM_PROMPT),
+      systemPrompt: await this.getSystemPrompt(
+        'extract-action-items',
+        EXTRACT_ACTION_ITEMS_SYSTEM_PROMPT,
+      ),
       userPrompt: buildExtractionUserPrompt(meetingNotes, membersContext),
       schema: extractionResultSchema,
       schemaName: 'extractActionItems',
@@ -83,29 +83,26 @@ export class AiService {
 
   async summarizeMeeting(meetingNotes: string): Promise<MeetingSummaryOutput> {
     return this.provider.generateStructured({
-      systemPrompt: await this.getSystemPrompt('summarize-meeting', SUMMARIZE_MEETING_SYSTEM_PROMPT),
+      systemPrompt: await this.getSystemPrompt(
+        'summarize-meeting',
+        SUMMARIZE_MEETING_SYSTEM_PROMPT,
+      ),
       userPrompt: buildSummarizeUserPrompt(meetingNotes),
       schema: meetingSummarySchema,
       schemaName: 'summarizeMeeting',
     }) as Promise<MeetingSummaryOutput>;
   }
 
-  async suggestAgenda(meetingNotes: string, pendingTasks?: string): Promise<AgendaSuggestionOutput> {
+  async suggestAgenda(
+    meetingNotes: string,
+    pendingTasks?: string,
+  ): Promise<AgendaSuggestionOutput> {
     return this.provider.generateStructured({
       systemPrompt: await this.getSystemPrompt('suggest-agenda', SUGGEST_AGENDA_SYSTEM_PROMPT),
       userPrompt: buildAgendaUserPrompt(meetingNotes, pendingTasks),
       schema: agendaSuggestionSchema,
       schemaName: 'suggestAgenda',
     }) as Promise<AgendaSuggestionOutput>;
-  }
-
-  async prioritizeTasks(tasksContext: string): Promise<PrioritizeTasksResultOutput> {
-    return this.provider.generateStructured({
-      systemPrompt: await this.getSystemPrompt('prioritize-tasks', PRIORITIZE_TASKS_SYSTEM_PROMPT),
-      userPrompt: buildPrioritizeUserPrompt(tasksContext),
-      schema: prioritizeTasksResultSchema,
-      schemaName: 'prioritizeTasks',
-    }) as Promise<PrioritizeTasksResultOutput>;
   }
 
   async suggestIslamicEvents(
@@ -122,7 +119,10 @@ export class AiService {
     upcomingHolidays?: { name: string; date: string; daysUntil: number }[],
   ): Promise<IslamicEventSuggestionOutput> {
     return this.provider.generateStructured({
-      systemPrompt: await this.getSystemPrompt('suggest-islamic-events', SUGGEST_ISLAMIC_EVENTS_SYSTEM_PROMPT),
+      systemPrompt: await this.getSystemPrompt(
+        'suggest-islamic-events',
+        SUGGEST_ISLAMIC_EVENTS_SYSTEM_PROMPT,
+      ),
       userPrompt: buildIslamicEventsUserPrompt(
         period,
         targetAudience,
@@ -143,7 +143,10 @@ export class AiService {
     timeRange: { start: string; end: string },
   ): Promise<EventScheduleOutput> {
     return this.provider.generateStructured({
-      systemPrompt: await this.getSystemPrompt('generate-event-schedule', GENERATE_EVENT_SCHEDULE_SYSTEM_PROMPT),
+      systemPrompt: await this.getSystemPrompt(
+        'generate-event-schedule',
+        GENERATE_EVENT_SCHEDULE_SYSTEM_PROMPT,
+      ),
       userPrompt: buildEventScheduleUserPrompt(
         title,
         description,
@@ -170,7 +173,10 @@ export class AiService {
     endTime: string,
   ): Promise<SocialContentOutput> {
     return this.provider.generateStructured({
-      systemPrompt: await this.getSystemPrompt('generate-instagram-content', GENERATE_INSTAGRAM_CONTENT_SYSTEM_PROMPT),
+      systemPrompt: await this.getSystemPrompt(
+        'generate-instagram-content',
+        GENERATE_INSTAGRAM_CONTENT_SYSTEM_PROMPT,
+      ),
       userPrompt: buildInstagramContentUserPrompt(
         title,
         description,
@@ -196,7 +202,10 @@ export class AiService {
     weeks: number,
   ): Promise<RecurringProgramOutput> {
     return this.provider.generateStructured({
-      systemPrompt: await this.getSystemPrompt('generate-recurring-program', GENERATE_RECURRING_PROGRAM_SYSTEM_PROMPT),
+      systemPrompt: await this.getSystemPrompt(
+        'generate-recurring-program',
+        GENERATE_RECURRING_PROGRAM_SYSTEM_PROMPT,
+      ),
       userPrompt: buildRecurringProgramUserPrompt(
         title,
         description,
@@ -267,7 +276,10 @@ export class AiService {
       upcomingHolidays,
     );
 
-    const systemPrompt = await this.getSystemPrompt('suggest-islamic-events', SUGGEST_ISLAMIC_EVENTS_SYSTEM_PROMPT);
+    const systemPrompt = await this.getSystemPrompt(
+      'suggest-islamic-events',
+      SUGGEST_ISLAMIC_EVENTS_SYSTEM_PROMPT,
+    );
 
     return this.brainstormAndRefine(
       userPrompt,
@@ -288,10 +300,14 @@ export class AiService {
     }>;
   }> {
     const { extractTasksFromMeetingResultSchema } = await import('@ticketbot/shared-validation');
-    const { EXTRACT_TASKS_FROM_MEETING_SYSTEM_PROMPT, buildExtractTasksUserPrompt } = await import('./prompts/extract-tasks-from-meeting.prompt');
+    const { EXTRACT_TASKS_FROM_MEETING_SYSTEM_PROMPT, buildExtractTasksUserPrompt } =
+      await import('./prompts/extract-tasks-from-meeting.prompt');
 
     return this.provider.generateStructured({
-      systemPrompt: await this.getSystemPrompt('extract-tasks-from-meeting', EXTRACT_TASKS_FROM_MEETING_SYSTEM_PROMPT),
+      systemPrompt: await this.getSystemPrompt(
+        'extract-tasks-from-meeting',
+        EXTRACT_TASKS_FROM_MEETING_SYSTEM_PROMPT,
+      ),
       userPrompt: buildExtractTasksUserPrompt(meetingContent),
       schema: extractTasksFromMeetingResultSchema,
       schemaName: 'extractTasksFromMeeting',

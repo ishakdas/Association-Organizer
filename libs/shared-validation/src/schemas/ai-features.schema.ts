@@ -32,18 +32,6 @@ export const agendaSuggestionSchema = z.object({
 
 export type AgendaSuggestionOutput = z.infer<typeof agendaSuggestionSchema>;
 
-export const prioritizedTaskSchema = z.object({
-  taskId: z.string().min(1),
-  priority: z.enum(['YUKSEK', 'ORTA', 'DUSUK']),
-  reason: z.string().min(1),
-});
-
-export const prioritizeTasksResultSchema = z.object({
-  prioritizedTasks: z.array(prioritizedTaskSchema),
-});
-
-export type PrioritizeTasksResultOutput = z.infer<typeof prioritizeTasksResultSchema>;
-
 // ---------------------------------------------------------------------------
 // Islamic event suggestions
 // ---------------------------------------------------------------------------
