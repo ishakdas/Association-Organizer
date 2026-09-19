@@ -77,10 +77,23 @@ interface RosterSectionProps {
   canManageManager?: boolean;
 }
 
-export function RosterSection({ associationId, canManage, canManageManager = false }: RosterSectionProps) {
-  const { data: managers, isLoading: loadingManagers } = useMembers(associationId, { role: 'ASSOCIATION_MANAGER' });
-  const { data: secretaries, isLoading: loadingSecretaries } = useMembers(associationId, { role: 'ASSOCIATION_SECRETARY' });
-  const { data: members, isLoading: loadingMembers, isError, error } = useMembers(associationId, { role: 'ASSOCIATION_MEMBER' });
+export function RosterSection({
+  associationId,
+  canManage,
+  canManageManager = false,
+}: RosterSectionProps) {
+  const { data: managers, isLoading: loadingManagers } = useMembers(associationId, {
+    role: 'ASSOCIATION_MANAGER',
+  });
+  const { data: secretaries, isLoading: loadingSecretaries } = useMembers(associationId, {
+    role: 'ASSOCIATION_SECRETARY',
+  });
+  const {
+    data: members,
+    isLoading: loadingMembers,
+    isError,
+    error,
+  } = useMembers(associationId, { role: 'ASSOCIATION_MEMBER' });
   const removeMutation = useRemoveMember(associationId);
   const { data: titles } = useTitles();
 
@@ -89,6 +102,10 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
   const [telegramFor, setTelegramFor] = useState<MemberResponse | null>(null);
   const [editingMember, setEditingMember] = useState<MemberResponse | null>(null);
   const [addingSecondaryFor, setAddingSecondaryFor] = useState<MemberResponse | null>(null);
+  const [editingSecondary, setEditingSecondary] = useState<{
+    member: MemberResponse;
+    assignment: MemberResponse['titleAssignments'][number];
+  } | null>(null);
   const [transferOpen, setTransferOpen] = useState(false);
 
   const manager = managers?.[0] ?? null;
@@ -130,11 +147,7 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
           </div>
           {canManageManager &&
             (manager ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setTransferOpen(true)}
-              >
+              <Button variant="outline" size="sm" onClick={() => setTransferOpen(true)}>
                 <ArrowLeftRight className="h-3.5 w-3.5" />
                 Başkanlığı devret
               </Button>
@@ -214,8 +227,7 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
             </TableHeader>
             <TableBody>
               {secretaries.map((m) => {
-                const isRemoving =
-                  removeMutation.isPending && removeMutation.variables === m.id;
+                const isRemoving = removeMutation.isPending && removeMutation.variables === m.id;
                 return (
                   <TableRow key={m.id}>
                     <TableCell className="font-medium">{m.user.fullName}</TableCell>
@@ -225,10 +237,7 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
                         <span className="block font-mono text-[12px]">{m.user.phone}</span>
                       )}
                       {m.user.telegramAccount && (
-                        <Badge
-                          variant="success"
-                          className="mt-1 inline-flex items-center gap-1"
-                        >
+                        <Badge variant="success" className="mt-1 inline-flex items-center gap-1">
                           <Send className="h-3 w-3" />
                           Telegram
                         </Badge>
@@ -245,8 +254,8 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
                             variant="ghost"
                             size="sm"
                             onClick={() => setEditingMember(m)}
-                            aria-label={`${m.user.fullName} bilgilerini düzenle`}
-                            title="Bilgileri düzenle"
+                            aria-label={`${m.user.fullName} ünvanını ve bilgilerini düzenle`}
+                            title="Ünvanı ve bilgileri düzenle"
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -363,42 +372,19 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
             </TableHeader>
             <TableBody>
               {filteredMembers.map((m) => {
-                const isRemoving =
-                  removeMutation.isPending && removeMutation.variables === m.id;
+                const isRemoving = removeMutation.isPending && removeMutation.variables === m.id;
                 const secondaries = m.titleAssignments?.filter((t) => !t.isPrimary) ?? [];
                 return (
                   <TableRow key={m.id}>
                     <TableCell className="font-medium">{m.user.fullName}</TableCell>
                     <TableCell className="text-[13px] text-muted-foreground">
-                      {(() => {
-                        const assignments = m.titleAssignments ?? [];
-                        const primary = assignments.find((t) => t.isPrimary);
-                        const secondaries = assignments.filter((t) => !t.isPrimary);
-                        const primaryLabel = primary?.title?.name ?? primary?.customTitle;
-                        if (!primaryLabel && secondaries.length === 0) return '—';
-                        return (
-                          <div className="space-y-0.5">
-                            {primaryLabel && (
-                              <div className="flex items-center gap-1.5">
-                                <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-foreground" />
-                                <span className="font-medium text-foreground">{primaryLabel}</span>
-                              </div>
-                            )}
-                            {secondaries.map((s) => {
-                              const label = s.title?.name ?? s.customTitle;
-                              return label ? (
-                                <div key={s.id} className="flex items-center gap-1.5">
-                                  <span className="flex items-center gap-1 pl-3.5">
-                                    <span className="h-4 w-px bg-foreground/60" />
-                                    <span className="h-2.5 w-2.5 shrink-0 rounded-sm border border-foreground/50 bg-foreground/20" />
-                                  </span>
-                                  <span className="text-foreground">{label}</span>
-                                </div>
-                              ) : null;
-                            })}
-                          </div>
-                        );
-                      })()}
+                      <TitleHierarchy
+                        assignments={m.titleAssignments ?? []}
+                        canEdit={canManage}
+                        onEditSecondary={(assignment) =>
+                          setEditingSecondary({ member: m, assignment })
+                        }
+                      />
                     </TableCell>
                     <TableCell className="text-[13px] text-muted-foreground">
                       {m.user.email && <span className="block">{m.user.email}</span>}
@@ -409,10 +395,7 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
                         <span className="block text-[12px]">{m.user.address}</span>
                       )}
                       {m.user.telegramAccount && (
-                        <Badge
-                          variant="success"
-                          className="mt-1 inline-flex items-center gap-1"
-                        >
+                        <Badge variant="success" className="mt-1 inline-flex items-center gap-1">
                           <Send className="h-3 w-3" />
                           Telegram
                         </Badge>
@@ -440,8 +423,8 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
                             variant="ghost"
                             size="sm"
                             onClick={() => setEditingMember(m)}
-                            aria-label={`${m.user.fullName} bilgilerini düzenle`}
-                            title="Bilgileri düzenle"
+                            aria-label={`${m.user.fullName} ünvanını ve bilgilerini düzenle`}
+                            title="Ünvanı ve bilgileri düzenle"
                           >
                             <Pencil className="h-3.5 w-3.5" />
                           </Button>
@@ -482,7 +465,9 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
         associationId={associationId}
         member={telegramFor}
         open={telegramFor !== null}
-        onOpenChange={(open) => { if (!open) setTelegramFor(null); }}
+        onOpenChange={(open) => {
+          if (!open) setTelegramFor(null);
+        }}
       />
 
       {editingMember && (
@@ -490,16 +475,32 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
           associationId={associationId}
           member={editingMember}
           open
-          onOpenChange={(open) => { if (!open) setEditingMember(null); }}
+          onOpenChange={(open) => {
+            if (!open) setEditingMember(null);
+          }}
         />
       )}
 
       {addingSecondaryFor && (
-        <AddSecondaryTitleDialog
+        <SecondaryTitleDialog
           associationId={associationId}
           member={addingSecondaryFor}
           open
-          onOpenChange={(open) => { if (!open) setAddingSecondaryFor(null); }}
+          onOpenChange={(open) => {
+            if (!open) setAddingSecondaryFor(null);
+          }}
+        />
+      )}
+
+      {editingSecondary && (
+        <SecondaryTitleDialog
+          associationId={associationId}
+          member={editingSecondary.member}
+          assignment={editingSecondary.assignment}
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditingSecondary(null);
+          }}
         />
       )}
 
@@ -512,6 +513,91 @@ export function RosterSection({ associationId, canManage, canManageManager = fal
           onOpenChange={setTransferOpen}
         />
       )}
+    </div>
+  );
+}
+
+function TitleHierarchy({
+  assignments,
+  canEdit,
+  onEditSecondary,
+}: {
+  assignments: MemberResponse['titleAssignments'];
+  canEdit: boolean;
+  onEditSecondary: (assignment: MemberResponse['titleAssignments'][number]) => void;
+}) {
+  const visible = assignments
+    .filter((assignment) => assignment.title?.name || assignment.customTitle)
+    .sort((a, b) => Number(b.isPrimary) - Number(a.isPrimary) || a.sortOrder - b.sortOrder);
+
+  if (visible.length === 0) return '—';
+
+  return (
+    <div className="relative min-w-[180px] space-y-2 py-1 pl-6">
+      {visible.length > 1 && (
+        <span
+          aria-hidden
+          className="absolute bottom-4 left-[9px] top-4 w-px bg-gradient-to-b from-primary/80 via-border to-border"
+        />
+      )}
+
+      {visible.map((assignment) => {
+        const label = assignment.title?.name ?? assignment.customTitle;
+        if (!label) return null;
+
+        if (assignment.isPrimary) {
+          return (
+            <div key={assignment.id} className="relative">
+              <span
+                aria-hidden
+                className="absolute -left-[22px] top-1/2 h-3 w-3 -translate-y-1/2 rounded-full border-2 border-primary bg-card ring-4 ring-primary/10"
+              />
+              <div className="inline-flex items-center gap-2 rounded-md border border-primary/25 bg-primary/5 px-2.5 py-1.5 text-foreground">
+                <span className="font-semibold">{label}</span>
+                <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">
+                  Ana
+                </span>
+              </div>
+            </div>
+          );
+        }
+
+        const content = (
+          <>
+            <span>{label}</span>
+            {canEdit && (
+              <Pencil className="h-3 w-3 text-muted-foreground opacity-60 transition-opacity group-hover:opacity-100" />
+            )}
+          </>
+        );
+
+        return (
+          <div key={assignment.id} className="relative">
+            <span
+              aria-hidden
+              className="absolute -left-[17px] top-1/2 h-px w-4 -translate-y-1/2 bg-border"
+            />
+            <span
+              aria-hidden
+              className="absolute -left-[20px] top-1/2 h-2 w-2 -translate-y-1/2 rounded-full border border-muted-foreground/50 bg-card"
+            />
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={() => onEditSecondary(assignment)}
+                className="group inline-flex items-center gap-2 rounded-md border border-border bg-muted/30 px-2.5 py-1.5 text-left text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5"
+                title="İkincil ünvanı düzenle"
+              >
+                {content}
+              </button>
+            ) : (
+              <div className="inline-flex items-center gap-2 rounded-md border border-border bg-muted/30 px-2.5 py-1.5 text-foreground">
+                {content}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -531,9 +617,9 @@ function TransferManagerDialog({
 }) {
   const mutation = useTransferManager(associationId);
   const [toMembershipId, setToMembershipId] = useState<string>('');
-  const [demoteToRole, setDemoteToRole] = useState<
-    'ASSOCIATION_SECRETARY' | 'ASSOCIATION_MEMBER'
-  >('ASSOCIATION_MEMBER');
+  const [demoteToRole, setDemoteToRole] = useState<'ASSOCIATION_SECRETARY' | 'ASSOCIATION_MEMBER'>(
+    'ASSOCIATION_MEMBER',
+  );
 
   const eligible = candidates.filter(
     (c) => c.id !== currentManager.id && c.role !== 'ASSOCIATION_MANAGER',
@@ -562,9 +648,8 @@ function TransferManagerDialog({
         <DialogHeader>
           <DialogTitle>Başkanlığı Devret</DialogTitle>
           <DialogDescription>
-            Mevcut başkan <strong>{currentManager.user.fullName}</strong>{' '}
-            görevinden alınıp seçtiğiniz üye başkan yapılır. İşlem tek adımda,
-            geri alınabilir şekilde gerçekleşir.
+            Mevcut başkan <strong>{currentManager.user.fullName}</strong> görevinden alınıp
+            seçtiğiniz üye başkan yapılır. İşlem tek adımda, geri alınabilir şekilde gerçekleşir.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -576,9 +661,7 @@ function TransferManagerDialog({
               </SelectTrigger>
               <SelectContent>
                 {eligible.length === 0 ? (
-                  <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                    Uygun üye yok
-                  </div>
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">Uygun üye yok</div>
                 ) : (
                   eligible.map((c) => (
                     <SelectItem key={c.id} value={c.id}>
@@ -591,9 +674,7 @@ function TransferManagerDialog({
             </Select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium">
-              Eski başkanın yeni rolü
-            </label>
+            <label className="text-sm font-medium">Eski başkanın yeni rolü</label>
             <Select
               value={demoteToRole}
               onValueChange={(v) =>
@@ -674,13 +755,19 @@ function ManagerCard({
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[13px] text-muted-foreground">
           {m.user.email && (
-            <a href={`mailto:${m.user.email}`} className="inline-flex items-center gap-1.5 hover:text-foreground">
+            <a
+              href={`mailto:${m.user.email}`}
+              className="inline-flex items-center gap-1.5 hover:text-foreground"
+            >
               <Mail className="h-3.5 w-3.5" />
               {m.user.email}
             </a>
           )}
           {m.user.phone && (
-            <a href={`tel:${m.user.phone}`} className="inline-flex items-center gap-1.5 font-mono hover:text-foreground">
+            <a
+              href={`tel:${m.user.phone}`}
+              className="inline-flex items-center gap-1.5 font-mono hover:text-foreground"
+            >
               <Phone className="h-3.5 w-3.5" />
               {m.user.phone}
             </a>
@@ -752,18 +839,37 @@ const editMemberFormSchema = z
 
 type EditMemberFormValues = z.infer<typeof editMemberFormSchema>;
 
-function buildEditTitleAssignments(values: EditMemberFormValues) {
+function buildEditTitleAssignments(
+  values: EditMemberFormValues,
+  assignments: MemberResponse['titleAssignments'],
+) {
   const useCustom = values.titleId === EDIT_CUSTOM_TITLE;
   const hasTitle =
     values.titleId && values.titleId !== EDIT_NO_TITLE && values.titleId !== EDIT_CUSTOM_TITLE;
 
-  if (useCustom) {
-    return [{ customTitle: values.customTitle?.trim() || null, isPrimary: true, sortOrder: 0 }];
-  }
-  if (hasTitle) {
-    return [{ titleId: values.titleId, isPrimary: true, sortOrder: 0 }];
-  }
-  return [{ isPrimary: true, sortOrder: 0 }];
+  const nextPrimary = useCustom
+    ? { customTitle: values.customTitle?.trim() || null, isPrimary: true, sortOrder: 0 }
+    : hasTitle
+      ? { titleId: values.titleId, isPrimary: true, sortOrder: 0 }
+      : { isPrimary: true, sortOrder: 0 };
+
+  // Changing the main title must not silently discard secondary titles. If a
+  // secondary title is promoted to main, omit its old secondary assignment.
+  const secondaries = assignments
+    .filter((assignment) => !assignment.isPrimary)
+    .filter(
+      (assignment) =>
+        (!('titleId' in nextPrimary) || assignment.titleId !== nextPrimary.titleId) &&
+        (!('customTitle' in nextPrimary) || assignment.customTitle !== nextPrimary.customTitle),
+    )
+    .map((assignment, index) => ({
+      titleId: assignment.titleId,
+      customTitle: assignment.customTitle,
+      isPrimary: false,
+      sortOrder: index + 1,
+    }));
+
+  return [nextPrimary, ...secondaries];
 }
 
 function EditMemberDialog({
@@ -810,7 +916,7 @@ function EditMemberDialog({
           email: values.email.trim() || undefined,
           phone: values.phone?.trim() || undefined,
           address: values.address?.trim() || null,
-          titleAssignments: buildEditTitleAssignments(values),
+          titleAssignments: buildEditTitleAssignments(values, member.titleAssignments ?? []),
         },
       },
       { onSuccess: () => onOpenChange(false) },
@@ -823,7 +929,7 @@ function EditMemberDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
-          <DialogTitle>Üye Bilgilerini Düzenle</DialogTitle>
+          <DialogTitle>Üye Bilgilerini ve Ünvanını Düzenle</DialogTitle>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
@@ -878,7 +984,9 @@ function EditMemberDialog({
               name="address"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Adres <span className="text-muted-foreground font-normal">(opsiyonel)</span></FormLabel>
+                  <FormLabel>
+                    Adres <span className="text-muted-foreground font-normal">(opsiyonel)</span>
+                  </FormLabel>
                   <FormControl>
                     <Input placeholder="İl, ilçe, mahalle…" {...field} />
                   </FormControl>
@@ -911,7 +1019,8 @@ function EditMemberDialog({
                         </SelectContent>
                       </Select>
                       <FormDescription>
-                        Önce kayıtlı unvanlardan seçin; yoksa &ldquo;Diğer&rdquo; ile özel unvan yazın.
+                        Önce kayıtlı unvanlardan seçin; yoksa &ldquo;Diğer&rdquo; ile özel unvan
+                        yazın.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -961,8 +1070,10 @@ function EditMemberDialog({
 }
 
 // ---------------------------------------------------------------------------
-// Add Secondary Title Dialog
+// Add / edit secondary title dialog
 // ---------------------------------------------------------------------------
+
+const SECONDARY_CUSTOM_TITLE = '__custom__';
 
 const secondaryTitleSchema = z
   .object({
@@ -970,7 +1081,17 @@ const secondaryTitleSchema = z
     customTitle: z.string().optional(),
   })
   .superRefine((v, ctx) => {
-    if (!v.titleId && (!v.customTitle || v.customTitle.trim().length < 2)) {
+    if (!v.titleId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['titleId'],
+        message: 'Bir ünvan seçin',
+      });
+    }
+    if (
+      v.titleId === SECONDARY_CUSTOM_TITLE &&
+      (!v.customTitle || v.customTitle.trim().length < 2)
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['customTitle'],
@@ -981,14 +1102,16 @@ const secondaryTitleSchema = z
 
 type SecondaryTitleFormValues = z.infer<typeof secondaryTitleSchema>;
 
-function AddSecondaryTitleDialog({
+function SecondaryTitleDialog({
   associationId,
   member,
+  assignment,
   open,
   onOpenChange,
 }: {
   associationId: string;
   member: MemberResponse;
+  assignment?: MemberResponse['titleAssignments'][number];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -998,8 +1121,9 @@ function AddSecondaryTitleDialog({
   const form = useForm<SecondaryTitleFormValues>({
     resolver: zodResolver(secondaryTitleSchema),
     defaultValues: {
-      titleId: undefined,
-      customTitle: '',
+      titleId:
+        assignment?.titleId ?? (assignment?.customTitle ? SECONDARY_CUSTOM_TITLE : undefined),
+      customTitle: assignment?.customTitle ?? '',
     },
   });
 
@@ -1007,44 +1131,53 @@ function AddSecondaryTitleDialog({
 
   function handleSubmit(values: SecondaryTitleFormValues) {
     const existingAssignments = member.titleAssignments ?? [];
-    const newTitleId = values.titleId || null;
-    const newCustomTitle = values.customTitle?.trim() || null;
+    const useCustomTitle = values.titleId === SECONDARY_CUSTOM_TITLE;
+    const newTitleId = useCustomTitle ? null : values.titleId || null;
+    const newCustomTitle = useCustomTitle ? values.customTitle?.trim() || null : null;
 
     const isDuplicate = existingAssignments.some(
       (t) =>
-        (newTitleId && t.titleId === newTitleId) ||
-        (newCustomTitle && t.customTitle === newCustomTitle),
+        (t.id !== assignment?.id && newTitleId && t.titleId === newTitleId) ||
+        (t.id !== assignment?.id && newCustomTitle && t.customTitle === newCustomTitle),
     );
 
     if (isDuplicate) {
       const dupLabel = newTitleId
-        ? titles?.find((t) => t.id === newTitleId)?.name ?? 'bu ünvan'
+        ? (titles?.find((t) => t.id === newTitleId)?.name ?? 'bu ünvan')
         : newCustomTitle;
       toast.error(`"${dupLabel}" zaten bu üyeye atanmış`);
       return;
     }
 
     const maxSort = existingAssignments.reduce(
-      (max, t) => Math.max(max, t.sortOrder ?? 0),
+      (max, item) => Math.max(max, item.sortOrder ?? 0),
       0,
     );
 
-    const newAssignment = {
-      titleId: newTitleId,
-      customTitle: newCustomTitle,
-      isPrimary: false,
-      sortOrder: maxSort + 1,
-    };
+    const updatedAssignments = existingAssignments.map((item) =>
+      item.id === assignment?.id
+        ? {
+            titleId: newTitleId,
+            customTitle: newCustomTitle,
+            isPrimary: false,
+            sortOrder: item.sortOrder ?? 1,
+          }
+        : {
+            titleId: item.titleId,
+            customTitle: item.customTitle,
+            isPrimary: item.isPrimary,
+            sortOrder: item.sortOrder ?? 0,
+          },
+    );
 
-    const updatedAssignments = [
-      ...existingAssignments.map((t) => ({
-        titleId: t.titleId,
-        customTitle: t.customTitle,
-        isPrimary: t.isPrimary,
-        sortOrder: t.sortOrder ?? 0,
-      })),
-      newAssignment,
-    ];
+    if (!assignment) {
+      updatedAssignments.push({
+        titleId: newTitleId,
+        customTitle: newCustomTitle,
+        isPrimary: false,
+        sortOrder: maxSort + 1,
+      });
+    }
 
     mutation.mutate(
       {
@@ -1058,15 +1191,15 @@ function AddSecondaryTitleDialog({
   }
 
   const existingSecondaries = member.titleAssignments?.filter((t) => !t.isPrimary) ?? [];
-  const isAtLimit = existingSecondaries.length >= 2;
+  const isAtLimit = !assignment && existingSecondaries.length >= 2;
 
   return (
     <Dialog open={open && !isAtLimit} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[420px]">
         <DialogHeader>
-          <DialogTitle>İkincil Ünvan Ekle</DialogTitle>
+          <DialogTitle>İkincil Ünvanı {assignment ? 'Düzenle' : 'Ekle'}</DialogTitle>
           <DialogDescription>
-            {member.user.fullName} için ek sorumluluk alanı tanımlayın.
+            {member.user.fullName} için ikincil ünvanı {assignment ? 'değiştirin' : 'tanımlayın'}.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -1089,7 +1222,7 @@ function AddSecondaryTitleDialog({
                           {t.name}
                         </SelectItem>
                       ))}
-                      <SelectItem value="__custom__">Diğer (yaz)</SelectItem>
+                      <SelectItem value={SECONDARY_CUSTOM_TITLE}>Diğer (yaz)</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormDescription>
@@ -1099,7 +1232,7 @@ function AddSecondaryTitleDialog({
                 </FormItem>
               )}
             />
-            {titleId === '__custom__' && (
+            {titleId === SECONDARY_CUSTOM_TITLE && (
               <FormField
                 control={form.control}
                 name="customTitle"
@@ -1130,7 +1263,7 @@ function AddSecondaryTitleDialog({
                 ) : (
                   <Plus className="h-3.5 w-3.5" />
                 )}
-                Ekle
+                {assignment ? 'Kaydet' : 'Ekle'}
               </Button>
             </DialogFooter>
           </form>

@@ -101,14 +101,10 @@ describe('TasksService', () => {
       uidDomain: jest.fn().mockReturnValue('example.test'),
     };
     const configMock = {
-      get: jest.fn((key: string) =>
-        key === 'webUrl' ? 'https://example.test' : undefined,
-      ),
+      get: jest.fn((key: string) => (key === 'webUrl' ? 'https://example.test' : undefined)),
     };
 
-    const aiServiceMock = {
-      prioritizeTasks: jest.fn().mockResolvedValue({ prioritizedTasks: [] }),
-    };
+    const aiServiceMock = {};
 
     const notificationMock = {
       notifyTaskCompleted: jest.fn().mockResolvedValue(undefined),
@@ -134,9 +130,9 @@ describe('TasksService', () => {
     it('rejects with BadRequest when assignee is not an active member of the association', async () => {
       prisma.associationMembership.findFirst.mockResolvedValue(null);
 
-      await expect(
-        service.create(ASSOC, validInput, SECRETARY_USER),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.create(ASSOC, validInput, SECRETARY_USER)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
 
       expect(prisma.task.create).not.toHaveBeenCalled();
     });
@@ -243,7 +239,11 @@ describe('TasksService', () => {
     it('admin/secretary: returns all dernek tasks (no assignee restriction)', async () => {
       prisma.task.findMany.mockResolvedValue([sampleTask] as never);
 
-      await service.list(ASSOC, { page: 1, pageSize: 20, sortBy: "createdAt" as const, sortOrder: "desc" as const }, SECRETARY_USER);
+      await service.list(
+        ASSOC,
+        { page: 1, pageSize: 20, sortBy: 'createdAt' as const, sortOrder: 'desc' as const },
+        SECRETARY_USER,
+      );
 
       const arg = prisma.task.findMany.mock.calls[0][0];
       expect((arg as any).where).toMatchObject({
@@ -256,7 +256,11 @@ describe('TasksService', () => {
     it('member: scopes the list to their own assignments', async () => {
       prisma.task.findMany.mockResolvedValue([] as never);
 
-      await service.list(ASSOC, { page: 1, pageSize: 20, sortBy: "createdAt" as const, sortOrder: "desc" as const }, MEMBER_USER);
+      await service.list(
+        ASSOC,
+        { page: 1, pageSize: 20, sortBy: 'createdAt' as const, sortOrder: 'desc' as const },
+        MEMBER_USER,
+      );
 
       const arg = prisma.task.findMany.mock.calls[0][0];
       expect((arg as any).where.assignedToUserId).toBe(MEMBER_USER.id);
@@ -272,8 +276,8 @@ describe('TasksService', () => {
           assignedToUserId: 'mem-1',
           page: 1,
           pageSize: 20,
-          sortBy: "createdAt" as const,
-          sortOrder: "desc" as const,
+          sortBy: 'createdAt' as const,
+          sortOrder: 'desc' as const,
         },
         ADMIN_USER,
       );
@@ -315,11 +319,7 @@ describe('TasksService', () => {
         status: 'IN_PROGRESS',
       } as never);
 
-      await service.updateStatus(
-        sampleTask.id,
-        { status: 'IN_PROGRESS' },
-        SECRETARY_USER,
-      );
+      await service.updateStatus(sampleTask.id, { status: 'IN_PROGRESS' }, SECRETARY_USER);
 
       const arg = prisma.task.update.mock.calls[0][0];
       expect(arg.data).toMatchObject({ status: 'IN_PROGRESS' });
@@ -334,11 +334,7 @@ describe('TasksService', () => {
         completedAt: new Date(),
       } as never);
 
-      await service.updateStatus(
-        sampleTask.id,
-        { status: 'COMPLETED' },
-        SECRETARY_USER,
-      );
+      await service.updateStatus(sampleTask.id, { status: 'COMPLETED' }, SECRETARY_USER);
 
       const arg = prisma.task.update.mock.calls[0][0];
       expect(arg.data).toMatchObject({ status: 'COMPLETED' });

@@ -37,16 +37,14 @@ export class PermissionService {
   ): Promise<void> {
     const client: PrismaLike = tx ?? this.prisma;
     await client.permission.createMany({
-      data: [
-        { associationId, userId, action: PermissionAction.USE_TASK_COMMANDS },
-      ],
+      data: [{ associationId, userId, action: PermissionAction.USE_TASK_COMMANDS }],
       skipDuplicates: true,
     });
   }
 
-  // Inserts permissions implied by the member's titles (e.g. Mali İşler
-  // Sorumlusu → USE_FINANCE_COMMANDS). Idempotent — never revokes; the
-  // manager can manually revoke from the permissions UI.
+  // Synchronizes permissions managed by member titles (e.g. Mali İşler
+  // Sorumlusu → USE_FINANCE_COMMANDS). Changing or clearing a title removes
+  // permissions implied only by the previous title and grants the new ones.
   async applyTitleDerivedPermissions(
     associationId: string,
     userId: string,
@@ -54,29 +52,43 @@ export class PermissionService {
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
     const ids = titleIds.filter((id): id is string => !!id);
-    if (ids.length === 0) return;
-
     const client: PrismaLike = tx ?? this.prisma;
-    const titles = await client.memberTitleDefinition.findMany({
-      where: { id: { in: ids } },
-      select: { slug: true },
-    });
+    const titles = ids.length
+      ? await client.memberTitleDefinition.findMany({
+          where: { id: { in: ids } },
+          select: { slug: true },
+        })
+      : [];
 
-    const actions = new Set<PermissionAction>();
+    const desiredActions = new Set<PermissionAction>();
     for (const t of titles) {
       const action = TITLE_DERIVED_PERMISSIONS[t.slug];
-      if (action) actions.add(action);
+      if (action) desiredActions.add(action);
     }
-    if (actions.size === 0) return;
 
-    await client.permission.createMany({
-      data: Array.from(actions).map((action) => ({
-        associationId,
-        userId,
-        action,
-      })),
-      skipDuplicates: true,
-    });
+    const managedActions = Array.from(new Set(Object.values(TITLE_DERIVED_PERMISSIONS)));
+    const staleActions = managedActions.filter((action) => !desiredActions.has(action));
+
+    if (staleActions.length > 0) {
+      await client.permission.deleteMany({
+        where: {
+          associationId,
+          userId,
+          action: { in: staleActions },
+        },
+      });
+    }
+
+    if (desiredActions.size > 0) {
+      await client.permission.createMany({
+        data: Array.from(desiredActions).map((action) => ({
+          associationId,
+          userId,
+          action,
+        })),
+        skipDuplicates: true,
+      });
+    }
   }
 
   async hasPermission(
@@ -131,10 +143,7 @@ export class PermissionService {
     }
   }
 
-  async getUserPermissions(
-    associationId: string,
-    userId: string,
-  ): Promise<PermissionAction[]> {
+  async getUserPermissions(associationId: string, userId: string): Promise<PermissionAction[]> {
     const rows = await this.prisma.permission.findMany({
       where: { associationId, userId },
       select: { action: true },
@@ -142,9 +151,7 @@ export class PermissionService {
     return rows.map((r) => r.action);
   }
 
-  async getAssociationPermissionSummary(
-    associationId: string,
-  ): Promise<UserPermissionSummary[]> {
+  async getAssociationPermissionSummary(associationId: string): Promise<UserPermissionSummary[]> {
     const memberships = await this.prisma.associationMembership.findMany({
       where: {
         associationId,

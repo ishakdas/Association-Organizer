@@ -5,11 +5,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { getMe } from '@/lib/api/me';
 import { AppShell } from './_components/app-shell';
 
-export default async function ProtectedLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createServerClient();
   const {
     data: { session },
@@ -20,9 +16,11 @@ export default async function ProtectedLayout({
   }
 
   let me: AuthenticatedUser;
+  let resolvedUser = true;
   try {
     me = await getMe(session.access_token);
   } catch {
+    resolvedUser = false;
     // Fail open with an empty-membership stub so the layout still renders
     // (e.g. on first login before the API has provisioned the user row).
     me = {
@@ -36,6 +34,13 @@ export default async function ProtectedLayout({
       onboardingCompletedAt: null,
       mustChangePassword: false,
     };
+  }
+
+  // Onboarding is shown once per user. The onboarding page selects admin or
+  // branch content from the user's role; the database field prevents it from
+  // appearing again on later visits (including an admin opening Branches).
+  if (resolvedUser && me.onboardingCompletedAt == null) {
+    redirect('/onboarding');
   }
 
   return (

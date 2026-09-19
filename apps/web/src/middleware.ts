@@ -50,25 +50,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Cookie-only onboarding gate. /onboarding/page.tsx handles the admin-skip
-  // case itself, so we avoid a per-navigation fetch to /auth/me here.
-  if (
-    user &&
-    !pathname.startsWith('/onboarding') &&
-    !pathname.startsWith('/auth/') &&
-    !pathname.startsWith('/callback') &&
-    !pathname.startsWith('/login') &&
-    !pathname.startsWith('/reset-password') &&
-    !pathname.startsWith('/dashboard')
-  ) {
-    const done = request.cookies.get('onboarding_done')?.value === '1';
-    if (!done) {
-      const url = request.nextUrl.clone();
-      url.pathname = '/onboarding';
-      return NextResponse.redirect(url);
-    }
-  }
-
   return supabaseResponse;
 }
 

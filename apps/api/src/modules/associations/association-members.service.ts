@@ -6,12 +6,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import {
-  PrismaService,
-  Prisma,
-  UserRole,
-  type User,
-} from '@ticketbot/database';
+import { PrismaService, Prisma, UserRole, type User } from '@ticketbot/database';
 import {
   AddMemberInput,
   ListMembersQuery,
@@ -86,28 +81,18 @@ export class AssociationMembersService {
             },
             include: MEMBER_INCLUDE,
           });
-          await this.applyMemberPermissions(
-            associationId,
-            existing.id,
-            input.titleAssignments,
-          );
+          await this.applyMemberPermissions(associationId, existing.id, input.titleAssignments);
           return membership;
         } catch (e) {
-          if (
-            e instanceof Prisma.PrismaClientKnownRequestError &&
-            e.code === 'P2002'
-          ) {
-            throw new ConflictException(
-              'Bu üye bu dernekte zaten kayıtlı',
-            );
+          if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+            throw new ConflictException('Bu üye bu dernekte zaten kayıtlı');
           }
           throw e;
         }
       }
     }
 
-    const provisionsSupabase =
-      input.role === 'ASSOCIATION_SECRETARY' && !!input.password;
+    const provisionsSupabase = input.role === 'ASSOCIATION_SECRETARY' && !!input.password;
 
     let createdUser: User | null = null;
     try {
@@ -138,11 +123,7 @@ export class AssociationMembersService {
         },
         include: MEMBER_INCLUDE,
       });
-      await this.applyMemberPermissions(
-        associationId,
-        createdUser.id,
-        input.titleAssignments,
-      );
+      await this.applyMemberPermissions(associationId, createdUser.id, input.titleAssignments);
       return membership;
     } catch (e) {
       if (createdUser) {
@@ -153,19 +134,12 @@ export class AssociationMembersService {
           });
         } catch (rollbackErr) {
           this.logger.error(
-            `Saga rollback failed for user ${createdUser.id}: ${
-              (rollbackErr as Error).message
-            }`,
+            `Saga rollback failed for user ${createdUser.id}: ${(rollbackErr as Error).message}`,
           );
         }
       }
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'Bu dernek için belirtilen rol zaten aktif bir kişiye atanmış',
-        );
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException('Bu dernek için belirtilen rol zaten aktif bir kişiye atanmış');
       }
       throw e;
     }
@@ -204,12 +178,9 @@ export class AssociationMembersService {
     const existing = await this.ensureMembership(associationId, membershipId);
 
     const touchesManager =
-      existing.role === UserRole.ASSOCIATION_MANAGER ||
-      input.role === UserRole.ASSOCIATION_MANAGER;
+      existing.role === UserRole.ASSOCIATION_MANAGER || input.role === UserRole.ASSOCIATION_MANAGER;
     if (touchesManager && actor.systemRole !== UserRole.SYSTEM_ADMIN) {
-      throw new ForbiddenException(
-        'Başkanlık rolünü yalnızca sistem yöneticisi değiştirebilir',
-      );
+      throw new ForbiddenException('Başkanlık rolünü yalnızca sistem yöneticisi değiştirebilir');
     }
 
     const data: Prisma.AssociationMembershipUpdateInput = {};
@@ -239,30 +210,28 @@ export class AssociationMembersService {
             data: userData,
           });
         }
-        return tx.associationMembership.update({
+        const membership = await tx.associationMembership.update({
           where: { id: membershipId },
           data,
           include: MEMBER_INCLUDE,
         });
-      });
 
-      if (input.titleAssignments !== undefined) {
-        await this.permissions.applyTitleDerivedPermissions(
-          associationId,
-          existing.userId,
-          input.titleAssignments.map((a) => a.titleId ?? null),
-        );
-      }
+        if (input.titleAssignments !== undefined) {
+          await this.permissions.applyTitleDerivedPermissions(
+            associationId,
+            existing.userId,
+            input.titleAssignments.map((a) => a.titleId ?? null),
+            tx,
+          );
+        }
+
+        return membership;
+      });
 
       return result;
     } catch (e) {
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'Bu dernek için belirtilen rol zaten aktif bir kişiye atanmış',
-        );
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException('Bu dernek için belirtilen rol zaten aktif bir kişiye atanmış');
       }
       throw e;
     }
@@ -283,9 +252,7 @@ export class AssociationMembersService {
     actor: AuthenticatedUser,
   ) {
     if (actor.systemRole !== UserRole.SYSTEM_ADMIN) {
-      throw new ForbiddenException(
-        'Başkanlık devrini yalnızca sistem yöneticisi yapabilir',
-      );
+      throw new ForbiddenException('Başkanlık devrini yalnızca sistem yöneticisi yapabilir');
     }
 
     await this.ensureAssociation(associationId);
@@ -332,39 +299,25 @@ export class AssociationMembersService {
       });
 
       // Baseline command permissions for the incoming başkan (idempotent).
-      await this.permissions.applyMembershipDefaults(
-        associationId,
-        target.userId,
-      );
+      await this.permissions.applyMembershipDefaults(associationId, target.userId);
 
       return result;
     } catch (e) {
-      if (
-        e instanceof Prisma.PrismaClientKnownRequestError &&
-        e.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'Bu dernek için belirtilen rol zaten aktif bir kişiye atanmış',
-        );
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException('Bu dernek için belirtilen rol zaten aktif bir kişiye atanmış');
       }
       throw e;
     }
   }
 
-  async remove(
-    associationId: string,
-    membershipId: string,
-    actor: AuthenticatedUser,
-  ) {
+  async remove(associationId: string, membershipId: string, actor: AuthenticatedUser) {
     const existing = await this.ensureMembership(associationId, membershipId);
 
     if (
       existing.role === UserRole.ASSOCIATION_MANAGER &&
       actor.systemRole !== UserRole.SYSTEM_ADMIN
     ) {
-      throw new ForbiddenException(
-        'Başkanı yalnızca sistem yöneticisi görevden alabilir',
-      );
+      throw new ForbiddenException('Başkanı yalnızca sistem yöneticisi görevden alabilir');
     }
 
     return this.prisma.associationMembership.update({
@@ -390,11 +343,7 @@ export class AssociationMembersService {
     return this.auth.unlinkTelegram(membership.userId);
   }
 
-  async generateTelegramLink(
-    associationId: string,
-    membershipId: string,
-    email?: string,
-  ) {
+  async generateTelegramLink(associationId: string, membershipId: string, email?: string) {
     const membership = await this.prisma.associationMembership.findFirst({
       where: { id: membershipId, associationId, deletedAt: null },
       select: { userId: true, user: { select: { email: true } } },
@@ -425,8 +374,18 @@ export class AssociationMembersService {
   }
 
   private normalizeTitleAssignments(
-    assignments: { titleId?: string | null; customTitle?: string | null; isPrimary?: boolean; sortOrder?: number }[],
-  ): { titleId?: string | null; customTitle?: string | null; isPrimary: boolean; sortOrder: number }[] {
+    assignments: {
+      titleId?: string | null;
+      customTitle?: string | null;
+      isPrimary?: boolean;
+      sortOrder?: number;
+    }[],
+  ): {
+    titleId?: string | null;
+    customTitle?: string | null;
+    isPrimary: boolean;
+    sortOrder: number;
+  }[] {
     let hasPrimary = false;
     const normalized = assignments.map((a, i) => {
       if (a.isPrimary) hasPrimary = true;
