@@ -1,5 +1,5 @@
 const secretPatterns = [
-  /SUPABASE_SERVICE_ROLE_KEY\s*=\s*['"][^'"\s]+['"]?/,
+  /(?:^|\s)SUPABASE_SERVICE_ROLE_KEY\s*=\s*(?:['"])?(?!\$|process\.env|your-|<)[^'"\s]+/,
   /['"]eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+['"]/,
 ];
 
