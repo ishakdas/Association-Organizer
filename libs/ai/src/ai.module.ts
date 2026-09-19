@@ -40,7 +40,9 @@ const PROVIDER_PRESETS: Record<string, { baseURL: string; defaultModel: string }
       provide: AI_PROVIDER,
       useFactory: () => {
         const logger = new Logger('AiModule');
-        const apiKey = process.env.AI_API_KEY ?? process.env.GROQ_API_KEY;
+        // dotenv keeps empty assignments as empty strings, so use `||` to
+        // allow the documented GROQ_API_KEY fallback from .env.local.
+        const apiKey = process.env.AI_API_KEY || process.env.GROQ_API_KEY;
 
         if (!apiKey) {
           logger.warn(
@@ -49,10 +51,10 @@ const PROVIDER_PRESETS: Record<string, { baseURL: string; defaultModel: string }
           return new UnconfiguredAiProvider();
         }
 
-        const presetName = (process.env.AI_PROVIDER_TYPE ?? 'groq').toLowerCase();
+        const presetName = (process.env.AI_PROVIDER_TYPE || 'groq').toLowerCase();
         const preset = PROVIDER_PRESETS[presetName];
 
-        const baseURL = process.env.AI_PROVIDER_BASE_URL ?? preset?.baseURL;
+        const baseURL = process.env.AI_PROVIDER_BASE_URL || preset?.baseURL;
         if (!baseURL) {
           logger.error(
             `Unknown AI_PROVIDER_TYPE "${presetName}" and no AI_PROVIDER_BASE_URL set. AI endpoints will return 503.`,
@@ -60,7 +62,7 @@ const PROVIDER_PRESETS: Record<string, { baseURL: string; defaultModel: string }
           return new UnconfiguredAiProvider();
         }
 
-        const model = process.env.AI_MODEL ?? preset?.defaultModel ?? 'llama-3.3-70b-versatile';
+        const model = process.env.AI_MODEL || preset?.defaultModel || 'llama-3.3-70b-versatile';
 
         const aiConfig: GenericAiProviderConfig = {
           apiKey,

@@ -1,5 +1,10 @@
 import OpenAI from 'openai';
-import { AiProvider, AiProviderConfig, GenerateStructuredOptions, GenerateTextOptions } from '../ai-provider.interface';
+import {
+  AiProvider,
+  AiProviderConfig,
+  GenerateStructuredOptions,
+  GenerateTextOptions,
+} from '../ai-provider.interface';
 
 export interface GenericAiProviderConfig extends AiProviderConfig {
   baseURL: string;
