@@ -99,7 +99,28 @@ interface AssocOption {
 interface MemberOption {
   userId: string;
   fullName: string;
+  role: string;
+  primaryTitle: string | null;
+  secondaryTitles: string[];
+  telegramLinked: boolean;
 }
+
+interface MeetingTaskCreateInput {
+  title: string;
+  description?: string | null;
+  assignedToUserId: string;
+  priority: 'MEDIUM';
+  dueDate?: string | null;
+  reminderAt?: string | null;
+  reminderFrequency: 'ONCE';
+  sourceMeetingNoteId: string;
+}
+
+type MeetingTaskCreatePort = (
+  associationId: string,
+  input: MeetingTaskCreateInput,
+  actingUserId: string,
+) => Promise<{ id: string }>;
 
 interface AIActionItem {
   index: number;
@@ -305,8 +326,18 @@ async function loadActiveMembers(
 ): Promise<MemberOption[]> {
   const rows = await prisma.associationMembership.findMany({
     where: { associationId, isActive: true, deletedAt: null },
-    select: {
-      user: { select: { id: true, fullName: true } },
+    include: {
+      user: {
+        select: {
+          id: true,
+          fullName: true,
+          telegramAccount: { select: { userId: true } },
+        },
+      },
+      titleAssignments: {
+        include: { title: { select: { name: true } } },
+        orderBy: { sortOrder: 'asc' },
+      },
     },
     orderBy: { user: { fullName: 'asc' } },
   });
@@ -315,7 +346,20 @@ async function loadActiveMembers(
   for (const r of rows) {
     if (seen.has(r.user.id)) continue;
     seen.add(r.user.id);
-    out.push({ userId: r.user.id, fullName: r.user.fullName });
+    const primary = r.titleAssignments.find((assignment) => assignment.isPrimary);
+    const titleName = (assignment: (typeof r.titleAssignments)[number]) =>
+      assignment.customTitle ?? assignment.title?.name ?? null;
+    out.push({
+      userId: r.user.id,
+      fullName: r.user.fullName,
+      role: r.role,
+      primaryTitle: primary ? titleName(primary) : null,
+      secondaryTitles: r.titleAssignments
+        .filter((assignment) => !assignment.isPrimary)
+        .map(titleName)
+        .filter((title): title is string => Boolean(title)),
+      telegramLinked: r.user.telegramAccount !== null,
+    });
   }
   return out;
 }
@@ -473,29 +517,49 @@ async function persistMeeting(prisma: PrismaService, s: MeetingWizardSession) {
   });
 }
 
-async function persistAITasks(prisma: PrismaService, s: MeetingWizardSession) {
+async function persistAITasks(createTask: MeetingTaskCreatePort, s: MeetingWizardSession) {
   const items = (s.aiActionItems ?? []).filter((i) => !i.removed);
   const tasksToCreate = items
     .filter((i) => i.assignedToUserId !== null)
     .map((i) => ({
       title: i.title,
       description: i.description ?? '',
-      associationId: s.associationId!,
       assignedToUserId: i.assignedToUserId!,
-      assignedById: s.userId,
-      dueDate: i.dueDate,
+      dueDate: i.dueDate?.toISOString() ?? null,
+      reminderAt: i.dueDate ? reminderAtForDueDate(i.dueDate).toISOString() : null,
+      reminderFrequency: 'ONCE' as const,
       priority: 'MEDIUM' as const,
-      status: 'PENDING' as const,
       sourceMeetingNoteId: s.meetingId!,
     }));
 
   if (tasksToCreate.length === 0) return 0;
 
-  await prisma.task.createMany({ data: tasksToCreate });
+  for (const task of tasksToCreate) {
+    await createTask(s.associationId!, task, s.userId);
+  }
   return tasksToCreate.length;
 }
 
-export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService, aiService: AiService) {
+function defaultMeetingTaskDueDate(now = new Date()): Date {
+  const due = aiAddDays(now, 7);
+  due.setUTCHours(17, 0, 0, 0); // 20:00 Europe/Istanbul
+  return due;
+}
+
+function reminderAtForDueDate(dueDate: Date, now = new Date()): Date {
+  const oneDayBefore = new Date(dueDate.getTime() - 24 * 60 * 60 * 1000);
+  if (oneDayBefore.getTime() > now.getTime()) return oneDayBefore;
+
+  const shortlyAfterNow = new Date(now.getTime() + 5 * 60 * 1000);
+  return shortlyAfterNow.getTime() < dueDate.getTime() ? shortlyAfterNow : now;
+}
+
+export function registerMeetingWizard(
+  bot: Telegraf,
+  prisma: PrismaService,
+  aiService: AiService,
+  createTask: MeetingTaskCreatePort,
+) {
   console.log('[WIZARD] registerMeetingWizard called - AI flow enabled');
   bot.hears(/^\/toplant[ıi](?:@\w+)?(?:\s|$)/i, async (ctx) => {
     const fromId = ctx.from?.id;
@@ -759,12 +823,11 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService, aiSe
         `✅ Toplantı notu kaydedildi.\n\n` +
           `Başlık: ${created.title}\n` +
           `Tarih: ${fmtTrDate(created.meetingDate)}\n\n` +
-          '🤖 Yapay zeka ile toplantı notundan görev ve aksiyonlar ' +
-          'çıkarmamı ister misin?\n\n' +
-          'Görevleri inceleyip atamaları değiştirebilirsin.',
+          '🤖 Toplantı özetini, alınan kararları ve görevleri hazırlamamı ister misin?\n\n' +
+          'Görevleri kaydetmeden önce sorumluları inceleyip değiştirebilirsin.',
         Markup.inlineKeyboard([
           [
-            Markup.button.callback('✅ Görevleri Çıkar', 'mtg:ai-analyze'),
+            Markup.button.callback('✅ Toplantıyı İşle', 'mtg:ai-analyze'),
             Markup.button.callback('❌ Şimdilik Hayır', 'mtg:ai-skip'),
           ],
         ]),
@@ -792,7 +855,7 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService, aiSe
     await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
     return ctx.reply(
       'Toplantı notu kaydedildi. Yapay zeka analizi atlandı.\n\n' +
-        'Dilersen web panelinden daha sonra analiz yapabilirsin.',
+        'Dilersen /toplantilarim komutuyla daha sonra özetini açabilir ve görevlerini çıkarabilirsin.',
     );
   });
 
@@ -809,19 +872,44 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService, aiSe
 
     try {
       const members = s.members ?? [];
-      const membersContext = members.map((m) => `- ${m.fullName} (userId: ${m.userId})`).join('\n');
+      const membersContext = members
+        .map((member) => {
+          const primary = member.primaryTitle ?? 'Atanmamış';
+          const secondary =
+            member.secondaryTitles.length > 0
+              ? `\n  İkincil unvanlar: ${member.secondaryTitles.join(', ')}`
+              : '';
+          return (
+            `- ${member.fullName} (userId: ${member.userId})\n` +
+            `  Sistem rolü: ${member.role}\n` +
+            `  Birincil unvan: ${primary}${secondary}`
+          );
+        })
+        .join('\n');
 
       console.log('[WIZARD] mtg:ai-analyze - calling aiService.extractActionItems');
       console.log('[WIZARD] mtg:ai-analyze - content length:', s.content!.length);
       console.log('[WIZARD] mtg:ai-analyze - members count:', members.length);
 
+      const summaryPromise = aiService.summarizeMeeting(s.content!).catch((error: unknown) => {
+        console.warn(
+          '[WIZARD] mtg:ai-analyze - summary unavailable:',
+          error instanceof Error ? error.message : String(error),
+        );
+        return null;
+      });
       const result = await aiService.extractActionItems(s.content!, membersContext);
+      const summary = await summaryPromise;
 
       console.log('[WIZARD] mtg:ai-analyze - AI result:', JSON.stringify(result).slice(0, 500));
 
       const now = new Date();
       const aiItems: AIActionItem[] = result.actionItems.map((item, index) => {
-        const dueDate = item.dueDateText ? parseTurkishDateText(item.dueDateText, now) : null;
+        const parsedDueDate = item.dueDateText ? parseTurkishDateText(item.dueDateText, now) : null;
+        const dueDate =
+          parsedDueDate && parsedDueDate.getTime() > now.getTime()
+            ? parsedDueDate
+            : defaultMeetingTaskDueDate(now);
         return {
           index,
           title: item.title,
@@ -837,6 +925,17 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService, aiSe
       touch(s);
 
       await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
+
+      if (summary) {
+        let summaryMessage = `📄 ${s.title} — Toplantı Özeti\n\n${summary.summary.slice(0, 1800)}`;
+        if (summary.decisions.length > 0) {
+          summaryMessage += '\n\n✅ Alınan kararlar\n';
+          for (const decision of summary.decisions.slice(0, 10)) {
+            summaryMessage += `• ${decision.slice(0, 250)}\n`;
+          }
+        }
+        await ctx.reply(summaryMessage.slice(0, 3900));
+      }
 
       const activeItems = aiItems.filter((i) => !i.removed);
       const assignedCount = activeItems.filter((i) => i.assignedToUserId).length;
@@ -854,7 +953,7 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService, aiSe
         const num = item.index + 1;
         const member = members.find((m) => m.userId === item.assignedToUserId);
         const assigneeName = member ? member.fullName : 'Atanmamış';
-        const warnIcon = item.assignedToUserId ? '' : '⚠️ ';
+        const warnIcon = item.assignedToUserId && member?.telegramLinked ? '' : '⚠️ ';
 
         message += `${num}️⃣ ${item.title}\n`;
         if (item.description) {
@@ -863,6 +962,9 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService, aiSe
         message += `   📅 ${warnIcon}${assigneeName}`;
         if (item.dueDate) {
           message += ` · ${fmtTrDate(item.dueDate)}`;
+        }
+        if (member && !member.telegramLinked) {
+          message += ' · Telegram bağlı değil';
         }
         message += '\n\n';
       }
@@ -885,7 +987,7 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService, aiSe
       await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
       return ctx.reply(
         `❌ Yapay zeka analizi başarısız: ${msg}\n\n` +
-          'Toplantı notun kaydedildi, web panelinden tekrar deneyebilirsin.\n\n' +
+          'Toplantı notun kaydedildi. /toplantilarim komutuyla tekrar deneyebilirsin.\n\n' +
           `Hata detayı: ${err?.constructor?.name ?? 'unknown'}`,
       );
     }
@@ -1163,16 +1265,31 @@ export function registerMeetingWizard(bot: Telegraf, prisma: PrismaService, aiSe
     await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
 
     try {
-      const count = await persistAITasks(prisma, s);
+      const count = await persistAITasks(createTask, s);
       sessions.delete(fromId);
 
       const activeItems = (s.aiActionItems ?? []).filter((i) => !i.removed);
       const assignedCount = activeItems.filter((i) => i.assignedToUserId).length;
+      const linkedCount = activeItems.filter((item) =>
+        (s.members ?? []).some(
+          (member) => member.userId === item.assignedToUserId && member.telegramLinked,
+        ),
+      ).length;
+      const unlinkedNames = activeItems
+        .map((item) => (s.members ?? []).find((member) => member.userId === item.assignedToUserId))
+        .filter((member): member is MemberOption => Boolean(member && !member.telegramLinked))
+        .map((member) => member.fullName);
 
-      return ctx.reply(
+      let resultMessage =
         `✅ ${count} görev başarıyla oluşturuldu.\n\n` +
-          `${assignedCount} kişiye atandı, ${activeItems.length - assignedCount} atanmadı (web panelinden atayabilirsin).`,
-      );
+        `${linkedCount} görev için Telegram kabul/itiraz mesajı gönderiliyor. ` +
+        `${activeItems.length - assignedCount} görev atanmadı.`;
+      if (unlinkedNames.length > 0) {
+        resultMessage +=
+          `\n\n⚠️ Telegram hesabı bağlı olmadığı için mesaj alamayanlar: ` +
+          [...new Set(unlinkedNames)].join(', ');
+      }
+      return ctx.reply(resultMessage);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       sessions.delete(fromId);

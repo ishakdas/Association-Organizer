@@ -25,6 +25,11 @@ export interface TaskMessagePayload {
   dueDate: Date | null;
   status: string;
   priority: string;
+  sourceMeetingTitle?: string | null;
+}
+
+function sourceLine(task: TaskMessagePayload): string {
+  return task.sourceMeetingTitle ? `\n📝 Toplantı: ${escapeMarkdown(task.sourceMeetingTitle)}` : '';
 }
 
 const PRIORITY_LABELS: Record<string, string> = {
@@ -37,15 +42,14 @@ export function formatDueMessage(task: TaskMessagePayload): string {
   const title = escapeMarkdown(task.title);
   const due = escapeMarkdown(formatDate(task.dueDate));
   const priority = escapeMarkdown(PRIORITY_LABELS[task.priority] ?? task.priority);
-  const descLine = task.description
-    ? `\n${escapeMarkdown(task.description.slice(0, 200))}`
-    : '';
+  const descLine = task.description ? `\n${escapeMarkdown(task.description.slice(0, 200))}` : '';
 
   return (
     `🔴 *Görevin teslim tarihi geldi*\n\n` +
     `*${title}*${descLine}\n\n` +
     `📅 ${due}\n` +
-    `⚡ Öncelik: ${priority}`
+    `⚡ Öncelik: ${priority}` +
+    sourceLine(task)
   );
 }
 
@@ -53,14 +57,13 @@ export function formatReminderMessage(task: TaskMessagePayload): string {
   const title = escapeMarkdown(task.title);
   const due = escapeMarkdown(formatDate(task.dueDate));
   const priority = escapeMarkdown(PRIORITY_LABELS[task.priority] ?? task.priority);
-  const descLine = task.description
-    ? `\n${escapeMarkdown(task.description.slice(0, 200))}`
-    : '';
+  const descLine = task.description ? `\n${escapeMarkdown(task.description.slice(0, 200))}` : '';
 
   return (
     `🔔 *Görev hatırlatması*\n\n` +
     `*${title}*${descLine}\n\n` +
     `📅 Teslim: ${due}\n` +
-    `⚡ Öncelik: ${priority}`
+    `⚡ Öncelik: ${priority}` +
+    sourceLine(task)
   );
 }

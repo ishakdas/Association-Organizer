@@ -24,6 +24,9 @@ export interface BotTaskCreateInput {
   assignedToUserId: string;
   priority: 'LOW' | 'MEDIUM' | 'HIGH';
   dueDate?: string | null;
+  reminderAt?: string | null;
+  reminderFrequency?: 'NONE' | 'ONCE' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  sourceMeetingNoteId?: string;
 }
 
 export interface BotCreatedTask {
@@ -71,8 +74,13 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     registerStartCommand(bot, this.config, this.prisma);
     registerLinkCommand(bot, this.prisma);
     registerHelpCommand(bot);
-    registerMeetingWizard(bot, this.prisma, this.aiService);
-    registerMeetingListCommand(bot, this.prisma, this.aiService);
+    const createMeetingTask = (
+      associationId: string,
+      input: BotTaskCreateInput,
+      actingUserId: string,
+    ) => this.createTask(associationId, input, actingUserId);
+    registerMeetingWizard(bot, this.prisma, this.aiService, createMeetingTask);
+    registerMeetingListCommand(bot, this.prisma, this.aiService, createMeetingTask);
     registerTaskListCommand(bot, this.prisma);
     registerFinanceWizard(bot, this.prisma);
     registerTaskCreateWizard(bot, this.prisma, this);

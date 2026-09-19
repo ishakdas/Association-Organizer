@@ -12,7 +12,6 @@ import type {
   EventRoleResponse,
   EventTypeValue,
   IslamicEventSuggestionOutput,
-  ExternalEventItem,
   SuggestIslamicEventsInput,
 } from '@ticketbot/shared-validation';
 import type { PaginatedResponse } from '@ticketbot/shared-types';
@@ -342,12 +341,4 @@ export function getIslamicCalendarUpcoming(token: string, associationId: string)
       category: string;
     }>;
   }>(`/associations/${associationId}/islamic-calendar/upcoming`, { token });
-}
-
-// Gebze municipality external events
-export function listGebzeExternalEvents(token: string, associationId: string) {
-  return apiClient<{ data: ExternalEventItem[] }>(
-    `/associations/${associationId}/events/external-events/gebze`,
-    { token },
-  );
 }

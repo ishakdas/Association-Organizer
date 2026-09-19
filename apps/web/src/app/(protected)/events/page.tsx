@@ -23,9 +23,7 @@ export default async function EventsPage() {
     redirect('/associations');
   }
 
-  const assocById = new Map(
-    associationsResponse.data.map((a) => [a.id, a]),
-  );
+  const assocById = new Map(associationsResponse.data.map((a) => [a.id, a]));
 
   const memberships = me.memberships
     .filter((m) => m.isActive)
@@ -34,7 +32,6 @@ export default async function EventsPage() {
       return {
         associationId: m.associationId,
         associationName: assoc?.name ?? 'Dernek',
-        district: assoc?.district ?? null,
         role: m.role,
       };
     });
@@ -52,7 +49,5 @@ export default async function EventsPage() {
     );
   }
 
-  return (
-    <EventsOverview token={session.access_token} memberships={memberships} />
-  );
+  return <EventsOverview token={session.access_token} memberships={memberships} />;
 }

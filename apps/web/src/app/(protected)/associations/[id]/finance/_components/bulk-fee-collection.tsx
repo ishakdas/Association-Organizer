@@ -3,16 +3,15 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Users, CheckCircle2, XCircle, Loader2, Calendar, Bell } from 'lucide-react';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useUnpaidMembers, useBulkFeePayment, useFinanceSettings } from '../../../_hooks/use-finance';
+import {
+  useUnpaidMembers,
+  useBulkFeePayment,
+  useFinanceSettings,
+} from '../../../_hooks/use-finance';
 
 function kurusToTl(kurus: number): string {
   return `${(kurus / 100).toFixed(2)} TL`;
@@ -29,7 +28,10 @@ export function BulkFeeCollection({ associationId }: Props) {
   );
   const [selectedMembers, setSelectedMembers] = useState<Set<string>>(new Set());
 
-  const { data: unpaidMembers, isLoading: loadingMembers } = useUnpaidMembers(associationId, selectedMonth);
+  const { data: unpaidMembers, isLoading: loadingMembers } = useUnpaidMembers(
+    associationId,
+    selectedMonth,
+  );
   const { data: settings } = useFinanceSettings(associationId);
   const bulkMutation = useBulkFeePayment(associationId);
 
@@ -64,9 +66,7 @@ export function BulkFeeCollection({ associationId }: Props) {
     if (selectedCount === members.filter((m) => !m.hasPaid).length) {
       setSelectedMembers(new Set());
     } else {
-      setSelectedMembers(
-        new Set(members.filter((m) => !m.hasPaid).map((m) => m.membershipId)),
-      );
+      setSelectedMembers(new Set(members.filter((m) => !m.hasPaid).map((m) => m.membershipId)));
     }
   };
 
@@ -101,8 +101,8 @@ export function BulkFeeCollection({ associationId }: Props) {
 
   if (loadingMembers) {
     return (
-      <Card>
-        <CardContent className="flex h-48 items-center justify-center">
+      <Card className="gap-0 py-0">
+        <CardContent className="flex min-h-28 items-center justify-center p-4">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
@@ -111,14 +111,14 @@ export function BulkFeeCollection({ associationId }: Props) {
 
   if (!members.length) {
     return (
-      <Card>
-        <CardHeader>
+      <Card className="gap-0 py-0">
+        <CardHeader className="px-4 pb-2 pt-4">
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
             <Users className="h-4 w-4 text-primary" />
             Toplu Aidat Tahsilat
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+        <CardContent className="flex min-h-28 items-center justify-center px-4 pb-4 text-xs text-muted-foreground">
           Aktif üye bulunamadı.
         </CardContent>
       </Card>
@@ -129,8 +129,8 @@ export function BulkFeeCollection({ associationId }: Props) {
   const unpaidCount = members.length - paidCount;
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="gap-0 py-0">
+      <CardHeader className="px-4 pb-2 pt-4">
         <CardTitle className="flex items-center justify-between text-sm font-medium">
           <div className="flex items-center gap-2">
             <Users className="h-4 w-4 text-primary" />
@@ -147,7 +147,7 @@ export function BulkFeeCollection({ associationId }: Props) {
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 px-4 pb-4">
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3">
           <motion.div
@@ -159,9 +159,7 @@ export function BulkFeeCollection({ associationId }: Props) {
               <CheckCircle2 className="h-3.5 w-3.5" />
               <span className="text-[10px] font-medium">Ödedi</span>
             </div>
-            <p className="mt-1 text-lg font-bold text-emerald-700 tabular-nums">
-              {paidCount}
-            </p>
+            <p className="mt-1 text-lg font-bold text-emerald-700 tabular-nums">{paidCount}</p>
           </motion.div>
 
           <motion.div
@@ -174,9 +172,7 @@ export function BulkFeeCollection({ associationId }: Props) {
               <XCircle className="h-3.5 w-3.5" />
               <span className="text-[10px] font-medium">Ödemedi</span>
             </div>
-            <p className="mt-1 text-lg font-bold text-amber-700 tabular-nums">
-              {unpaidCount}
-            </p>
+            <p className="mt-1 text-lg font-bold text-amber-700 tabular-nums">{unpaidCount}</p>
           </motion.div>
 
           <motion.div
@@ -189,9 +185,7 @@ export function BulkFeeCollection({ associationId }: Props) {
               <Users className="h-3.5 w-3.5" />
               <span className="text-[10px] font-medium">Toplam</span>
             </div>
-            <p className="mt-1 text-lg font-bold text-blue-700 tabular-nums">
-              {members.length}
-            </p>
+            <p className="mt-1 text-lg font-bold text-blue-700 tabular-nums">{members.length}</p>
           </motion.div>
         </div>
 
@@ -211,7 +205,7 @@ export function BulkFeeCollection({ associationId }: Props) {
             )}
           </div>
 
-          <div className="max-h-[300px] space-y-1 overflow-y-auto rounded-lg border p-2">
+          <div className="max-h-[240px] space-y-1 overflow-y-auto rounded-lg border p-2">
             {members.map((member, index) => (
               <motion.div
                 key={member.membershipId}
@@ -235,7 +229,9 @@ export function BulkFeeCollection({ associationId }: Props) {
                     className="h-3.5 w-3.5 rounded border-muted-foreground/30 text-primary focus:ring-primary"
                   />
                   <div className="min-w-0">
-                    <p className={`text-xs font-medium truncate ${member.hasPaid ? 'text-muted-foreground line-through' : ''}`}>
+                    <p
+                      className={`text-xs font-medium truncate ${member.hasPaid ? 'text-muted-foreground line-through' : ''}`}
+                    >
                       {member.fullName}
                     </p>
                   </div>
@@ -291,9 +287,7 @@ export function BulkFeeCollection({ associationId }: Props) {
             className="flex items-center justify-between rounded-lg bg-primary/5 px-3 py-2"
           >
             <div>
-              <span className="text-xs font-medium">
-                {selectedCount} üye
-              </span>
+              <span className="text-xs font-medium">{selectedCount} üye</span>
               <span className="ml-2 text-sm font-bold text-primary tabular-nums">
                 {kurusToTl(totalAmount)}
               </span>

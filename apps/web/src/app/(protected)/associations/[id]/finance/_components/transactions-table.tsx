@@ -12,12 +12,7 @@ import {
   ChevronRight,
   Download,
 } from 'lucide-react';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,7 +25,10 @@ import {
 } from '@/components/ui/select';
 import { ReceiptViewer } from './receipt-viewer';
 import { exportToExcel } from './export-utils';
-import type { TransactionResponse, TransactionCategoryResponse } from '@ticketbot/shared-validation';
+import type {
+  TransactionResponse,
+  TransactionCategoryResponse,
+} from '@ticketbot/shared-validation';
 
 function kurusToTl(kurus: number): string {
   return `${(kurus / 100).toFixed(2)} TL`;
@@ -69,7 +67,10 @@ export function TransactionsTable({
       const matchesSearch =
         !search ||
         tx.description?.toLowerCase().includes(search.toLowerCase()) ||
-        categories.find((c) => c.id === tx.categoryId)?.name.toLowerCase().includes(search.toLowerCase());
+        categories
+          .find((c) => c.id === tx.categoryId)
+          ?.name.toLowerCase()
+          .includes(search.toLowerCase());
       const matchesType = typeFilter === 'ALL' || tx.type === typeFilter;
       const matchesCategory = categoryFilter === 'ALL' || tx.categoryId === categoryFilter;
       return matchesSearch && matchesType && matchesCategory;
@@ -97,8 +98,8 @@ export function TransactionsTable({
   };
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="gap-0 py-0">
+      <CardHeader className="px-4 pb-2 pt-4">
         <CardTitle className="flex items-center justify-between text-sm font-medium">
           <div className="flex items-center gap-2">
             <Receipt className="h-4 w-4 text-primary" />
@@ -113,7 +114,7 @@ export function TransactionsTable({
           </Button>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent className="space-y-3 px-4 pb-4">
         {/* Filters */}
         <div className="flex flex-wrap gap-2">
           <div className="relative flex-1 min-w-[200px]">
@@ -180,9 +181,7 @@ export function TransactionsTable({
             {filteredTransactions.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <Receipt className="h-8 w-8 text-muted-foreground/50 mb-2" />
-                <p className="text-xs text-muted-foreground">
-                  Filtrelere uygun işlem bulunamadı.
-                </p>
+                <p className="text-xs text-muted-foreground">Filtrelere uygun işlem bulunamadı.</p>
               </div>
             ) : (
               filteredTransactions.map((tx, index) => {
@@ -199,7 +198,9 @@ export function TransactionsTable({
                     <div className="flex items-center gap-2 min-w-0">
                       <div
                         className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                          isIncome ? 'bg-emerald-500/15 text-emerald-300' : 'bg-rose-500/15 text-rose-300'
+                          isIncome
+                            ? 'bg-emerald-500/15 text-emerald-300'
+                            : 'bg-rose-500/15 text-rose-300'
                         }`}
                       >
                         {isIncome ? (

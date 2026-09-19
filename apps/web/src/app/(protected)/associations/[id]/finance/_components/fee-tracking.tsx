@@ -2,12 +2,7 @@
 
 import { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, CheckCircle2, Clock } from 'lucide-react';
 
 interface FeePayment {
@@ -43,9 +38,8 @@ export function FeeTracking({ feePayments, monthlyFeeAmountKurus }: Props) {
     const lastMonthTotal = lastMonthPayments.reduce((sum, p) => sum + p.amountInKurus, 0);
 
     const expectedAmount = monthlyFeeAmountKurus || 0;
-    const collectionRate = expectedAmount > 0
-      ? Math.min((currentMonthTotal / expectedAmount) * 100, 100)
-      : 0;
+    const collectionRate =
+      expectedAmount > 0 ? Math.min((currentMonthTotal / expectedAmount) * 100, 100) : 0;
 
     return {
       totalMembers: uniqueMembers.size,
@@ -62,19 +56,19 @@ export function FeeTracking({ feePayments, monthlyFeeAmountKurus }: Props) {
   const recentPayments = useMemo(() => {
     return [...feePayments]
       .sort((a, b) => new Date(b.paidAt).getTime() - new Date(a.paidAt).getTime())
-      .slice(0, 8);
+      .slice(0, 5);
   }, [feePayments]);
 
   if (feePayments.length === 0) {
     return (
-      <Card>
-        <CardHeader>
+      <Card className="gap-0 py-0">
+        <CardHeader className="px-4 pb-2 pt-4">
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
             <Users className="h-4 w-4 text-primary" />
             Aidat Takibi
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex h-48 items-center justify-center text-sm text-muted-foreground">
+        <CardContent className="flex min-h-28 items-center justify-center px-4 pb-4 text-xs text-muted-foreground">
           Henüz aidat ödemesi kaydedilmemiş.
         </CardContent>
       </Card>
@@ -82,14 +76,14 @@ export function FeeTracking({ feePayments, monthlyFeeAmountKurus }: Props) {
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="gap-0 py-0">
+      <CardHeader className="px-4 pb-2 pt-4">
         <CardTitle className="flex items-center gap-2 text-sm font-medium">
           <Users className="h-4 w-4 text-primary" />
           Aidat Takibi
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3 px-4 pb-4">
         {/* Stats Row */}
         <div className="grid grid-cols-2 gap-3">
           <motion.div
@@ -104,9 +98,7 @@ export function FeeTracking({ feePayments, monthlyFeeAmountKurus }: Props) {
             <p className="mt-1 text-lg font-bold text-emerald-700 tabular-nums">
               {kurusToTl(stats.currentMonthTotal)}
             </p>
-            <p className="text-[10px] text-emerald-600">
-              {stats.currentMonthPayments} ödeme
-            </p>
+            <p className="text-[10px] text-emerald-600">{stats.currentMonthPayments} ödeme</p>
           </motion.div>
 
           <motion.div
@@ -122,9 +114,7 @@ export function FeeTracking({ feePayments, monthlyFeeAmountKurus }: Props) {
             <p className="mt-1 text-lg font-bold text-blue-700 tabular-nums">
               {kurusToTl(stats.lastMonthTotal)}
             </p>
-            <p className="text-[10px] text-blue-600">
-              {stats.lastMonthPayments} ödeme
-            </p>
+            <p className="text-[10px] text-blue-600">{stats.lastMonthPayments} ödeme</p>
           </motion.div>
         </div>
 
@@ -163,9 +153,7 @@ export function FeeTracking({ feePayments, monthlyFeeAmountKurus }: Props) {
                   <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
                   <div className="min-w-0">
                     <p className="text-xs font-medium truncate">{payment.memberName}</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {payment.month}
-                    </p>
+                    <p className="text-[10px] text-muted-foreground">{payment.month}</p>
                   </div>
                 </div>
                 <span className="shrink-0 text-xs font-bold text-emerald-600 tabular-nums">

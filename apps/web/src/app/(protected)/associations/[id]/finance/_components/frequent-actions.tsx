@@ -2,12 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Zap, ArrowUpRight, ArrowDownRight, Loader2 } from 'lucide-react';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useFrequentCategories } from '../../../_hooks/use-finance';
@@ -22,8 +17,8 @@ export function FrequentActions({ associationId, onQuickAction }: Props) {
 
   if (isLoading) {
     return (
-      <Card>
-        <CardContent className="flex h-24 items-center justify-center">
+      <Card className="gap-0 py-0">
+        <CardContent className="flex h-16 items-center justify-center p-3">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </CardContent>
       </Card>
@@ -35,14 +30,14 @@ export function FrequentActions({ associationId, onQuickAction }: Props) {
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="gap-0 py-0">
+      <CardHeader className="px-4 pb-2 pt-3">
         <CardTitle className="flex items-center gap-2 text-sm font-medium">
           <Zap className="h-4 w-4 text-amber-500" />
           Sık Kullanılanlar
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-4 pb-3">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
           {categories.map((cat, index) => (
             <motion.div

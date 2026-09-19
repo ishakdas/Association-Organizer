@@ -5,6 +5,14 @@ import { HandCoins, Loader2, Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
   useFinanceCategories,
   useCreateCategory,
   useDeleteCategory,
@@ -26,101 +34,102 @@ export function DonationCategoryManager({
   const createMutation = useCreateCategory(associationId);
   const deleteMutation = useDeleteCategory(associationId);
 
-  const incomeCategories = (categories ?? []).filter(
-    (c) => c.type === 'INCOME',
-  );
+  const incomeCategories = (categories ?? []).filter((c) => c.type === 'INCOME');
 
   function handleAdd() {
     const trimmed = name.trim();
     if (trimmed.length < 1) return;
-    createMutation.mutate(
-      { name: trimmed, type: 'INCOME' },
-      { onSuccess: () => setName('') },
-    );
+    createMutation.mutate({ name: trimmed, type: 'INCOME' }, { onSuccess: () => setName('') });
   }
 
   return (
-    <section className="rounded-lg border border-border bg-card p-5">
-      <header className="mb-4 flex items-center gap-2">
-        <HandCoins className="h-4 w-4 text-muted-foreground" />
-        <h2 className="text-sm font-semibold text-foreground">
-          Bağış Kategorileri (Derneğe Özel)
-        </h2>
-      </header>
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button type="button" variant="outline" size="sm" className="h-8 text-xs">
+          <HandCoins className="mr-1 h-3.5 w-3.5" />
+          Bağış kategorileri
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <HandCoins className="h-4 w-4 text-primary" />
+            Bağış kategorileri
+          </DialogTitle>
+          <DialogDescription className="text-xs leading-5">
+            Derneğe özel bağış türleri Telegram&apos;daki <span className="font-mono">/bagis</span>{' '}
+            akışında sistem türleriyle birlikte gösterilir.
+          </DialogDescription>
+        </DialogHeader>
 
-      <p className="mb-4 text-[13px] text-muted-foreground">
-        Bu derneğe özel bağış türleri. Telegram&apos;da{' '}
-        <span className="font-mono">/bagis</span> ile bağış kaydederken sistem
-        türleriyle birlikte listelenir.
-      </p>
-
-      {canManage && (
-        <div className="mb-4 flex gap-2">
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Yeni bağış türü adı (örn. İftar, Kurban)"
-            maxLength={100}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleAdd();
-            }}
-          />
-          <Button
-            type="button"
-            onClick={handleAdd}
-            disabled={createMutation.isPending || name.trim().length < 1}
-          >
-            {createMutation.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            Ekle
-          </Button>
-        </div>
-      )}
-
-      {isLoading ? (
-        <p className="text-[13px] text-muted-foreground">Yükleniyor…</p>
-      ) : incomeCategories.length === 0 ? (
-        <p className="text-[13px] text-muted-foreground">
-          Henüz derneğe özel bağış türü yok.
-        </p>
-      ) : (
-        <ul className="divide-y divide-border/70 rounded-md border border-border">
-          {incomeCategories.map((c) => (
-            <li
-              key={c.id}
-              className="flex items-center justify-between gap-3 px-3 py-2.5"
+        {canManage && (
+          <div className="flex gap-2">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Örn. İftar, Kurban"
+              maxLength={100}
+              className="h-9"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAdd();
+              }}
+            />
+            <Button
+              type="button"
+              size="sm"
+              className="h-9"
+              onClick={handleAdd}
+              disabled={createMutation.isPending || name.trim().length < 1}
             >
-              <span className="text-sm font-medium text-foreground">
-                {c.name}
-              </span>
-              {canManage && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  aria-label={`${c.name} kategorisini sil`}
-                  className="text-destructive hover:bg-destructive/10 hover:text-destructive"
-                  disabled={deleteMutation.isPending}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        `"${c.name}" bağış türü silinsin mi? (Bu türe ait işlem varsa silinemez.)`,
-                      )
-                    ) {
-                      deleteMutation.mutate(c.id);
-                    }
-                  }}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+              {createMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
               )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
+              Ekle
+            </Button>
+          </div>
+        )}
+
+        {isLoading ? (
+          <div className="flex h-20 items-center justify-center">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : incomeCategories.length === 0 ? (
+          <div className="rounded-lg border border-dashed px-4 py-8 text-center text-xs text-muted-foreground">
+            Henüz derneğe özel bağış kategorisi yok.
+          </div>
+        ) : (
+          <ul className="max-h-64 divide-y divide-border/70 overflow-y-auto rounded-md border">
+            {incomeCategories.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                <span className="text-sm font-medium text-foreground">{c.name}</span>
+                {canManage && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    aria-label={`${c.name} kategorisini sil`}
+                    className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    disabled={deleteMutation.isPending}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `"${c.name}" bağış türü silinsin mi? (Bu türe ait işlem varsa silinemez.)`,
+                        )
+                      ) {
+                        deleteMutation.mutate(c.id);
+                      }
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }

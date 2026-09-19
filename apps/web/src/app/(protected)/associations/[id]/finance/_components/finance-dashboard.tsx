@@ -6,22 +6,29 @@ import {
   Activity,
   ArrowDownRight,
   ArrowUpRight,
+  ChartNoAxesCombined,
   Download,
   Landmark,
+  Receipt,
+  Users,
 } from 'lucide-react';
-import {
-  Card,
-  CardContent,
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { MonthlyTrendChart } from './monthly-trend-chart';
 import { CategoryChart } from './category-chart';
 import { FeeTracking } from './fee-tracking';
 import { BulkFeeCollection } from './bulk-fee-collection';
 import { FrequentActions } from './frequent-actions';
 import { TransactionsTable } from './transactions-table';
+import { DonationCategoryManager } from './donation-category-manager';
 import { exportReportToExcel, exportToPDF } from './export-utils';
-import { useTransactions, useFeePayments, useFinanceReport, useFinanceSettings } from '../../../_hooks/use-finance';
+import {
+  useTransactions,
+  useFeePayments,
+  useFinanceReport,
+  useFinanceSettings,
+} from '../../../_hooks/use-finance';
 import type {
   FinanceSummaryResponse,
   TransactionResponse,
@@ -31,6 +38,9 @@ import type {
 function kurusToTl(kurus: number): string {
   return `${(kurus / 100).toFixed(2)} TL`;
 }
+
+const tabTriggerClassName =
+  'h-8 cursor-pointer px-3 transition-all duration-150 hover:bg-muted hover:text-foreground active:scale-[0.97] data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-none';
 
 interface MonthlyStat {
   label: string;
@@ -54,6 +64,7 @@ interface Props {
     totalAmountKurus: number;
     transactionCount: number;
   }>;
+  canManageCategories?: boolean;
 }
 
 export function FinanceDashboard({
@@ -63,6 +74,7 @@ export function FinanceDashboard({
   categories,
   monthlyStats,
   report: initialReport,
+  canManageCategories = false,
 }: Props) {
   const [filters, setFilters] = useState<{
     type?: 'INCOME' | 'EXPENSE';
@@ -74,11 +86,7 @@ export function FinanceDashboard({
 
   const { data: feePayments } = useFeePayments(associationId);
   const { data: settings } = useFinanceSettings(associationId);
-  const { data: reportData } = useFinanceReport(
-    associationId,
-    filters.fromDate,
-    filters.toDate,
-  );
+  const { data: reportData } = useFinanceReport(associationId, filters.fromDate, filters.toDate);
 
   const [page, setPage] = useState(1);
   const { data: transactionsData } = useTransactions(associationId, {
@@ -123,19 +131,25 @@ export function FinanceDashboard({
   };
 
   const handleExportPDF = async () => {
-    await exportToPDF('finance-dashboard', `finans-raporu-${new Date().toISOString().split('T')[0]}`);
+    await exportToPDF(
+      'finance-dashboard',
+      `finans-raporu-${new Date().toISOString().split('T')[0]}`,
+    );
   };
 
   return (
     <motion.div
       id="finance-dashboard"
-      className="mx-auto max-w-6xl space-y-4"
+      className="mx-auto max-w-7xl space-y-3"
       variants={containerVariants}
       initial="hidden"
       animate="visible"
     >
       {/* Header */}
-      <motion.div variants={itemVariants} className="flex items-center justify-between">
+      <motion.div
+        variants={itemVariants}
+        className="flex flex-wrap items-center justify-between gap-3"
+      >
         <div className="flex items-center gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 text-primary">
             <Landmark className="h-4.5 w-4.5" />
@@ -147,7 +161,8 @@ export function FinanceDashboard({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <DonationCategoryManager associationId={associationId} canManage={canManageCategories} />
           <Button variant="outline" size="sm" onClick={handleExportReport} className="h-8 text-xs">
             <Download className="mr-1 h-3.5 w-3.5" />
             Excel
@@ -162,7 +177,7 @@ export function FinanceDashboard({
       {/* Stats Cards */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <motion.div variants={itemVariants}>
-          <Card className="border-l-4 border-l-primary">
+          <Card className="gap-0 border-l-4 border-l-primary py-0">
             <CardContent className="flex items-center justify-between p-3">
               <div>
                 <p className="text-[11px] font-medium text-muted-foreground">Kasa Bakiyesi</p>
@@ -182,7 +197,7 @@ export function FinanceDashboard({
         </motion.div>
 
         <motion.div variants={itemVariants}>
-          <Card className="border-l-4 border-l-emerald-400">
+          <Card className="gap-0 border-l-4 border-l-emerald-400 py-0">
             <CardContent className="flex items-center justify-between p-3">
               <div>
                 <p className="text-[11px] font-medium text-muted-foreground">Aylık Gelir</p>
@@ -198,7 +213,7 @@ export function FinanceDashboard({
         </motion.div>
 
         <motion.div variants={itemVariants}>
-          <Card className="border-l-4 border-l-rose-400">
+          <Card className="gap-0 border-l-4 border-l-rose-400 py-0">
             <CardContent className="flex items-center justify-between p-3">
               <div>
                 <p className="text-[11px] font-medium text-muted-foreground">Aylık Gider</p>
@@ -214,14 +229,17 @@ export function FinanceDashboard({
         </motion.div>
 
         <motion.div variants={itemVariants}>
-          <Card className="border-l-4 border-l-sky-400">
+          <Card className="gap-0 border-l-4 border-l-sky-400 py-0">
             <CardContent className="flex items-center justify-between p-3">
               <div>
                 <p className="text-[11px] font-medium text-muted-foreground">Toplam İşlem</p>
                 <p className="text-lg font-bold tabular-nums leading-tight text-sky-400">
                   {summary.totalIncomeKurus + summary.totalExpenseKurus > 0
-                    ? Math.round((summary.totalIncomeKurus + summary.totalExpenseKurus) / 100).toLocaleString('tr-TR')
-                    : '0'} <span className="text-[10px] font-normal text-muted-foreground">TL</span>
+                    ? Math.round(
+                        (summary.totalIncomeKurus + summary.totalExpenseKurus) / 100,
+                      ).toLocaleString('tr-TR')
+                    : '0'}{' '}
+                  <span className="text-[10px] font-normal text-muted-foreground">TL</span>
                 </p>
               </div>
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-sky-500/15 text-sky-300">
@@ -232,47 +250,67 @@ export function FinanceDashboard({
         </motion.div>
       </div>
 
-      {/* Frequent Actions */}
       <motion.div variants={itemVariants}>
-        <FrequentActions
-          associationId={associationId}
-          onQuickAction={(categoryId, type) => {
-            // Quick action: Telegram bot'ta hızlı işlem başlatmak için kullanılabilir
-            // Şimdilik sadece kategori seçimi yapıyor
-            console.log('Quick action:', categoryId, type);
-          }}
-        />
-      </motion.div>
+        <Tabs defaultValue="analytics" className="gap-3">
+          <TabsList
+            aria-label="Finans bölümleri"
+            className="h-10 w-fit max-w-full justify-start border bg-card p-1"
+          >
+            <TabsTrigger value="analytics" className={tabTriggerClassName}>
+              <ChartNoAxesCombined className="h-3.5 w-3.5" />
+              Analizler
+            </TabsTrigger>
+            <TabsTrigger value="fees" className={tabTriggerClassName}>
+              <Users className="h-3.5 w-3.5" />
+              Aidatlar
+            </TabsTrigger>
+            <TabsTrigger value="transactions" className={tabTriggerClassName}>
+              <Receipt className="h-3.5 w-3.5" />
+              İşlemler
+            </TabsTrigger>
+          </TabsList>
 
-      {/* Charts Row */}
-      <motion.div variants={itemVariants} className="grid gap-3 md:grid-cols-2">
-        <MonthlyTrendChart data={monthlyStats} />
-        <CategoryChart data={categoryChartData} type="INCOME" />
-      </motion.div>
+          <TabsContent value="analytics" className="mt-0 space-y-3">
+            <FrequentActions
+              associationId={associationId}
+              onQuickAction={(categoryId, type) => {
+                console.log('Quick action:', categoryId, type);
+              }}
+            />
+            <section className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+              <div className="md:col-span-2 lg:col-span-2">
+                <MonthlyTrendChart data={monthlyStats} />
+              </div>
+              <CategoryChart data={categoryChartData} type="INCOME" />
+              <CategoryChart data={categoryChartData} type="EXPENSE" />
+            </section>
+          </TabsContent>
 
-      <motion.div variants={itemVariants} className="grid gap-3 md:grid-cols-2">
-        <CategoryChart data={categoryChartData} type="EXPENSE" />
-        <FeeTracking
-          feePayments={feePayments || []}
-          monthlyFeeAmountKurus={settings?.monthlyFeeAmountKurus}
-        />
-      </motion.div>
+          <TabsContent value="fees" className="mt-0">
+            <section
+              className={
+                feePayments?.length ? 'grid items-start gap-3 lg:grid-cols-2' : 'space-y-3'
+              }
+            >
+              <FeeTracking
+                feePayments={feePayments || []}
+                monthlyFeeAmountKurus={settings?.monthlyFeeAmountKurus}
+              />
+              <BulkFeeCollection associationId={associationId} />
+            </section>
+          </TabsContent>
 
-      {/* Bulk Fee Collection */}
-      <motion.div variants={itemVariants}>
-        <BulkFeeCollection associationId={associationId} />
-      </motion.div>
-
-      {/* Transactions Table */}
-      <motion.div variants={itemVariants}>
-        <TransactionsTable
-          transactions={transactions.data}
-          categories={categories}
-          meta={transactions.meta}
-          onPageChange={setPage}
-          onFilterChange={setFilters}
-          associationId={associationId}
-        />
+          <TabsContent value="transactions" className="mt-0">
+            <TransactionsTable
+              transactions={transactions.data}
+              categories={categories}
+              meta={transactions.meta}
+              onPageChange={setPage}
+              onFilterChange={setFilters}
+              associationId={associationId}
+            />
+          </TabsContent>
+        </Tabs>
       </motion.div>
     </motion.div>
   );

@@ -52,7 +52,12 @@ export class TasksService {
     private readonly notificationService: TaskNotificationService,
   ) {}
 
-  async create(associationId: string, input: CreateTaskInput, user: AuthenticatedUser) {
+  async create(
+    associationId: string,
+    input: CreateTaskInput,
+    user: AuthenticatedUser,
+    sourceMeetingNoteId?: string,
+  ) {
     await this.ensureAssigneeIsMember(associationId, input.assignedToUserId);
     if (input.watcherUserId) {
       await this.ensureAssigneeIsMember(associationId, input.watcherUserId);
@@ -82,11 +87,13 @@ export class TasksService {
           reminderFrequency: input.reminderFrequency,
           dueDate: input.dueDate ? new Date(input.dueDate) : null,
           reminderAt: input.reminderAt ? new Date(input.reminderAt) : null,
+          sourceMeetingNoteId: sourceMeetingNoteId ?? null,
         },
         include: {
           assignedBy: { select: { id: true, fullName: true } },
           watcher: { select: { id: true, fullName: true } },
           assignedTo: { select: { id: true, fullName: true } },
+          sourceMeetingNote: { select: { title: true } },
         },
       });
 
@@ -177,6 +184,7 @@ export class TasksService {
     assignedToUserId: string;
     assignedById: string;
     assignedBy: { id: string; fullName: string };
+    sourceMeetingNote?: { title: string } | null;
   }): Promise<void> {
     try {
       const icsUrl = task.dueDate ? this.icsTokens.signTaskIcsUrl(task.id) : undefined;
@@ -189,6 +197,7 @@ export class TasksService {
           dueDate: task.dueDate,
           status: task.status,
           priority: task.priority,
+          sourceMeetingTitle: task.sourceMeetingNote?.title ?? null,
         },
         task.assignedBy.fullName,
       );
@@ -1161,10 +1170,16 @@ export class TasksService {
         `⚠️ *Görev itirazı*\n\n` +
         `*${escapeMarkdown(args.taskTitle)}*\n\n` +
         `${escapeMarkdown(assignee?.fullName ?? 'Atanan kişi')} bu görevin kendisine ait olmadığını söyledi.\n\n` +
-        `Yeni atayanı seçmek için ${args.watcherUserId ? 'takipçi olarak' : 'görevin sahibi olarak'} web üzerinden açın.` +
-        (link ? `\n\n${link}` : '');
+        `Yeni sorumluyu doğrudan Telegram üzerinden seçebilirsin.` +
+        (link ? `\n\nİstersen web panelinden de inceleyebilirsin:\n${link}` : '');
 
-      const delivered = await this.bot.sendToUser(recipientUserId, text);
+      const delivered = await this.bot.sendToUser(recipientUserId, text, {
+        replyMarkup: {
+          inline_keyboard: [
+            [{ text: '👤 Yeni sorumlu seç', callback_data: `task_resolve:${args.taskId}` }],
+          ],
+        },
+      });
 
       await this.prisma.taskActivity.create({
         data: {
@@ -1184,6 +1199,124 @@ export class TasksService {
         `Dispute notification failed for task ${args.taskId}: ${(err as Error).message}`,
       );
     }
+  }
+
+  async getDisputeResolutionOptions(taskId: string, actingUserId: string) {
+    const task = await this.prisma.task.findFirst({
+      where: { id: taskId, deletedAt: null },
+      select: {
+        id: true,
+        associationId: true,
+        assignedById: true,
+        watcherUserId: true,
+        disputed: true,
+      },
+    });
+    if (!task) throw new NotFoundException('Görev bulunamadı');
+    if (!task.disputed) throw new BadRequestException('Bu görev için bekleyen itiraz yok');
+
+    const actor = await this.prisma.user.findUnique({
+      where: { id: actingUserId },
+      select: { isSystemAdmin: true },
+    });
+    const privilegedMembership = await this.prisma.associationMembership.findFirst({
+      where: {
+        associationId: task.associationId,
+        userId: actingUserId,
+        isActive: true,
+        deletedAt: null,
+        role: { in: [UserRole.ASSOCIATION_MANAGER, UserRole.ASSOCIATION_SECRETARY] },
+      },
+      select: { id: true },
+    });
+    const allowed =
+      actor?.isSystemAdmin ||
+      task.assignedById === actingUserId ||
+      task.watcherUserId === actingUserId ||
+      Boolean(privilegedMembership);
+    if (!allowed) throw new ForbiddenException('Bu itirazı çözme yetkiniz yok');
+
+    const memberships = await this.prisma.associationMembership.findMany({
+      where: {
+        associationId: task.associationId,
+        isActive: true,
+        deletedAt: null,
+      },
+      orderBy: { user: { fullName: 'asc' } },
+      select: {
+        userId: true,
+        user: {
+          select: { fullName: true, telegramAccount: { select: { userId: true } } },
+        },
+      },
+    });
+
+    return {
+      associationId: task.associationId,
+      members: memberships.map((membership) => ({
+        userId: membership.userId,
+        fullName: membership.user.fullName,
+        telegramLinked: membership.user.telegramAccount !== null,
+      })),
+    };
+  }
+
+  async resolveDisputeViaBot(taskId: string, newAssigneeId: string, actingUserId: string) {
+    const options = await this.getDisputeResolutionOptions(taskId, actingUserId);
+    if (!options.members.some((member) => member.userId === newAssigneeId)) {
+      throw new BadRequestException('Seçilen kişi aktif bir dernek üyesi değil');
+    }
+
+    const existing = await this.prisma.task.findUniqueOrThrow({
+      where: { id: taskId },
+      select: { assignedToUserId: true },
+    });
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const next = await tx.task.update({
+        where: { id: taskId },
+        data: {
+          assignedToUserId: newAssigneeId,
+          disputed: false,
+          disputedAt: null,
+          status: TaskStatus.PENDING,
+        },
+        include: {
+          assignedBy: { select: { id: true, fullName: true } },
+          watcher: { select: { id: true, fullName: true } },
+          assignedTo: { select: { id: true, fullName: true } },
+          sourceMeetingNote: { select: { title: true } },
+        },
+      });
+      await tx.taskActivity.createMany({
+        data: [
+          {
+            taskId,
+            actorId: actingUserId,
+            action: TaskActivityAction.REASSIGNED,
+            payload: { from: existing.assignedToUserId, to: newAssigneeId, via: 'telegram' },
+          },
+          {
+            taskId,
+            actorId: actingUserId,
+            action: TaskActivityAction.REASSIGNMENT_RESOLVED,
+            payload: {
+              previousAssignee: existing.assignedToUserId,
+              newAssignee: newAssigneeId,
+              via: 'telegram',
+            },
+          },
+        ],
+      });
+      return next;
+    });
+
+    await this.scheduler.rescheduleTask({
+      id: updated.id,
+      dueDate: updated.dueDate,
+      reminderAt: updated.reminderAt,
+    });
+    void this.notifyAssignment(updated);
+    return updated;
   }
 
   async getAssignmentBotContext(taskId: string, actingUserId: string) {
