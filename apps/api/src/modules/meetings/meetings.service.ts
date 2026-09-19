@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -35,18 +36,14 @@ export class MeetingsService {
     private readonly permissionService: PermissionService,
   ) {}
 
-  private async assertMeetingAccess(
-    user: AuthenticatedUser,
-    associationId: string,
-  ) {
+  private async assertMeetingAccess(user: AuthenticatedUser, associationId: string) {
     if (user.systemRole === UserRole.SYSTEM_ADMIN) return;
 
     const hasRole = user.memberships.some(
       (m) =>
         m.isActive &&
         m.associationId === associationId &&
-        (m.role === UserRole.ASSOCIATION_MANAGER ||
-          m.role === UserRole.ASSOCIATION_SECRETARY),
+        (m.role === UserRole.ASSOCIATION_MANAGER || m.role === UserRole.ASSOCIATION_SECRETARY),
     );
     if (hasRole) return;
 
@@ -57,27 +54,18 @@ export class MeetingsService {
     );
     if (hasPermission) return;
 
-    throw new ForbiddenException(
-      'Toplantı işlemleri için yetkiniz yok',
-    );
+    throw new ForbiddenException('Toplantı işlemleri için yetkiniz yok');
   }
 
-  private assertManagerAccess(
-    user: AuthenticatedUser,
-    associationId: string,
-  ) {
+  private assertManagerAccess(user: AuthenticatedUser, associationId: string) {
     if (user.systemRole === UserRole.SYSTEM_ADMIN) return;
 
     const hasRole = user.memberships.some(
       (m) =>
-        m.isActive &&
-        m.associationId === associationId &&
-        m.role === UserRole.ASSOCIATION_MANAGER,
+        m.isActive && m.associationId === associationId && m.role === UserRole.ASSOCIATION_MANAGER,
     );
     if (!hasRole) {
-      throw new ForbiddenException(
-        'Bu işlem için sadece dernek başkanı yetkilidir',
-      );
+      throw new ForbiddenException('Bu işlem için sadece dernek başkanı yetkilidir');
     }
   }
 
@@ -106,9 +94,7 @@ export class MeetingsService {
     }): string => {
       if (ta.customTitle) return ta.customTitle;
       if (ta.title) {
-        return ta.title.description
-          ? `${ta.title.name} — ${ta.title.description}`
-          : ta.title.name;
+        return ta.title.description ? `${ta.title.name} — ${ta.title.description}` : ta.title.name;
       }
       return 'Atanmamış';
     };
@@ -133,16 +119,20 @@ export class MeetingsService {
       const result = await this.aiService.extractActionItems(content, membersContext);
 
       const memberMap = new Map(
-        members.map((m) => [m.user.id, { fullName: m.user.fullName, title: m.titleAssignments.find((t) => t.isPrimary)?.title?.name ?? null }]),
+        members.map((m) => [
+          m.user.id,
+          {
+            fullName: m.user.fullName,
+            title: m.titleAssignments.find((t) => t.isPrimary)?.title?.name ?? null,
+          },
+        ]),
       );
 
       const now = new Date();
 
       return {
         actionItems: result.actionItems.map((item) => {
-          const parsedDate = item.dueDateText
-            ? parseTurkishDateText(item.dueDateText, now)
-            : null;
+          const parsedDate = item.dueDateText ? parseTurkishDateText(item.dueDateText, now) : null;
           return {
             title: item.title,
             description: item.description,
@@ -156,7 +146,11 @@ export class MeetingsService {
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`AI extraction failed: ${message}`, err instanceof Error ? err.stack : undefined);
+      this.logger.error(
+        `AI extraction failed: ${message}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      if (err instanceof HttpException) throw err;
       throw new InternalServerErrorException(`AI hatası: ${message}`);
     }
   }
@@ -166,7 +160,11 @@ export class MeetingsService {
       return await this.aiService.summarizeMeeting(content);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`AI summarization failed: ${message}`, err instanceof Error ? err.stack : undefined);
+      this.logger.error(
+        `AI summarization failed: ${message}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      if (err instanceof HttpException) throw err;
       throw new InternalServerErrorException(`AI hatası: ${message}`);
     }
   }
@@ -178,7 +176,11 @@ export class MeetingsService {
       return await this.aiService.suggestAgenda(content, pendingTasks ?? undefined);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      this.logger.error(`AI agenda suggestion failed: ${message}`, err instanceof Error ? err.stack : undefined);
+      this.logger.error(
+        `AI agenda suggestion failed: ${message}`,
+        err instanceof Error ? err.stack : undefined,
+      );
+      if (err instanceof HttpException) throw err;
       throw new InternalServerErrorException(`AI hatası: ${message}`);
     }
   }
@@ -213,11 +215,7 @@ export class MeetingsService {
       .join('\n');
   }
 
-  async create(
-    associationId: string,
-    input: CreateMeetingNoteInput,
-    user: AuthenticatedUser,
-  ) {
+  async create(associationId: string, input: CreateMeetingNoteInput, user: AuthenticatedUser) {
     await this.assertMeetingAccess(user, associationId);
 
     const uniqueAttendees = Array.from(new Set(input.attendeeUserIds));
@@ -360,9 +358,7 @@ export class MeetingsService {
 
     if (
       user.systemRole !== UserRole.SYSTEM_ADMIN &&
-      !user.memberships.some(
-        (m) => m.isActive && m.associationId === meeting.associationId,
-      )
+      !user.memberships.some((m) => m.isActive && m.associationId === meeting.associationId)
     ) {
       throw new ForbiddenException('Bu toplantı için yetkiniz yok');
     }
@@ -408,10 +404,7 @@ export class MeetingsService {
     }));
   }
 
-  private async ensureAllAreMembers(
-    associationId: string,
-    attendeeUserIds: string[],
-  ) {
+  private async ensureAllAreMembers(associationId: string, attendeeUserIds: string[]) {
     const found = await this.prisma.associationMembership.findMany({
       where: {
         associationId,
