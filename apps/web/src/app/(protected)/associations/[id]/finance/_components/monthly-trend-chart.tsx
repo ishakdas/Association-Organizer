@@ -34,14 +34,14 @@ export function MonthlyTrendChart({ data }: Props) {
 
   if (chartData.every((d) => d.Gelir === 0 && d.Gider === 0)) {
     return (
-      <Card>
-        <CardHeader>
+      <Card className="h-full gap-0 py-0">
+        <CardHeader className="px-4 pb-2 pt-4">
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
             <TrendingUp className="h-4 w-4 text-primary" />
             Aylık Trend
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+        <CardContent className="flex min-h-32 flex-1 items-center justify-center px-4 pb-4 text-xs text-muted-foreground">
           Son 6 ayda finansal hareket bulunmuyor.
         </CardContent>
       </Card>
@@ -49,21 +49,21 @@ export function MonthlyTrendChart({ data }: Props) {
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="h-full gap-0 py-0">
+      <CardHeader className="px-4 pb-1 pt-4">
         <CardTitle className="flex items-center gap-2 text-sm font-medium">
           <TrendingUp className="h-4 w-4 text-primary" />
           Aylık Trend
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-2 pb-2">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <ResponsiveContainer width="100%" height={280}>
-            <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <ResponsiveContainer width="100%" height={210}>
+            <AreaChart data={chartData} margin={{ top: 4, right: 8, left: -12, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorGelir" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />

@@ -25,11 +25,16 @@ export class OverdueTaskChecker implements OnModuleInit, OnModuleDestroy {
     // yan kopyalarda ENABLE_OVERDUE_CHECKER='false' ile kapatılır.
     this.enabled = this.config.get<boolean>('jobs.overdueCheckerEnabled') ?? false;
     if (this.enabled) {
-      this.logger.log('Overdue task checker enabled (hourly)');
-      this.cronJob = new CronJob('0 * * * *', () =>
-        this.checkOverdueTasks().catch((err) => {
-          this.logger.error('Overdue check failed', err as Error);
-        }),
+      this.logger.log('Overdue task digest enabled (daily at 09:00 Europe/Istanbul)');
+      this.cronJob = new CronJob(
+        '0 9 * * *',
+        () =>
+          this.runDailyDigest().catch((err) => {
+            this.logger.error('Daily task digest failed', err as Error);
+          }),
+        null,
+        false,
+        'Europe/Istanbul',
       );
       this.cronJob.start();
     }
@@ -39,16 +44,23 @@ export class OverdueTaskChecker implements OnModuleInit, OnModuleDestroy {
     this.cronJob?.stop();
   }
 
+  private async runDailyDigest(): Promise<void> {
+    await this.checkOverdueTasks();
+    await this.checkUnresolvedDisputes();
+  }
+
   async checkOverdueTasks(): Promise<void> {
     if (!this.enabled) return;
 
     this.logger.log('Checking for overdue tasks...');
 
     const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const overdueTasks = await this.prisma.task.findMany({
       where: {
         status: { in: [TaskStatus.PENDING, TaskStatus.IN_PROGRESS] },
         dueDate: { lt: now },
+        OR: [{ overdueEscalatedAt: null }, { overdueEscalatedAt: { lt: oneDayAgo } }],
         deletedAt: null,
       },
       include: {
@@ -83,23 +95,26 @@ export class OverdueTaskChecker implements OnModuleInit, OnModuleDestroy {
           dueDate: t.dueDate!,
         }));
         await this.notificationService.notifyOverdueTasks(assocId, formatted);
+        await this.prisma.task.updateMany({
+          where: { id: { in: tasks.map((task) => task.id) } },
+          data: { overdueEscalatedAt: now },
+        });
       } catch (err) {
         this.logger.warn(`Overdue notification failed for ${assocId}: ${(err as Error).message}`);
       }
     }
   }
 
-  // Uzun süredir (~2 gün) çözülmemiş itirazlı görevleri yöneticilere
-  // hatırlatır. Saatlik cron + 1 saatlik pencere → her görev yalnızca bir
-  // kez eskale edilir (şema değişikliği / spam yok). Cron kapalıyken (env)
-  // çalışmaz; itiraz anında zaten takipçi/atayan bilgilendiriliyor.
+  // İki gündür çözülmemiş itirazları günlük özete alır. Bir günlük pencere,
+  // her itirazın tam bir kez eskale edilmesini sağlar; itiraz anında ayrıca
+  // atayan kişiye anlık Telegram mesajı gider.
   async checkUnresolvedDisputes(): Promise<void> {
     if (!this.enabled) return;
 
     const DAY = 24 * 60 * 60 * 1000;
     const now = Date.now();
     const upper = new Date(now - 2 * DAY);
-    const lower = new Date(now - 2 * DAY - 60 * 60 * 1000);
+    const lower = new Date(now - 3 * DAY);
 
     const disputed = await this.prisma.task.findMany({
       where: {

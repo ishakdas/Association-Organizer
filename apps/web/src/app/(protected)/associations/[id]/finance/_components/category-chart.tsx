@@ -1,13 +1,6 @@
 'use client';
 
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  Tooltip,
-  Legend,
-} from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { motion } from 'framer-motion';
 import { PieChart as PieChartIcon } from 'lucide-react';
@@ -37,14 +30,14 @@ export function CategoryChart({ data, type }: Props) {
 
   if (filtered.length === 0) {
     return (
-      <Card>
-        <CardHeader>
+      <Card className="h-full gap-0 py-0">
+        <CardHeader className="px-4 pb-2 pt-4">
           <CardTitle className="flex items-center gap-2 text-sm font-medium">
             <PieChartIcon className="h-4 w-4 text-primary" />
             {type === 'INCOME' ? 'Gelir' : 'Gider'} Kategori Dağılımı
           </CardTitle>
         </CardHeader>
-        <CardContent className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+        <CardContent className="flex min-h-32 flex-1 items-center justify-center px-4 pb-4 text-xs text-muted-foreground">
           Veri bulunmuyor
         </CardContent>
       </Card>
@@ -52,36 +45,33 @@ export function CategoryChart({ data, type }: Props) {
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <Card className="h-full gap-0 py-0">
+      <CardHeader className="px-4 pb-1 pt-4">
         <CardTitle className="flex items-center gap-2 text-sm font-medium">
           <PieChartIcon className="h-4 w-4 text-primary" />
           {type === 'INCOME' ? 'Gelir' : 'Gider'} Kategori Dağılımı
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-1 pb-2">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
         >
-          <ResponsiveContainer width="100%" height={250}>
+          <ResponsiveContainer width="100%" height={210}>
             <PieChart>
               <Pie
                 data={filtered}
                 cx="50%"
                 cy="50%"
-                innerRadius={60}
-                outerRadius={90}
-                paddingAngle={4}
+                innerRadius={44}
+                outerRadius={68}
+                paddingAngle={3}
                 dataKey="value"
                 nameKey="name"
               >
                 {filtered.map((_, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={COLORS[type][index % COLORS[type].length]}
-                  />
+                  <Cell key={`cell-${index}`} fill={COLORS[type][index % COLORS[type].length]} />
                 ))}
               </Pie>
               <Tooltip
@@ -97,9 +87,7 @@ export function CategoryChart({ data, type }: Props) {
                 height={36}
                 iconType="circle"
                 iconSize={8}
-                formatter={(value: string) => (
-                  <span className="text-xs">{value}</span>
-                )}
+                formatter={(value: string) => <span className="text-xs">{value}</span>}
               />
             </PieChart>
           </ResponsiveContainer>

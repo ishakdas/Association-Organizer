@@ -301,7 +301,7 @@ export class AiService {
   }> {
     const { extractTasksFromMeetingResultSchema } = await import('@ticketbot/shared-validation');
     const { EXTRACT_TASKS_FROM_MEETING_SYSTEM_PROMPT, buildExtractTasksUserPrompt } =
-      await import('./prompts/extract-tasks-from-meeting.prompt');
+      await import('./prompts/extract-tasks-from-meeting.prompt.js');
 
     return this.provider.generateStructured({
       systemPrompt: await this.getSystemPrompt(

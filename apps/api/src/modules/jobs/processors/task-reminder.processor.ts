@@ -7,18 +7,10 @@ import {
   TaskActivityAction,
   TaskStatus,
 } from '@ticketbot/database';
-import {
-  BotService,
-  formatDueMessage,
-  formatReminderMessage,
-  reminderActionsKeyboard,
-} from 'bot';
+import { BotService, formatDueMessage, formatReminderMessage, reminderActionsKeyboard } from 'bot';
 import { TASK_REMINDERS_QUEUE } from '../jobs.constants';
 import { PgBossService } from '../pgboss.service';
-import {
-  TaskReminderJobData,
-  TaskReminderScheduler,
-} from '../task-reminder.scheduler';
+import { TaskReminderJobData, TaskReminderScheduler } from '../task-reminder.scheduler';
 
 @Injectable()
 export class TaskReminderProcessor implements OnModuleInit {
@@ -32,10 +24,7 @@ export class TaskReminderProcessor implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    await this.boss.work<TaskReminderJobData>(
-      TASK_REMINDERS_QUEUE,
-      (job) => this.process(job),
-    );
+    await this.boss.work<TaskReminderJobData>(TASK_REMINDERS_QUEUE, (job) => this.process(job));
     this.logger.log(`Registered pg-boss worker on ${TASK_REMINDERS_QUEUE}`);
   }
 
@@ -54,6 +43,7 @@ export class TaskReminderProcessor implements OnModuleInit {
         status: true,
         priority: true,
         assignedToUserId: true,
+        sourceMeetingNote: { select: { title: true } },
       },
     });
 
@@ -62,10 +52,7 @@ export class TaskReminderProcessor implements OnModuleInit {
       return;
     }
 
-    if (
-      task.status === TaskStatus.COMPLETED ||
-      task.status === TaskStatus.CANCELLED
-    ) {
+    if (task.status === TaskStatus.COMPLETED || task.status === TaskStatus.CANCELLED) {
       this.logger.debug(`Task ${taskId} is ${task.status}; skipping ${type}`);
       return;
     }
@@ -79,10 +66,10 @@ export class TaskReminderProcessor implements OnModuleInit {
       dueDate: task.dueDate,
       status: task.status,
       priority: task.priority,
+      sourceMeetingTitle: task.sourceMeetingNote?.title ?? null,
     };
 
-    const text =
-      type === 'DUE' ? formatDueMessage(payload) : formatReminderMessage(payload);
+    const text = type === 'DUE' ? formatDueMessage(payload) : formatReminderMessage(payload);
 
     const sent = await this.bot.sendToUser(task.assignedToUserId, text, {
       replyMarkup: keyboard,
@@ -126,10 +113,7 @@ export class TaskReminderProcessor implements OnModuleInit {
   }
 }
 
-function nextReminderAt(
-  current: Date,
-  frequency: ReminderFrequency,
-): Date | null {
+function nextReminderAt(current: Date, frequency: ReminderFrequency): Date | null {
   const now = Date.now();
   let cursor = new Date(current);
   while (cursor.getTime() <= now) {

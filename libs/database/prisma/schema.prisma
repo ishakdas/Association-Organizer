@@ -357,6 +357,10 @@ model Task {
   disputed   Boolean   @default(false)
   disputedAt DateTime?
 
+  // Telegram manager digest deduplication. A still-overdue task is included
+  // at most once per day instead of every scheduler tick.
+  overdueEscalatedAt DateTime?
+
   sourceMeetingNoteId String?
 
   createdAt   DateTime  @default(now())

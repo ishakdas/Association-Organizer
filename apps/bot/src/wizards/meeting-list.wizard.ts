@@ -1,5 +1,5 @@
 import { Telegraf, Markup } from 'telegraf';
-import { PrismaService } from '@ticketbot/database';
+import { PermissionAction, PrismaService, UserRole } from '@ticketbot/database';
 import { AiService } from '@ticketbot/ai';
 
 const sessions = new Map<
@@ -8,8 +8,15 @@ const sessions = new Map<
     userId: string;
     meetingId?: string;
     associationId?: string;
+    canManage?: boolean;
     step: 'detail' | 'aiReview' | 'aiAssign';
-    members?: Array<{ userId: string; fullName: string; role: string; title?: string }>;
+    members?: Array<{
+      userId: string;
+      fullName: string;
+      role: string;
+      title?: string;
+      telegramLinked: boolean;
+    }>;
     aiItems?: Array<{
       index: number;
       title: string;
@@ -24,6 +31,23 @@ const sessions = new Map<
 
 const SESSION_TTL_MS = 30 * 60 * 1000;
 
+interface MeetingTaskCreateInput {
+  title: string;
+  description?: string | null;
+  assignedToUserId: string;
+  priority: 'MEDIUM';
+  dueDate?: string | null;
+  reminderAt?: string | null;
+  reminderFrequency: 'ONCE';
+  sourceMeetingNoteId: string;
+}
+
+type MeetingTaskCreatePort = (
+  associationId: string,
+  input: MeetingTaskCreateInput,
+  actingUserId: string,
+) => Promise<{ id: string }>;
+
 function fmtDate(iso: string): string {
   const d = new Date(iso);
   const dd = String(d.getUTCDate()).padStart(2, '0');
@@ -32,10 +56,41 @@ function fmtDate(iso: string): string {
   return `${dd}.${mm}.${yy}`;
 }
 
+async function canManageMeeting(
+  prisma: PrismaService,
+  userId: string,
+  associationId: string,
+): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { isSystemAdmin: true },
+  });
+  if (user?.isSystemAdmin) return true;
+
+  const membership = await prisma.associationMembership.findFirst({
+    where: { userId, associationId, isActive: true, deletedAt: null },
+    select: { role: true },
+  });
+  if (
+    membership?.role === UserRole.ASSOCIATION_MANAGER ||
+    membership?.role === UserRole.ASSOCIATION_SECRETARY
+  ) {
+    return true;
+  }
+  if (!membership) return false;
+
+  return (
+    (await prisma.permission.count({
+      where: { userId, associationId, action: PermissionAction.USE_MEETING_COMMANDS },
+    })) > 0
+  );
+}
+
 export function registerMeetingListCommand(
   bot: Telegraf,
   prisma: PrismaService,
   aiService: AiService,
+  createTask: MeetingTaskCreatePort,
 ) {
   bot.command('toplantilarim', async (ctx) => {
     const fromId = ctx.from?.id;
@@ -126,6 +181,7 @@ export function registerMeetingListCommand(
     });
 
     await ctx.answerCbQuery();
+    const canManage = await canManageMeeting(prisma, account.userId, meeting.association.id);
 
     let message = `📝 *${meeting.title}*\n\n`;
     message += `📅 ${fmtDate(meeting.meetingDate.toISOString())}\n`;
@@ -138,17 +194,147 @@ export function registerMeetingListCommand(
       step: 'detail',
       meetingId: meeting.id,
       associationId: meeting.association.id,
+      canManage,
       expiresAt: Date.now() + SESSION_TTL_MS,
     });
 
+    const actions = [
+      [Markup.button.callback('📄 Toplantı Özeti', 'mtl:summary')],
+      [Markup.button.callback('📌 Toplantı Görevleri', 'mtl:tasks')],
+      ...(canManage
+        ? [
+            [Markup.button.callback('🤖 Görevleri Çıkar', 'mtl:ai-analyze')],
+            [Markup.button.callback('🧭 Sonraki Gündemi Hazırla', 'mtl:agenda')],
+          ]
+        : []),
+      [Markup.button.callback('↩️ Geri', 'mtl:back-to-list')],
+      [Markup.button.callback('❌ Kapat', 'mtl:close')],
+    ];
+
     return ctx.reply(message, {
       parse_mode: 'Markdown',
-      ...Markup.inlineKeyboard([
-        [Markup.button.callback('🤖 AI Analizi', 'mtl:ai-analyze')],
-        [Markup.button.callback('↩️ Geri', 'mtl:back-to-list')],
-        [Markup.button.callback('❌ Kapat', 'mtl:close')],
-      ]),
+      ...Markup.inlineKeyboard(actions),
     });
+  });
+
+  bot.action('mtl:summary', async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return ctx.answerCbQuery();
+    const s = sessions.get(fromId);
+    if (!s?.meetingId || s.expiresAt <= Date.now()) {
+      sessions.delete(fromId);
+      return ctx.answerCbQuery('Oturum süresi doldu');
+    }
+
+    await ctx.answerCbQuery('Özet hazırlanıyor…');
+    const meeting = await prisma.meetingNote.findFirst({
+      where: { id: s.meetingId, deletedAt: null },
+      select: { title: true, content: true },
+    });
+    if (!meeting) return ctx.reply('❌ Toplantı bulunamadı.');
+
+    try {
+      const summary = await aiService.summarizeMeeting(meeting.content);
+      let message = `📄 ${meeting.title} — Toplantı Özeti\n\n`;
+      message += `${summary.summary.slice(0, 1500)}\n`;
+      if (summary.decisions.length > 0) {
+        message += '\n✅ Alınan kararlar\n';
+        for (const decision of summary.decisions.slice(0, 10)) {
+          message += `• ${decision}\n`;
+        }
+      }
+      return ctx.reply(message.slice(0, 3900));
+    } catch {
+      return ctx.reply('❌ Toplantı özeti şu anda hazırlanamadı. Lütfen daha sonra tekrar dene.');
+    }
+  });
+
+  bot.action('mtl:tasks', async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return ctx.answerCbQuery();
+    const s = sessions.get(fromId);
+    if (!s?.meetingId || s.expiresAt <= Date.now()) {
+      sessions.delete(fromId);
+      return ctx.answerCbQuery('Oturum süresi doldu');
+    }
+
+    const tasks = await prisma.task.findMany({
+      where: { sourceMeetingNoteId: s.meetingId, deletedAt: null },
+      orderBy: [{ status: 'asc' }, { dueDate: 'asc' }],
+      take: 20,
+      include: { assignedTo: { select: { fullName: true } } },
+    });
+    await ctx.answerCbQuery();
+    if (tasks.length === 0) return ctx.reply('Bu toplantıdan henüz görev oluşturulmadı.');
+
+    const statusIcon: Record<string, string> = {
+      PENDING: '⏳',
+      IN_PROGRESS: '🔄',
+      COMPLETED: '✅',
+      CANCELLED: '❌',
+    };
+    let message = '📌 Toplantı Görevleri\n\n';
+    for (const task of tasks) {
+      message += `${statusIcon[task.status] ?? '•'} ${task.title}\n`;
+      message += `   👤 ${task.assignedTo.fullName}`;
+      if (task.dueDate) message += ` · 📅 ${fmtDate(task.dueDate.toISOString())}`;
+      message += '\n\n';
+    }
+    return ctx.reply(message.slice(0, 3900));
+  });
+
+  bot.action('mtl:agenda', async (ctx) => {
+    const fromId = ctx.from?.id;
+    if (!fromId) return ctx.answerCbQuery();
+    const s = sessions.get(fromId);
+    if (!s?.meetingId || !s.canManage || s.expiresAt <= Date.now()) {
+      return ctx.answerCbQuery('Bu işlem için aktif toplantı yetkisi gerekli', {
+        show_alert: true,
+      });
+    }
+
+    await ctx.answerCbQuery('Gündem hazırlanıyor…');
+    const [meeting, pendingTasks] = await Promise.all([
+      prisma.meetingNote.findFirst({
+        where: { id: s.meetingId, deletedAt: null },
+        select: { title: true, content: true },
+      }),
+      prisma.task.findMany({
+        where: {
+          sourceMeetingNoteId: s.meetingId,
+          status: { in: ['PENDING', 'IN_PROGRESS'] },
+          deletedAt: null,
+        },
+        orderBy: { dueDate: 'asc' },
+        take: 20,
+        include: { assignedTo: { select: { fullName: true } } },
+      }),
+    ]);
+    if (!meeting) return ctx.reply('❌ Toplantı bulunamadı.');
+
+    const pendingContext = pendingTasks
+      .map(
+        (task) =>
+          `- ${task.title} — ${task.assignedTo.fullName}` +
+          (task.dueDate ? ` — ${fmtDate(task.dueDate.toISOString())}` : ''),
+      )
+      .join('\n');
+
+    try {
+      const result = await aiService.suggestAgenda(
+        meeting.content,
+        pendingContext || 'Bu toplantıdan kalan açık görev yok.',
+      );
+      let message = `🧭 ${meeting.title} — Sonraki Toplantı Gündemi\n\n`;
+      for (const [index, item] of result.agendaItems.slice(0, 10).entries()) {
+        message += `${index + 1}. ${item.title}\n`;
+        message += `   ${item.description.slice(0, 220)}\n`;
+        message += `   Öncelik: ${item.priority} · Süre: ${item.estimatedDuration} dk\n\n`;
+      }
+      return ctx.reply(message.slice(0, 3900));
+    } catch {
+      return ctx.reply('❌ Gündem şu anda hazırlanamadı. Lütfen daha sonra tekrar dene.');
+    }
   });
 
   bot.action('mtl:back-to-list', async (ctx) => {
@@ -217,6 +403,11 @@ export function registerMeetingListCommand(
       sessions.delete(fromId);
       return ctx.answerCbQuery('Oturum süresi doldu');
     }
+    if (!s.canManage) {
+      return ctx.answerCbQuery('Bu işlem için toplantı yetkisi gerekli', {
+        show_alert: true,
+      });
+    }
 
     await ctx.answerCbQuery('Analiz yapılıyor…');
 
@@ -232,7 +423,13 @@ export function registerMeetingListCommand(
       const memberships = await prisma.associationMembership.findMany({
         where: { associationId: s.associationId, isActive: true, deletedAt: null },
         include: {
-          user: { select: { id: true, fullName: true } },
+          user: {
+            select: {
+              id: true,
+              fullName: true,
+              telegramAccount: { select: { userId: true } },
+            },
+          },
           titleAssignments: {
             include: { title: { select: { name: true } } },
             orderBy: { sortOrder: 'asc' },
@@ -255,6 +452,7 @@ export function registerMeetingListCommand(
           fullName: m.user.fullName,
           role: ROLE_LABEL[m.role] ?? m.role,
           title,
+          telegramLinked: m.user.telegramAccount !== null,
         };
       });
 
@@ -269,14 +467,20 @@ export function registerMeetingListCommand(
       const result = await aiService.extractActionItems(meeting.content, membersContext);
 
       const now = new Date();
-      const aiItems = result.actionItems.map((item, index) => ({
-        index,
-        title: item.title,
-        description: item.description,
-        assignedToUserId: item.assignedToUserId,
-        dueDate: item.dueDateText ? parseTurkishDateText(item.dueDateText, now) : null,
-        removed: false,
-      }));
+      const aiItems = result.actionItems.map((item, index) => {
+        const parsedDueDate = item.dueDateText ? parseTurkishDateText(item.dueDateText, now) : null;
+        return {
+          index,
+          title: item.title,
+          description: item.description,
+          assignedToUserId: item.assignedToUserId,
+          dueDate:
+            parsedDueDate && parsedDueDate.getTime() > now.getTime()
+              ? parsedDueDate
+              : defaultMeetingTaskDueDate(now),
+          removed: false,
+        };
+      });
 
       s.members = members;
       s.aiItems = aiItems;
@@ -311,6 +515,9 @@ export function registerMeetingListCommand(
         message += `👤 ${warnIcon}${assigneeName}${assigneeRole}${assigneeTitle}`;
         if (item.dueDate) {
           message += ` · 📅 ${fmtDate(item.dueDate.toISOString())}`;
+        }
+        if (member && !member.telegramLinked) {
+          message += ' · ⚠️ Telegram bağlı değil';
         }
         message += '\n\n';
       }
@@ -533,34 +740,67 @@ export function registerMeetingListCommand(
       console.log('[BOT] mtl:ai-save - assignedById:', s.userId);
       console.log('[BOT] mtl:ai-save - sourceMeetingNoteId:', s.meetingId);
 
-      const created = await prisma.task.createMany({
-        data: activeItems.map((item) => ({
-          title: item.title,
-          description: item.description ?? null,
-          associationId: s.associationId!,
-          assignedToUserId: item.assignedToUserId!,
-          assignedById: s.userId,
-          sourceMeetingNoteId: s.meetingId!,
-          status: 'PENDING',
-          priority: 'MEDIUM',
-          dueDate: item.dueDate,
-        })),
-      });
+      for (const item of activeItems) {
+        await createTask(
+          s.associationId,
+          {
+            title: item.title,
+            description: item.description ?? null,
+            assignedToUserId: item.assignedToUserId!,
+            sourceMeetingNoteId: s.meetingId!,
+            priority: 'MEDIUM',
+            dueDate: item.dueDate?.toISOString() ?? null,
+            reminderAt: item.dueDate ? reminderAtForDueDate(item.dueDate).toISOString() : null,
+            reminderFrequency: 'ONCE',
+          },
+          s.userId,
+        );
+      }
 
-      console.log('[BOT] mtl:ai-save - tasks created:', created.count);
+      console.log('[BOT] mtl:ai-save - tasks created:', activeItems.length);
 
       sessions.delete(fromId);
       await ctx.answerCbQuery('Kaydedildi');
       await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
-      return ctx.reply(
-        `✅ ${created.count} görev başarıyla kaydedildi!\n\nWeb panelinden "Görevlerim" sayfasında görebilirsin.`,
-      );
+      const linkedCount = activeItems.filter((item) =>
+        s.members?.some(
+          (member) => member.userId === item.assignedToUserId && member.telegramLinked,
+        ),
+      ).length;
+      const unlinkedNames = activeItems
+        .map((item) => s.members?.find((member) => member.userId === item.assignedToUserId))
+        .filter((member) => member && !member.telegramLinked)
+        .map((member) => member!.fullName);
+      let resultMessage =
+        `✅ ${activeItems.length} görev kaydedildi.\n\n` +
+        `${linkedCount} görev için Telegram kabul/itiraz mesajı gönderiliyor.`;
+      if (unlinkedNames.length > 0) {
+        resultMessage +=
+          `\n\n⚠️ Telegram hesabı bağlı olmadığı için mesaj alamayanlar: ` +
+          [...new Set(unlinkedNames)].join(', ');
+      }
+      return ctx.reply(resultMessage);
     } catch (err) {
       console.error('[BOT] mtl:ai-save - error:', err);
       const msg = err instanceof Error ? err.message : String(err);
       return ctx.reply(`❌ Kaydetme başarısız: ${msg}`);
     }
   });
+}
+
+function defaultMeetingTaskDueDate(now = new Date()): Date {
+  const due = new Date(now);
+  due.setUTCDate(due.getUTCDate() + 7);
+  due.setUTCHours(17, 0, 0, 0); // 20:00 Europe/Istanbul
+  return due;
+}
+
+function reminderAtForDueDate(dueDate: Date, now = new Date()): Date {
+  const oneDayBefore = new Date(dueDate.getTime() - 24 * 60 * 60 * 1000);
+  if (oneDayBefore.getTime() > now.getTime()) return oneDayBefore;
+
+  const shortlyAfterNow = new Date(now.getTime() + 5 * 60 * 1000);
+  return shortlyAfterNow.getTime() < dueDate.getTime() ? shortlyAfterNow : now;
 }
 
 function parseTurkishDateText(text: string | null | undefined, ref: Date): Date | null {

@@ -43,6 +43,15 @@ const SNOOZE_PRESET_DELTAS: Record<string, { ms: number; label: string }> = {
   w1: { ms: 7 * DAY_MS, label: '1 hafta' },
 };
 
+interface DisputeResolutionSession {
+  taskId: string;
+  members: Array<{ userId: string; fullName: string; telegramLinked: boolean }>;
+  expiresAt: number;
+}
+
+const disputeSessions = new Map<number, DisputeResolutionSession>();
+const DISPUTE_SESSION_TTL_MS = 15 * 60 * 1000;
+
 @Injectable()
 export class TasksBotIntegration implements OnModuleInit {
   private readonly logger = new Logger(TasksBotIntegration.name);
@@ -69,10 +78,12 @@ export class TasksBotIntegration implements OnModuleInit {
           description: input.description ?? undefined,
           assignedToUserId: input.assignedToUserId,
           priority: input.priority,
-          reminderFrequency: 'NONE',
+          reminderFrequency: input.reminderFrequency ?? 'NONE',
           dueDate: input.dueDate ?? undefined,
+          reminderAt: input.reminderAt ?? undefined,
         } as unknown as CreateTaskInput,
         { id: actingUserId } as unknown as AuthenticatedUser,
+        input.sourceMeetingNoteId,
       );
       return {
         id: created.id,
@@ -282,6 +293,62 @@ export class TasksBotIntegration implements OnModuleInit {
           .editMessageText('❌ İtiraz iletildi.\nYöneticinin görevi yeniden atamasını bekliyoruz.')
           .catch(() => undefined);
         await ctx.answerCbQuery('İtiraz iletildi');
+      });
+    });
+
+    bot.action(/^task_resolve:(.+)$/, async (ctx) => {
+      const taskId = ctx.match[1];
+      const telegramId = ctx.from?.id;
+      if (!telegramId) return ctx.answerCbQuery('Hesap tanınmadı');
+
+      await this.handleWithUser(ctx, async (userId) => {
+        const options = await this.tasks.getDisputeResolutionOptions(taskId, userId);
+        disputeSessions.set(telegramId, {
+          taskId,
+          members: options.members,
+          expiresAt: Date.now() + DISPUTE_SESSION_TTL_MS,
+        });
+
+        const buttons = options.members.map((member, index) => ({
+          text: `${member.telegramLinked ? '📨' : '⚠️'} ${index + 1}. ${member.fullName}`,
+          callback_data: `task_rpick:${index}`,
+        }));
+        const rows: Array<Array<{ text: string; callback_data: string }>> = [];
+        for (let i = 0; i < buttons.length; i += 2) rows.push(buttons.slice(i, i + 2));
+
+        await ctx
+          .reply('👤 Yeni sorumluyu seç\n\n📨 Telegram bağlı · ⚠️ Telegram bağlı değil', {
+            reply_markup: { inline_keyboard: rows },
+          })
+          .catch(() => undefined);
+        await ctx.answerCbQuery();
+      });
+    });
+
+    bot.action(/^task_rpick:(\d+)$/, async (ctx) => {
+      const telegramId = ctx.from?.id;
+      if (!telegramId) return ctx.answerCbQuery('Hesap tanınmadı');
+      const session = disputeSessions.get(telegramId);
+      if (!session || session.expiresAt <= Date.now()) {
+        disputeSessions.delete(telegramId);
+        return ctx.answerCbQuery('Seçim süresi doldu', { show_alert: true });
+      }
+
+      const member = session.members[Number(ctx.match[1])];
+      if (!member) return ctx.answerCbQuery('Geçersiz seçim');
+
+      await this.handleWithUser(ctx, async (userId) => {
+        await this.tasks.resolveDisputeViaBot(session.taskId, member.userId, userId);
+        disputeSessions.delete(telegramId);
+        await ctx
+          .editMessageText(
+            `✅ Görev ${member.fullName} kişisine yeniden atandı.` +
+              (member.telegramLinked
+                ? '\nKabul/itiraz mesajı gönderiliyor.'
+                : '\n⚠️ Telegram hesabı bağlı olmadığı için bildirim gönderilemedi.'),
+          )
+          .catch(() => undefined);
+        await ctx.answerCbQuery('Yeniden atandı');
       });
     });
 

@@ -10,7 +10,6 @@ import {
 import { getMe } from '@/lib/api/me';
 import { canManageMembers } from '@/lib/permissions';
 import { FinanceDashboard } from './_components/finance-dashboard';
-import { DonationCategoryManager } from './_components/donation-category-manager';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -43,17 +42,15 @@ export default async function FinancePage({ params }: Props) {
     const canManage = canManageMembers(me, associationId);
 
     return (
-      <div className="space-y-8">
-        <FinanceDashboard
-          associationId={associationId}
-          summary={summary}
-          transactions={transactions}
-          categories={categories}
-          monthlyStats={monthlyStats}
-          report={report}
-        />
-        <DonationCategoryManager associationId={associationId} canManage={canManage} />
-      </div>
+      <FinanceDashboard
+        associationId={associationId}
+        summary={summary}
+        transactions={transactions}
+        categories={categories}
+        monthlyStats={monthlyStats}
+        report={report}
+        canManageCategories={canManage}
+      />
     );
   } catch {
     return notFound();

@@ -29,14 +29,11 @@ export function formatAssignmentMessage(
 ): string {
   const title = escapeMarkdown(task.title);
   const due = escapeMarkdown(formatDate(task.dueDate));
-  const priority = escapeMarkdown(
-    PRIORITY_LABELS[task.priority] ?? task.priority,
-  );
-  const descLine = task.description
-    ? `\n${escapeMarkdown(task.description.slice(0, 300))}`
-    : '';
-  const byLine = assignedBy
-    ? `\n👤 Atayan: ${escapeMarkdown(assignedBy)}`
+  const priority = escapeMarkdown(PRIORITY_LABELS[task.priority] ?? task.priority);
+  const descLine = task.description ? `\n${escapeMarkdown(task.description.slice(0, 300))}` : '';
+  const byLine = assignedBy ? `\n👤 Atayan: ${escapeMarkdown(assignedBy)}` : '';
+  const sourceLine = task.sourceMeetingTitle
+    ? `\n📝 Kaynak: ${escapeMarkdown(task.sourceMeetingTitle)}`
     : '';
 
   return (
@@ -44,6 +41,7 @@ export function formatAssignmentMessage(
     `*${title}*${descLine}\n\n` +
     `📅 Bitiş: ${due}\n` +
     `⚡ Öncelik: ${priority}` +
-    byLine
+    byLine +
+    sourceLine
   );
 }
