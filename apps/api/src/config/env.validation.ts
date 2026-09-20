@@ -136,5 +136,10 @@ export const envSchema = z
 export type Env = z.infer<typeof envSchema>;
 
 export function validateEnv(input: NodeJS.ProcessEnv = process.env): Env {
-  return envSchema.parse(input);
+  const result = envSchema.safeParse(input);
+  if (result.success) return result.data;
+
+  const errors = result.error.flatten();
+  console.error('Environment validation failed:', JSON.stringify(errors, null, 2));
+  process.exit(1);
 }

@@ -6,6 +6,7 @@ describe('TasksBotIntegration environment isolation', () => {
       isEnabled: jest.fn(() => false),
       getBot: jest.fn(),
       setTaskCreatePort: jest.fn(),
+      setTaskCreateManyPort: jest.fn(),
     };
     const integration = new TasksBotIntegration(
       bot as never,
@@ -18,5 +19,6 @@ describe('TasksBotIntegration environment isolation', () => {
 
     expect(bot.getBot).not.toHaveBeenCalled();
     expect(bot.setTaskCreatePort).not.toHaveBeenCalled();
+    expect(bot.setTaskCreateManyPort).not.toHaveBeenCalled();
   });
 });

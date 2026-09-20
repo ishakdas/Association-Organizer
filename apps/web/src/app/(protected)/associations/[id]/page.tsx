@@ -52,7 +52,7 @@ export default async function AssociationDetailPage({ params, searchParams }: Pr
             <DetailTabs
               defaultValue={section ?? 'dashboard'}
               dashboard={<DashboardSection associationId={a.id} />}
-              finans={<FinanceSection associationId={a.id} />}
+              finans={<FinanceSection associationId={a.id} canManageCategories={canManageRoster} />}
               ayarlar={<GeneralSection a={a} />}
               uyeler={
                 <RosterSection
@@ -61,7 +61,13 @@ export default async function AssociationDetailPage({ params, searchParams }: Pr
                   canManageManager={canManageManagerCard}
                 />
               }
-              gorevler={<TasksSection associationId={a.id} canManage={canCreateWork} currentUserId={me?.id} />}
+              gorevler={
+                <TasksSection
+                  associationId={a.id}
+                  canManage={canCreateWork}
+                  currentUserId={me?.id}
+                />
+              }
               toplantilar={<MeetingsSection associationId={a.id} canManage={canCreateWork} />}
               telegram={<TelegramSection associationId={a.id} canManage={canManageRoster} />}
               yetkiler={<PermissionsSection associationId={a.id} />}
@@ -80,7 +86,7 @@ export default async function AssociationDetailPage({ params, searchParams }: Pr
         <div className="mt-8">
           <SectionRouter
             dashboard={<DashboardSection associationId={a.id} />}
-            finans={<FinanceSection associationId={a.id} />}
+            finans={<FinanceSection associationId={a.id} canManageCategories={canManageRoster} />}
             uyeler={
               <RosterSection
                 associationId={a.id}

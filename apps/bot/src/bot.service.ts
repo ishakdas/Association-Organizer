@@ -47,12 +47,19 @@ export type BotTaskCreatePort = (
   actingUserId: string,
 ) => Promise<BotCreatedTask>;
 
+export type BotTaskCreateManyPort = (
+  associationId: string,
+  inputs: BotTaskCreateInput[],
+  actingUserId: string,
+) => Promise<BotCreatedTask[]>;
+
 @Injectable()
 export class BotService implements OnModuleInit, OnModuleDestroy {
   private bot: Telegraf | null = null;
   private readonly logger = new Logger(BotService.name);
   private polling = false;
   private taskCreatePort: BotTaskCreatePort | null = null;
+  private taskCreateManyPort: BotTaskCreateManyPort | null = null;
 
   constructor(
     private readonly config: ConfigService,
@@ -74,13 +81,13 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     registerStartCommand(bot, this.config, this.prisma);
     registerLinkCommand(bot, this.prisma);
     registerHelpCommand(bot);
-    const createMeetingTask = (
+    const createMeetingTasks = (
       associationId: string,
-      input: BotTaskCreateInput,
+      inputs: BotTaskCreateInput[],
       actingUserId: string,
-    ) => this.createTask(associationId, input, actingUserId);
-    registerMeetingWizard(bot, this.prisma, this.aiService, createMeetingTask);
-    registerMeetingListCommand(bot, this.prisma, this.aiService, createMeetingTask);
+    ) => this.createTasks(associationId, inputs, actingUserId);
+    registerMeetingWizard(bot, this.prisma, this.aiService, createMeetingTasks);
+    registerMeetingListCommand(bot, this.prisma, this.aiService, createMeetingTasks);
     registerTaskListCommand(bot, this.prisma);
     registerFinanceWizard(bot, this.prisma);
     registerTaskCreateWizard(bot, this.prisma, this);
@@ -199,6 +206,10 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
     this.taskCreatePort = port;
   }
 
+  setTaskCreateManyPort(port: BotTaskCreateManyPort): void {
+    this.taskCreateManyPort = port;
+  }
+
   // Create a task through the API's TasksService (reminder jobs, atama
   // klavyesi, üyelik kontrolü dahil). Throws if the API hasn't wired the
   // port — the bot always runs inside the API process, so that is a bug.
@@ -211,6 +222,17 @@ export class BotService implements OnModuleInit, OnModuleDestroy {
       throw new Error('Görev oluşturma servisi hazır değil');
     }
     return this.taskCreatePort(associationId, input, actingUserId);
+  }
+
+  async createTasks(
+    associationId: string,
+    inputs: BotTaskCreateInput[],
+    actingUserId: string,
+  ): Promise<BotCreatedTask[]> {
+    if (!this.taskCreateManyPort) {
+      throw new Error('Toplu görev oluşturma servisi hazır değil');
+    }
+    return this.taskCreateManyPort(associationId, inputs, actingUserId);
   }
 
   async sendToUser(userId: string, text: string, opts?: SendToUserOptions): Promise<boolean> {

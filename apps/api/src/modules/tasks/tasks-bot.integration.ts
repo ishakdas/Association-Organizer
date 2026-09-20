@@ -49,8 +49,12 @@ interface DisputeResolutionSession {
   expiresAt: number;
 }
 
-const disputeSessions = new Map<number, DisputeResolutionSession>();
+const disputeSessions = new Map<string, DisputeResolutionSession>();
 const DISPUTE_SESSION_TTL_MS = 15 * 60 * 1000;
+
+function disputeSessionKey(telegramId: number, taskId: string): string {
+  return `${telegramId}:${taskId}`;
+}
 
 @Injectable()
 export class TasksBotIntegration implements OnModuleInit {
@@ -91,6 +95,30 @@ export class TasksBotIntegration implements OnModuleInit {
         dueDate: created.dueDate ?? null,
         assignedTo: created.assignedTo ?? null,
       };
+    });
+    this.botService.setTaskCreateManyPort(async (associationId, inputs, actingUserId) => {
+      const created = await this.tasks.createManyFromMeeting(
+        associationId,
+        inputs.map((input) => ({
+          input: {
+            title: input.title,
+            description: input.description ?? undefined,
+            assignedToUserId: input.assignedToUserId,
+            priority: input.priority,
+            reminderFrequency: input.reminderFrequency ?? 'NONE',
+            dueDate: input.dueDate ?? undefined,
+            reminderAt: input.reminderAt ?? undefined,
+          } as unknown as CreateTaskInput,
+          sourceMeetingNoteId: input.sourceMeetingNoteId,
+        })),
+        { id: actingUserId } as unknown as AuthenticatedUser,
+      );
+      return created.map((task) => ({
+        id: task.id,
+        title: task.title,
+        dueDate: task.dueDate ?? null,
+        assignedTo: task.assignedTo ?? null,
+      }));
     });
 
     bot.action(/^task_done:(.+)$/, async (ctx) => {
@@ -303,7 +331,7 @@ export class TasksBotIntegration implements OnModuleInit {
 
       await this.handleWithUser(ctx, async (userId) => {
         const options = await this.tasks.getDisputeResolutionOptions(taskId, userId);
-        disputeSessions.set(telegramId, {
+        disputeSessions.set(disputeSessionKey(telegramId, taskId), {
           taskId,
           members: options.members,
           expiresAt: Date.now() + DISPUTE_SESSION_TTL_MS,
@@ -311,7 +339,7 @@ export class TasksBotIntegration implements OnModuleInit {
 
         const buttons = options.members.map((member, index) => ({
           text: `${member.telegramLinked ? '📨' : '⚠️'} ${index + 1}. ${member.fullName}`,
-          callback_data: `task_rpick:${index}`,
+          callback_data: `task_rpick:${taskId}:${index}`,
         }));
         const rows: Array<Array<{ text: string; callback_data: string }>> = [];
         for (let i = 0; i < buttons.length; i += 2) rows.push(buttons.slice(i, i + 2));
@@ -325,21 +353,23 @@ export class TasksBotIntegration implements OnModuleInit {
       });
     });
 
-    bot.action(/^task_rpick:(\d+)$/, async (ctx) => {
+    bot.action(/^task_rpick:([^:]+):(\d+)$/, async (ctx) => {
       const telegramId = ctx.from?.id;
       if (!telegramId) return ctx.answerCbQuery('Hesap tanınmadı');
-      const session = disputeSessions.get(telegramId);
+      const taskId = ctx.match[1];
+      const sessionKey = disputeSessionKey(telegramId, taskId);
+      const session = disputeSessions.get(sessionKey);
       if (!session || session.expiresAt <= Date.now()) {
-        disputeSessions.delete(telegramId);
+        disputeSessions.delete(sessionKey);
         return ctx.answerCbQuery('Seçim süresi doldu', { show_alert: true });
       }
 
-      const member = session.members[Number(ctx.match[1])];
+      const member = session.members[Number(ctx.match[2])];
       if (!member) return ctx.answerCbQuery('Geçersiz seçim');
 
       await this.handleWithUser(ctx, async (userId) => {
         await this.tasks.resolveDisputeViaBot(session.taskId, member.userId, userId);
-        disputeSessions.delete(telegramId);
+        disputeSessions.delete(sessionKey);
         await ctx
           .editMessageText(
             `✅ Görev ${member.fullName} kişisine yeniden atandı.` +

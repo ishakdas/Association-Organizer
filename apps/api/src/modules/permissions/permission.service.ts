@@ -4,7 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { PrismaService, PermissionAction, Prisma, UserRole } from '@ticketbot/database';
+import {
+  PrismaService,
+  PermissionAction,
+  PermissionSource,
+  Prisma,
+  UserRole,
+} from '@ticketbot/database';
 import type { AuthenticatedUser } from '@ticketbot/shared-types';
 
 export interface UserPermissionSummary {
@@ -37,7 +43,14 @@ export class PermissionService {
   ): Promise<void> {
     const client: PrismaLike = tx ?? this.prisma;
     await client.permission.createMany({
-      data: [{ associationId, userId, action: PermissionAction.USE_TASK_COMMANDS }],
+      data: [
+        {
+          associationId,
+          userId,
+          action: PermissionAction.USE_TASK_COMMANDS,
+          source: PermissionSource.MEMBERSHIP,
+        },
+      ],
       skipDuplicates: true,
     });
   }
@@ -75,6 +88,7 @@ export class PermissionService {
           associationId,
           userId,
           action: { in: staleActions },
+          source: PermissionSource.TITLE,
         },
       });
     }
@@ -85,6 +99,7 @@ export class PermissionService {
           associationId,
           userId,
           action,
+          source: PermissionSource.TITLE,
         })),
         skipDuplicates: true,
       });
@@ -148,7 +163,7 @@ export class PermissionService {
       where: { associationId, userId },
       select: { action: true },
     });
-    return rows.map((r) => r.action);
+    return Array.from(new Set(rows.map((r) => r.action)));
   }
 
   async getAssociationPermissionSummary(associationId: string): Promise<UserPermissionSummary[]> {
@@ -173,7 +188,7 @@ export class PermissionService {
     const permissionMap = new Map<string, PermissionAction[]>();
     for (const p of permissions) {
       const existing = permissionMap.get(p.userId) ?? [];
-      existing.push(p.action);
+      if (!existing.includes(p.action)) existing.push(p.action);
       permissionMap.set(p.userId, existing);
     }
 
@@ -219,10 +234,11 @@ export class PermissionService {
 
     const existing = await this.prisma.permission.findUnique({
       where: {
-        associationId_userId_action: {
+        associationId_userId_action_source: {
           associationId,
           userId,
           action,
+          source: PermissionSource.MANUAL,
         },
       },
     });
@@ -235,6 +251,7 @@ export class PermissionService {
         associationId,
         userId,
         action,
+        source: PermissionSource.MANUAL,
       },
       include: {
         user: { select: { id: true, fullName: true } },
@@ -262,10 +279,11 @@ export class PermissionService {
 
     const permission = await this.prisma.permission.findUnique({
       where: {
-        associationId_userId_action: {
+        associationId_userId_action_source: {
           associationId,
           userId,
           action,
+          source: PermissionSource.MANUAL,
         },
       },
     });
@@ -273,10 +291,11 @@ export class PermissionService {
 
     return this.prisma.permission.delete({
       where: {
-        associationId_userId_action: {
+        associationId_userId_action_source: {
           associationId,
           userId,
           action,
+          source: PermissionSource.MANUAL,
         },
       },
     });
@@ -336,7 +355,11 @@ export class PermissionService {
     desiredActions: PermissionAction[],
     grantedBy: AuthenticatedUser,
   ) {
-    const current = await this.getUserPermissions(associationId, userId);
+    const currentRows = await this.prisma.permission.findMany({
+      where: { associationId, userId, source: PermissionSource.MANUAL },
+      select: { action: true },
+    });
+    const current = currentRows.map((row) => row.action);
 
     const toRevoke = current.filter((a) => !desiredActions.includes(a));
     const toGrant = desiredActions.filter((a) => !current.includes(a));
