@@ -103,6 +103,12 @@ enum PermissionAction {
   VIEW_ALL_MEMBER_TASKS
 }
 
+enum PermissionSource {
+  MANUAL
+  TITLE
+  MEMBERSHIP
+}
+
 // -----------------------------------------------------------------------------
 // Reference: assignable titles (admin-managed)
 // -----------------------------------------------------------------------------
@@ -724,12 +730,13 @@ model Permission {
   associationId String
   userId        String
   action        PermissionAction
+  source        PermissionSource @default(MANUAL)
   grantedAt     DateTime         @default(now())
 
   association   Association      @relation(fields: [associationId], references: [id], onDelete: Cascade)
   user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([associationId, userId, action])
+  @@unique([associationId, userId, action, source])
   @@index([associationId, userId])
   @@map("permissions")
 }

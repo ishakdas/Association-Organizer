@@ -126,4 +126,8 @@ async function bootstrap() {
       });
   }
 }
-bootstrap();
+bootstrap().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`Application startup failed: ${message}`);
+  process.exit(1);
+});

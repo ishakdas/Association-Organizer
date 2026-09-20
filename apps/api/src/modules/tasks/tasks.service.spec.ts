@@ -74,6 +74,7 @@ const validInput = {
 describe('TasksService', () => {
   let service: TasksService;
   let prisma: PrismaMock;
+  let rescheduleTask: jest.Mock;
 
   beforeEach(async () => {
     prisma = mockDeep<PrismaClient>();
@@ -86,10 +87,11 @@ describe('TasksService', () => {
     // Default count to 0 unless overridden in a test.
     prisma.task.count.mockResolvedValue(0 as never);
 
+    rescheduleTask = jest.fn().mockResolvedValue(undefined);
     const schedulerMock = {
       scheduleTask: jest.fn().mockResolvedValue(undefined),
       cancelTask: jest.fn().mockResolvedValue(undefined),
-      rescheduleTask: jest.fn().mockResolvedValue(undefined),
+      rescheduleTask,
       scheduleNextReminder: jest.fn().mockResolvedValue(undefined),
     };
     const botMock = {
@@ -124,6 +126,83 @@ describe('TasksService', () => {
       ],
     }).compile();
     service = moduleRef.get(TasksService);
+  });
+
+  describe('resolveDispute', () => {
+    const disputedTask = {
+      ...sampleTask,
+      disputed: true,
+      disputedAt: new Date('2026-04-25'),
+    };
+
+    it('allows the task creator to resolve a dispute without manager privileges', async () => {
+      prisma.task.findFirst.mockResolvedValue(disputedTask as never);
+      prisma.associationMembership.findFirst.mockResolvedValue({ id: 'membership-2' } as never);
+      prisma.task.update.mockResolvedValue({
+        ...disputedTask,
+        assignedToUserId: 'mem-2',
+        assignedTo: { id: 'mem-2', fullName: 'Yeni Üye' },
+      } as never);
+      prisma.taskActivity.createMany.mockResolvedValue({ count: 2 });
+      jest.spyOn(service as any, 'notifyAssignment').mockResolvedValue(undefined);
+
+      const result = await service.resolveDispute(disputedTask.id, { assignedToUserId: 'mem-2' }, {
+        id: 'sec-1',
+        systemRole: null,
+        memberships: [
+          {
+            id: 'creator-membership',
+            associationId: ASSOC,
+            role: 'ASSOCIATION_MEMBER',
+            isActive: true,
+          },
+        ],
+      } as any);
+
+      expect(result.assignedToUserId).toBe('mem-2');
+      expect(prisma.task.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: disputedTask.id, associationId: ASSOC, deletedAt: null },
+        }),
+      );
+    });
+
+    it('continues assignment notification when rescheduling fails', async () => {
+      prisma.task.findFirst
+        .mockResolvedValueOnce(disputedTask as never)
+        .mockResolvedValueOnce({ assignedToUserId: 'mem-1' } as never);
+      prisma.user.findUnique.mockResolvedValue({ isSystemAdmin: true } as never);
+      prisma.associationMembership.findFirst.mockResolvedValue(null);
+      prisma.associationMembership.findMany.mockResolvedValue([
+        {
+          userId: 'mem-2',
+          user: {
+            fullName: 'Yeni Üye',
+            telegramAccount: { userId: 'mem-2' },
+          },
+        },
+      ] as never);
+      prisma.task.update.mockResolvedValue({
+        ...disputedTask,
+        assignedToUserId: 'mem-2',
+        assignedTo: { id: 'mem-2', fullName: 'Yeni Üye' },
+      } as never);
+      prisma.taskActivity.createMany.mockResolvedValue({ count: 2 });
+      rescheduleTask.mockRejectedValue(new Error('scheduler unavailable'));
+      const notifyAssignment = jest
+        .spyOn(service as any, 'notifyAssignment')
+        .mockResolvedValue(undefined);
+
+      await expect(
+        service.resolveDisputeViaBot(disputedTask.id, 'mem-2', ADMIN_USER.id),
+      ).resolves.toEqual(expect.objectContaining({ assignedToUserId: 'mem-2' }));
+
+      expect(notifyAssignment).toHaveBeenCalledTimes(1);
+      expect(prisma.task.findFirst).toHaveBeenNthCalledWith(2, {
+        where: { id: disputedTask.id, associationId: ASSOC, deletedAt: null },
+        select: { assignedToUserId: true },
+      });
+    });
   });
 
   describe('create', () => {

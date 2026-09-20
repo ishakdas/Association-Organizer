@@ -14,6 +14,7 @@ import {
   TaskActivityAction,
 } from '@ticketbot/database';
 import { addDays } from 'date-fns';
+import { randomUUID } from 'node:crypto';
 import {
   CreateTaskInput,
   ListMyTasksQuery,
@@ -150,6 +151,136 @@ export class TasksService {
       durationHours: null,
       workloadWarning,
     };
+  }
+
+  async createManyFromMeeting(
+    associationId: string,
+    tasks: Array<{ input: CreateTaskInput; sourceMeetingNoteId?: string }>,
+    user: AuthenticatedUser,
+  ) {
+    if (tasks.length === 0) return [];
+
+    const now = new Date();
+    if (tasks.some(({ input }) => input.dueDate && new Date(input.dueDate) < now)) {
+      throw new BadRequestException('Bitiş tarihi geçmiş olamaz');
+    }
+
+    const memberIds = Array.from(
+      new Set(
+        tasks.flatMap(({ input }) =>
+          input.watcherUserId
+            ? [input.assignedToUserId, input.watcherUserId]
+            : [input.assignedToUserId],
+        ),
+      ),
+    );
+    const memberships = await this.prisma.associationMembership.findMany({
+      where: {
+        associationId,
+        userId: { in: memberIds },
+        isActive: true,
+        deletedAt: null,
+      },
+      select: { userId: true },
+    });
+    const validMemberIds = new Set(memberships.map((membership) => membership.userId));
+    if (memberIds.some((userId) => !validMemberIds.has(userId))) {
+      throw new BadRequestException('Atanan kişi bu derneğin aktif üyesi değil');
+    }
+
+    const telegramAccounts = await this.prisma.telegramAccount.findMany({
+      where: { userId: { in: memberIds } },
+      select: { userId: true },
+    });
+    const telegramUserIds = new Set(telegramAccounts.map((account) => account.userId));
+    const rows = tasks.map(({ input, sourceMeetingNoteId }) => ({
+      id: randomUUID(),
+      associationId,
+      title: input.title,
+      description: input.description ?? null,
+      assignedToUserId: input.assignedToUserId,
+      assignedById: user.id,
+      watcherUserId: input.watcherUserId ?? null,
+      priority: input.priority,
+      reminderFrequency: input.reminderFrequency,
+      dueDate: input.dueDate ? new Date(input.dueDate) : null,
+      reminderAt: input.reminderAt ? new Date(input.reminderAt) : null,
+      sourceMeetingNoteId: sourceMeetingNoteId ?? null,
+    }));
+
+    const created = await this.prisma.$transaction(async (tx) => {
+      await tx.task.createMany({ data: rows });
+      await tx.taskActivity.createMany({
+        data: rows.map((task) => ({
+          taskId: task.id,
+          actorId: user.id,
+          action: TaskActivityAction.CREATED,
+          payload: {
+            assigneeId: task.assignedToUserId,
+            watcherId: task.watcherUserId,
+            priority: task.priority,
+            dueDate: task.dueDate?.toISOString() ?? null,
+          },
+        })),
+      });
+      return tx.task.findMany({
+        where: { id: { in: rows.map((task) => task.id) }, associationId, deletedAt: null },
+        include: {
+          assignedBy: { select: { id: true, fullName: true } },
+          watcher: { select: { id: true, fullName: true } },
+          assignedTo: { select: { id: true, fullName: true } },
+          sourceMeetingNote: { select: { title: true } },
+        },
+      });
+    });
+
+    const createdById = new Map(created.map((task) => [task.id, task]));
+    const ordered = rows.map((row) => createdById.get(row.id)!);
+
+    await Promise.all(
+      ordered.map(async (task) => {
+        try {
+          await this.scheduler.scheduleTask({
+            id: task.id,
+            dueDate: task.dueDate,
+            reminderAt: task.reminderAt,
+          });
+        } catch (err) {
+          this.logger.warn(
+            `Failed to schedule reminders for task ${task.id}: ${(err as Error).message}`,
+          );
+        }
+      }),
+    );
+
+    await Promise.all(
+      ordered.map(async (task) => {
+        if (telegramUserIds.has(task.assignedToUserId)) {
+          await this.notifyAssignment(task);
+          return;
+        }
+        try {
+          await this.prisma.taskActivity.create({
+            data: {
+              taskId: task.id,
+              actorId: task.assignedById,
+              action: TaskActivityAction.ASSIGNED_NOTIFIED,
+              payload: { channel: 'telegram', delivered: false, reason: 'no_telegram' },
+            },
+          });
+        } catch (err) {
+          this.logger.warn(
+            `Activity log failed for no-telegram assignment ${task.id}: ${(err as Error).message}`,
+          );
+        }
+      }),
+    );
+
+    return ordered.map((task) => ({
+      ...task,
+      durationHours: null,
+      workloadWarning: null,
+    }));
   }
 
   private async getWorkloadWarning(associationId: string, userId: string): Promise<string | null> {
@@ -834,21 +965,12 @@ export class TasksService {
 
     await this.ensureAssigneeIsMember(task.associationId, input.assignedToUserId);
 
-    return this.update(taskId, { assignedToUserId: input.assignedToUserId }, user).then(
-      async (updated) => {
-        await this.prisma.taskActivity.create({
-          data: {
-            taskId,
-            actorId: user.id,
-            action: TaskActivityAction.REASSIGNMENT_RESOLVED,
-            payload: {
-              previousAssignee: task.assignedToUserId,
-              newAssignee: input.assignedToUserId,
-            },
-          },
-        });
-        return updated;
-      },
+    return this.reassignDisputedTask(
+      taskId,
+      task.associationId,
+      task.assignedToUserId,
+      input.assignedToUserId,
+      user.id,
     );
   }
 
@@ -1267,13 +1389,33 @@ export class TasksService {
       throw new BadRequestException('Seçilen kişi aktif bir dernek üyesi değil');
     }
 
-    const existing = await this.prisma.task.findUniqueOrThrow({
-      where: { id: taskId },
+    const existing = await this.prisma.task.findFirst({
+      where: { id: taskId, associationId: options.associationId, deletedAt: null },
       select: { assignedToUserId: true },
     });
+    if (!existing) throw new NotFoundException('Görev bulunamadı');
+
+    return this.reassignDisputedTask(
+      taskId,
+      options.associationId,
+      existing.assignedToUserId,
+      newAssigneeId,
+      actingUserId,
+      'telegram',
+    );
+  }
+
+  private async reassignDisputedTask(
+    taskId: string,
+    associationId: string,
+    previousAssigneeId: string,
+    newAssigneeId: string,
+    actingUserId: string,
+    via?: 'telegram',
+  ) {
     const updated = await this.prisma.$transaction(async (tx) => {
       const next = await tx.task.update({
-        where: { id: taskId },
+        where: { id: taskId, associationId, deletedAt: null },
         data: {
           assignedToUserId: newAssigneeId,
           disputed: false,
@@ -1293,16 +1435,20 @@ export class TasksService {
             taskId,
             actorId: actingUserId,
             action: TaskActivityAction.REASSIGNED,
-            payload: { from: existing.assignedToUserId, to: newAssigneeId, via: 'telegram' },
+            payload: {
+              from: previousAssigneeId,
+              to: newAssigneeId,
+              ...(via && { via }),
+            },
           },
           {
             taskId,
             actorId: actingUserId,
             action: TaskActivityAction.REASSIGNMENT_RESOLVED,
             payload: {
-              previousAssignee: existing.assignedToUserId,
+              previousAssignee: previousAssigneeId,
               newAssignee: newAssigneeId,
-              via: 'telegram',
+              ...(via && { via }),
             },
           },
         ],
@@ -1310,13 +1456,21 @@ export class TasksService {
       return next;
     });
 
-    await this.scheduler.rescheduleTask({
-      id: updated.id,
-      dueDate: updated.dueDate,
-      reminderAt: updated.reminderAt,
-    });
+    try {
+      await this.scheduler.rescheduleTask({
+        id: updated.id,
+        dueDate: updated.dueDate,
+        reminderAt: updated.reminderAt,
+      });
+    } catch (err) {
+      this.logger.warn(`Failed to reschedule task ${updated.id}: ${(err as Error).message}`);
+    }
     void this.notifyAssignment(updated);
-    return updated;
+    return {
+      ...updated,
+      durationHours: this.computeDurationHours(updated),
+      workloadWarning: null,
+    };
   }
 
   async getAssignmentBotContext(taskId: string, actingUserId: string) {

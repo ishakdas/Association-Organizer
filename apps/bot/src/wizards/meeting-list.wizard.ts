@@ -44,9 +44,9 @@ interface MeetingTaskCreateInput {
 
 type MeetingTaskCreatePort = (
   associationId: string,
-  input: MeetingTaskCreateInput,
+  inputs: MeetingTaskCreateInput[],
   actingUserId: string,
-) => Promise<{ id: string }>;
+) => Promise<Array<{ id: string }>>;
 
 function fmtDate(iso: string): string {
   const d = new Date(iso);
@@ -90,7 +90,7 @@ export function registerMeetingListCommand(
   bot: Telegraf,
   prisma: PrismaService,
   aiService: AiService,
-  createTask: MeetingTaskCreatePort,
+  createTasks: MeetingTaskCreatePort,
 ) {
   bot.command('toplantilarim', async (ctx) => {
     const fromId = ctx.from?.id;
@@ -167,7 +167,16 @@ export function registerMeetingListCommand(
     if (!account) return ctx.answerCbQuery('Hesap bağlı değil');
 
     const meeting = await prisma.meetingNote.findFirst({
-      where: { id: meetingId, deletedAt: null },
+      where: {
+        id: meetingId,
+        deletedAt: null,
+        association: {
+          deletedAt: null,
+          memberships: {
+            some: { userId: account.userId, isActive: true, deletedAt: null },
+          },
+        },
+      },
       include: {
         association: { select: { id: true, name: true } },
         attendees: true,
@@ -735,29 +744,20 @@ export function registerMeetingListCommand(
     }
 
     try {
-      console.log('[BOT] mtl:ai-save - creating tasks:', activeItems.length);
-      console.log('[BOT] mtl:ai-save - associationId:', s.associationId);
-      console.log('[BOT] mtl:ai-save - assignedById:', s.userId);
-      console.log('[BOT] mtl:ai-save - sourceMeetingNoteId:', s.meetingId);
-
-      for (const item of activeItems) {
-        await createTask(
-          s.associationId,
-          {
-            title: item.title,
-            description: item.description ?? null,
-            assignedToUserId: item.assignedToUserId!,
-            sourceMeetingNoteId: s.meetingId!,
-            priority: 'MEDIUM',
-            dueDate: item.dueDate?.toISOString() ?? null,
-            reminderAt: item.dueDate ? reminderAtForDueDate(item.dueDate).toISOString() : null,
-            reminderFrequency: 'ONCE',
-          },
-          s.userId,
-        );
-      }
-
-      console.log('[BOT] mtl:ai-save - tasks created:', activeItems.length);
+      await createTasks(
+        s.associationId,
+        activeItems.map((item) => ({
+          title: item.title,
+          description: item.description ?? null,
+          assignedToUserId: item.assignedToUserId!,
+          sourceMeetingNoteId: s.meetingId!,
+          priority: 'MEDIUM',
+          dueDate: item.dueDate?.toISOString() ?? null,
+          reminderAt: item.dueDate ? reminderAtForDueDate(item.dueDate).toISOString() : null,
+          reminderFrequency: 'ONCE',
+        })),
+        s.userId,
+      );
 
       sessions.delete(fromId);
       await ctx.answerCbQuery('Kaydedildi');

@@ -118,9 +118,9 @@ interface MeetingTaskCreateInput {
 
 type MeetingTaskCreatePort = (
   associationId: string,
-  input: MeetingTaskCreateInput,
+  inputs: MeetingTaskCreateInput[],
   actingUserId: string,
-) => Promise<{ id: string }>;
+) => Promise<Array<{ id: string }>>;
 
 interface AIActionItem {
   index: number;
@@ -254,15 +254,19 @@ async function assertMeetingAccess(
   userId: string,
   associationId: string,
 ): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { isSystemAdmin: true },
+  });
+  if (user?.isSystemAdmin) return true;
+
   const membership = await prisma.associationMembership.findFirst({
     where: {
       userId,
       associationId,
       isActive: true,
       deletedAt: null,
-      role: {
-        in: [UserRole.SYSTEM_ADMIN, UserRole.ASSOCIATION_MANAGER, UserRole.ASSOCIATION_SECRETARY],
-      },
+      role: { in: [UserRole.ASSOCIATION_MANAGER, UserRole.ASSOCIATION_SECRETARY] },
     },
   });
   if (membership) return true;
@@ -517,7 +521,7 @@ async function persistMeeting(prisma: PrismaService, s: MeetingWizardSession) {
   });
 }
 
-async function persistAITasks(createTask: MeetingTaskCreatePort, s: MeetingWizardSession) {
+async function persistAITasks(createTasks: MeetingTaskCreatePort, s: MeetingWizardSession) {
   const items = (s.aiActionItems ?? []).filter((i) => !i.removed);
   const tasksToCreate = items
     .filter((i) => i.assignedToUserId !== null)
@@ -534,9 +538,7 @@ async function persistAITasks(createTask: MeetingTaskCreatePort, s: MeetingWizar
 
   if (tasksToCreate.length === 0) return 0;
 
-  for (const task of tasksToCreate) {
-    await createTask(s.associationId!, task, s.userId);
-  }
+  await createTasks(s.associationId!, tasksToCreate, s.userId);
   return tasksToCreate.length;
 }
 
@@ -558,7 +560,7 @@ export function registerMeetingWizard(
   bot: Telegraf,
   prisma: PrismaService,
   aiService: AiService,
-  createTask: MeetingTaskCreatePort,
+  createTasks: MeetingTaskCreatePort,
 ) {
   console.log('[WIZARD] registerMeetingWizard called - AI flow enabled');
   bot.hears(/^\/toplant[ıi](?:@\w+)?(?:\s|$)/i, async (ctx) => {
@@ -1265,7 +1267,7 @@ export function registerMeetingWizard(
     await ctx.editMessageReplyMarkup(undefined).catch(() => undefined);
 
     try {
-      const count = await persistAITasks(createTask, s);
+      const count = await persistAITasks(createTasks, s);
       sessions.delete(fromId);
 
       const activeItems = (s.aiActionItems ?? []).filter((i) => !i.removed);

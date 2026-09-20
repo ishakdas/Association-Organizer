@@ -19,7 +19,13 @@ interface FinanceData {
   report: Awaited<ReturnType<typeof getReport>>;
 }
 
-export function FinanceSection({ associationId }: { associationId: string }) {
+export function FinanceSection({
+  associationId,
+  canManageCategories,
+}: {
+  associationId: string;
+  canManageCategories: boolean;
+}) {
   const [data, setData] = useState<FinanceData | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -68,13 +74,14 @@ export function FinanceSection({ associationId }: { associationId: string }) {
   }
 
   return (
-      <FinanceDashboard
-        associationId={associationId}
-        summary={data.summary}
+    <FinanceDashboard
+      associationId={associationId}
+      summary={data.summary}
       transactions={data.transactions}
       categories={data.categories}
       monthlyStats={data.monthlyStats}
       report={data.report}
+      canManageCategories={canManageCategories}
     />
   );
 }

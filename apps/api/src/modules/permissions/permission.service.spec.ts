@@ -1,5 +1,10 @@
 import { mockDeep, type DeepMockProxy } from 'jest-mock-extended';
-import { PermissionAction, PrismaClient, PrismaService } from '@ticketbot/database';
+import {
+  PermissionAction,
+  PermissionSource,
+  PrismaClient,
+  PrismaService,
+} from '@ticketbot/database';
 import { PermissionService } from './permission.service';
 
 describe('PermissionService title-derived permissions', () => {
@@ -23,6 +28,7 @@ describe('PermissionService title-derived permissions', () => {
         associationId: 'association-1',
         userId: 'user-1',
         action: { in: [PermissionAction.USE_MEETING_COMMANDS] },
+        source: PermissionSource.TITLE,
       },
     });
     expect(prisma.permission.createMany).toHaveBeenCalledWith({
@@ -31,6 +37,7 @@ describe('PermissionService title-derived permissions', () => {
           associationId: 'association-1',
           userId: 'user-1',
           action: PermissionAction.USE_FINANCE_COMMANDS,
+          source: PermissionSource.TITLE,
         },
       ],
       skipDuplicates: true,
@@ -48,6 +55,7 @@ describe('PermissionService title-derived permissions', () => {
         action: {
           in: [PermissionAction.USE_MEETING_COMMANDS, PermissionAction.USE_FINANCE_COMMANDS],
         },
+        source: PermissionSource.TITLE,
       },
     });
     expect(prisma.permission.createMany).not.toHaveBeenCalled();
